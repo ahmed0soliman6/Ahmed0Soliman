@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper: Is user authenticated via Firebase Auth?
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: Is the authenticated user a verified Admin?
+    // Checks strictly that a document exists at /admins/{request.auth.uid}
+    // (First admin document /admins/{uid} is provisioned manually via Firebase Console)
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Helper: Validate Document ID format (prevents ID poisoning)
+    function isValidId(id) {
+      return id is string &&
+        id.size() >= 1 &&
+        id.size() <= 128 &&
+        id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper: Validate bilingual text object { ar: string, en: string }
+    function isValidBilingual(obj, maxLen) {
+      return obj is map &&
+        obj.keys().hasAll(['ar', 'en']) &&
+        obj.ar is string && obj.ar.size() <= maxLen &&
+        obj.en is string && obj.en.size() <= maxLen;
+    }
+
+    // Helper: Base content record validation (id, slug, published, createdAt, updatedAt)
+    function hasValidBaseContentFields(data) {
+      return data.id is string && data.id.size() <= 128 &&
+        data.published is bool &&
+        data.createdAt is string && data.createdAt.size() <= 64 &&
+        data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    // 1. Admins Collection (/admins/{adminUid})
+    // First admin is added manually via Firebase Console.
+    // Client SDK users are strictly forbidden from creating, modifying, or deleting admin documents.
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && (request.auth.uid == adminUid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 2. Site Settings Collection (/siteSettings/{settingId})
+    // Public can read global published site settings; Admin-only settings docs are protected.
+    match /siteSettings/{settingId} {
+      allow get, list: if (resource.data.published == true && settingId == 'global') || isAdmin();
+      allow create, update: if isValidId(settingId) && isAdmin() &&
+        request.resource.data.published is bool;
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // 3. Pages Collection (/pages/{pageId})
+    match /pages/{pageId} {
+      allow get, list: if resource.data.published == true || isAdmin();
+      allow create, update: if isValidId(pageId) && isAdmin() &&
+        hasValidBaseContentFields(request.resource.data) &&
+        isValidBilingual(request.resource.data.title, 300);
+      allow delete: if isValidId(pageId) && isAdmin();
+    }
+
+    // 4. Projects Collection (/projects/{projectId})
+    match /projects/{projectId} {
+      allow get, list: if resource.data.published == true || isAdmin();
+      allow create, update: if isValidId(projectId) && isAdmin() &&
+        hasValidBaseContentFields(request.resource.data) &&
+        request.resource.data.slug is string &&
+        request.resource.data.slug.size() >= 1 &&
+        request.resource.data.slug.size() <= 128 &&
+        isValidBilingual(request.resource.data.title, 300);
+      allow delete: if isValidId(projectId) && isAdmin();
+    }
+
+    // 5. Clinics Collection (/clinics/{clinicId})
+    match /clinics/{clinicId} {
+      allow get, list: if resource.data.published == true || isAdmin();
+      allow create, update: if isValidId(clinicId) && isAdmin() &&
+        hasValidBaseContentFields(request.resource.data) &&
+        request.resource.data.slug is string &&
+        request.resource.data.slug.size() >= 1 &&
+        request.resource.data.slug.size() <= 128 &&
+        isValidBilingual(request.resource.data.name, 300);
+      allow delete: if isValidId(clinicId) && isAdmin();
+    }
+
+    // 6. Doctors Collection (/doctors/{doctorId})
+    match /doctors/{doctorId} {
+      allow get, list: if resource.data.published == true || isAdmin();
+      allow create, update: if isValidId(doctorId) && isAdmin() &&
+        hasValidBaseContentFields(request.resource.data) &&
+        request.resource.data.clinicId is string &&
+        isValidBilingual(request.resource.data.name, 300);
+      allow delete: if isValidId(doctorId) && isAdmin();
+    }
+
+    // 7. Services & Pricing Collection (/services/{serviceId})
+    match /services/{serviceId} {
+      allow get, list: if resource.data.published == true || isAdmin();
+      allow create, update: if isValidId(serviceId) && isAdmin() &&
+        hasValidBaseContentFields(request.resource.data) &&
+        request.resource.data.clinicId is string &&
+        request.resource.data.price is number &&
+        request.resource.data.price >= 0 &&
+        isValidBilingual(request.resource.data.name, 300);
+      allow delete: if isValidId(serviceId) && isAdmin();
+    }
+
+    // 8. Articles / Blog Collection (/articles/{articleId})
+    match /articles/{articleId} {
+      allow get, list: if resource.data.published == true || isAdmin();
+      allow create, update: if isValidId(articleId) && isAdmin() &&
+        hasValidBaseContentFields(request.resource.data) &&
+        request.resource.data.slug is string &&
+        request.resource.data.slug.size() >= 1 &&
+        request.resource.data.slug.size() <= 128 &&
+        isValidBilingual(request.resource.data.title, 400);
+      allow delete: if isValidId(articleId) && isAdmin();
+    }
+
+    // 9. Cloudinary Media Registry (/media/{mediaId})
+    // Protected for Admin management only; stores publicId & secureUrl
+    match /media/{mediaId} {
+      allow get, list: if isAdmin();
+      allow create, update: if isValidId(mediaId) && isAdmin() &&
+        request.resource.data.publicId is string &&
+        request.resource.data.secureUrl is string;
+      allow delete: if isValidId(mediaId) && isAdmin();
+    }
+  }
+}

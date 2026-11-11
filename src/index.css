@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-arabic: 'IBM Plex Sans Arabic', sans-serif;
+    --font-display: 'Plus Jakarta Sans', 'IBM Plex Sans Arabic', sans-serif;
+    --font-body: 'DM Sans', 'IBM Plex Sans Arabic', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --accent-turquoise: #00C2CB;
+    --accent-turquoise-hover: #0099A3;
+    --navy-deep: #070E1A;
+    --navy-surface: #0F172A;
+  }
+
+  html[lang="ar"] body {
+    font-family: var(--font-arabic);
+  }
+
+  html[lang="en"] body {
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  .font-mono-tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes ripple-expand {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3.2);
+    opacity: 0;
+  }
+}
+
+.click-ripple-circle {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(0, 194, 203, 0.4) 0%, rgba(0, 194, 203, 0) 70%);
+  width: 48px;
+  height: 48px;
+  z-index: 9998;
+  animation: ripple-expand 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
