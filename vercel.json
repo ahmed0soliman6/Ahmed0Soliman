@@ -43,7 +43,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/index.js"
     },
     {
       "source": "/((?!api/|assets/|favicon.ico|robots.txt|sitemap.xml).*)",

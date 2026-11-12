@@ -3,13 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import {
-  initializeApp as initializeAdminApp,
-  getApps as getAdminApps,
-  cert,
-} from 'firebase-admin/app';
-import { getAuth as getAdminAuth } from 'firebase-admin/auth';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { INITIAL_PLATFORM_DATA } from './src/data/initialSeedData';
 import { PlatformDatabase } from './src/types/cms';
 import {
@@ -22,7 +15,9 @@ import {
   validateImageUploadFile,
 } from './src/lib/validationSchemas';
 
-dotenv.config();
+if (!process.env.VERCEL) {
+  dotenv.config();
+}
 
 const PORT = 3000;
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -119,8 +114,17 @@ export function getPublicFirebaseClientConfigFromEnv() {
   };
 }
 
-export function getFirebaseAdminVerificationServices():
+export type AdminServiceResolution =
   | { ready: true; deps: FirebaseAdminVerificationDeps }
+  | { ready: false; code: string; error: string };
+
+export function checkFirebaseAdminEnvConfig():
+  | {
+      ready: true;
+      ownerUid: string;
+      ownerEmail: string;
+      serviceAccount: Record<string, any>;
+    }
   | { ready: false; code: string; error: string } {
   const ownerUid =
     cleanEnvValue(process.env.ADMIN_OWNER_UID) ||
@@ -135,7 +139,7 @@ export function getFirebaseAdminVerificationServices():
       ready: false,
       code: 'ADMIN_OWNER_UID_NOT_CONFIGURED',
       error:
-        'Server secret ADMIN_OWNER_UID (or VITE_ADMIN_OWNER_UID) is not configured. Please add it in Vercel / server environment variables.',
+        'Server secret ADMIN_OWNER_UID or ADMIN_OWNER_EMAIL is not configured. Please add it in Vercel / server environment variables.',
     };
   }
 
@@ -149,69 +153,104 @@ export function getFirebaseAdminVerificationServices():
     };
   }
 
-  const existingApps = getAdminApps();
-  const adminApp =
-    existingApps.length > 0
-      ? existingApps[0]
-      : initializeAdminApp({ credential: cert(serviceAccount as any) });
-
-  const adminAuth = getAdminAuth(adminApp);
-  const databaseId =
-    cleanEnvValue(process.env.FIREBASE_DATABASE_ID) ||
-    cleanEnvValue(process.env.VITE_FIREBASE_DATABASE_ID) ||
-    '(default)';
-  const adminDb =
-    databaseId && databaseId !== '(default)'
-      ? getAdminFirestore(adminApp, databaseId)
-      : getAdminFirestore(adminApp);
-
   return {
     ready: true,
-    deps: {
-      ownerUid,
-      ownerEmail: ownerEmail || undefined,
-      verifyIdToken: async (idToken: string) => {
-        const decoded = await adminAuth.verifyIdToken(idToken, true);
-        return {
-          uid: decoded.uid,
-          email: decoded.email,
-          email_verified: decoded.email_verified,
-          name: typeof decoded.name === 'string' ? decoded.name : undefined,
-        };
-      },
-      hasAdminDocument: async (uid: string) => {
-        const docRef = adminDb.collection('admins').doc(uid);
-        const snap = await docRef.get();
-        if (snap.exists) {
-          const data = snap.data();
-          return {
-            exists: true,
-            disabled: Boolean(data?.disabled === true),
-          };
-        }
-        // Server-side Admin SDK bootstrap for the verified Owner account on first sign-in / new UID creation
-        const userRecord = await adminAuth.getUser(uid);
-        const verifiedEmail = (userRecord.email || '').trim().toLowerCase();
-        const targetOwnerEmail = ownerEmail || OWNER_EMAIL || 'ahmed0soliman6@gmail.com';
-        if (userRecord.emailVerified && verifiedEmail === targetOwnerEmail) {
-          await docRef.set(
-            {
-              id: uid,
-              uid,
-              email: verifiedEmail,
-              name: userRecord.displayName || 'Ahmed Soliman',
-              role: 'owner',
-              disabled: false,
-              createdAt: new Date().toISOString(),
-            },
-            { merge: true }
-          );
-          return { exists: true, disabled: false };
-        }
-        return { exists: false, disabled: false };
-      },
-    },
+    ownerUid,
+    ownerEmail,
+    serviceAccount,
   };
+}
+
+export async function getFirebaseAdminVerificationServices(): Promise<AdminServiceResolution> {
+  const envCheck = checkFirebaseAdminEnvConfig();
+  if (!envCheck.ready) {
+    return envCheck;
+  }
+
+  const { ownerUid, ownerEmail, serviceAccount } = envCheck;
+
+  try {
+    const [
+      { initializeApp: initializeAdminApp, getApps: getAdminApps, cert },
+      { getAuth: getAdminAuth },
+      { getFirestore: getAdminFirestore },
+    ] = await Promise.all([
+      import('firebase-admin/app'),
+      import('firebase-admin/auth'),
+      import('firebase-admin/firestore'),
+    ]);
+
+    const existingApps = getAdminApps();
+    const adminApp =
+      existingApps.length > 0
+        ? existingApps[0]
+        : initializeAdminApp({ credential: cert(serviceAccount as any) });
+
+    const adminAuth = getAdminAuth(adminApp);
+    const databaseId =
+      cleanEnvValue(process.env.FIREBASE_DATABASE_ID) ||
+      cleanEnvValue(process.env.VITE_FIREBASE_DATABASE_ID) ||
+      '(default)';
+    const adminDb =
+      databaseId && databaseId !== '(default)'
+        ? getAdminFirestore(adminApp, databaseId)
+        : getAdminFirestore(adminApp);
+
+    return {
+      ready: true,
+      deps: {
+        ownerUid,
+        ownerEmail: ownerEmail || undefined,
+        verifyIdToken: async (idToken: string) => {
+          const decoded = await adminAuth.verifyIdToken(idToken, true);
+          return {
+            uid: decoded.uid,
+            email: decoded.email,
+            email_verified: decoded.email_verified,
+            name: typeof decoded.name === 'string' ? decoded.name : undefined,
+          };
+        },
+        hasAdminDocument: async (uid: string) => {
+          const docRef = adminDb.collection('admins').doc(uid);
+          const snap = await docRef.get();
+          if (snap.exists) {
+            const data = snap.data();
+            return {
+              exists: true,
+              disabled: Boolean(data?.disabled === true),
+            };
+          }
+          // Server-side Admin SDK bootstrap for the verified Owner account on first sign-in / new UID creation
+          const userRecord = await adminAuth.getUser(uid);
+          const verifiedEmail = (userRecord.email || '').trim().toLowerCase();
+          const targetOwnerEmail = ownerEmail || OWNER_EMAIL || 'ahmed0soliman6@gmail.com';
+          if (userRecord.emailVerified && verifiedEmail === targetOwnerEmail) {
+            await docRef.set(
+              {
+                id: uid,
+                uid,
+                email: verifiedEmail,
+                name: userRecord.displayName || 'Ahmed Soliman',
+                role: 'owner',
+                disabled: false,
+                createdAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+            return { exists: true, disabled: false };
+          }
+          return { exists: false, disabled: false };
+        },
+      },
+    };
+  } catch (err: any) {
+    console.error('Firebase Admin SDK initialization failed:', err);
+    return {
+      ready: false,
+      code: 'FIREBASE_ADMIN_INIT_FAILED',
+      error: `Firebase Admin SDK initialization failed: ${err?.message || 'Unknown error'}`,
+    };
+  }
 }
 
 // Active verified Admin sessions (token -> session record with expiration)
@@ -281,6 +320,7 @@ function verifySignedAdminSessionToken(token: string): AdminSession | null {
 }
 
 function cleanTemporaryChatAttachments(): void {
+  if (process.env.VERCEL) return;
   try {
     const aistudioDir = path.resolve(process.cwd(), 'public', 'assets', 'aistudio');
     if (!fs.existsSync(aistudioDir)) return;
@@ -551,9 +591,7 @@ export function requireAdminMiddleware(req: Request, res: Response, next: NextFu
 }
 
 export function createAdminLoginHandler(
-  resolveDeps: () =>
-    | { ready: true; deps: FirebaseAdminVerificationDeps }
-    | { ready: false; code: string; error: string } = getFirebaseAdminVerificationServices
+  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = getFirebaseAdminVerificationServices
 ) {
   return async (req: Request, res: Response): Promise<void> => {
     const clientIp = req.ip || 'local';
@@ -581,7 +619,7 @@ export function createAdminLoginHandler(
       return;
     }
 
-    const serviceResolution = resolveDeps();
+    const serviceResolution = await resolveDeps();
     if (!serviceResolution.ready) {
       res.status(503).json({
         error: serviceResolution.error,
@@ -694,14 +732,12 @@ export function createAdminLoginHandler(
 
 export function registerAuthRoutes(
   app: express.Express,
-  resolveDeps: () =>
-    | { ready: true; deps: FirebaseAdminVerificationDeps }
-    | { ready: false; code: string; error: string } = getFirebaseAdminVerificationServices
+  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = getFirebaseAdminVerificationServices
 ): void {
   // Public endpoint returning ONLY non-secret Firebase Web SDK config at runtime
   app.get('/api/auth/firebase-config', (_req: Request, res: Response) => {
     const pubConfig = getPublicFirebaseClientConfigFromEnv();
-    const adminSdkStatus = resolveDeps();
+    const adminSdkStatus = checkFirebaseAdminEnvConfig();
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.json({
       ...pubConfig,
@@ -1282,14 +1318,14 @@ export function createExpressApp(): express.Express {
           en: 'Admin Login, Firebase ID Token Verification, Role Enforcement & Logout Invalidation',
         },
         passed:
-          getFirebaseAdminVerificationServices().ready && activeSessions.size >= 1,
+          checkFirebaseAdminEnvConfig().ready && activeSessions.size >= 1,
         details: {
-          ar: getFirebaseAdminVerificationServices().ready
-            ? 'حزمة Firebase Admin SDK وADMIN_OWNER_UID مفعّلة على الخادم مع مطابقة /admins/{uid} وإبطال الجلسة فور الخروج.'
-            : 'يرجى ضبط متغيرات FIREBASE_SERVICE_ACCOUNT_JSON وADMIN_OWNER_UID على الخادم لتفعيل التحقق التشفيري من Firebase ID Token.',
-          en: getFirebaseAdminVerificationServices().ready
-            ? 'Firebase Admin SDK & ADMIN_OWNER_UID are active with Firestore /admins/{uid} verification and instant logout revocation.'
-            : 'Configure FIREBASE_SERVICE_ACCOUNT_JSON and ADMIN_OWNER_UID server secrets to enable cryptographic Firebase ID Token verification.',
+          ar: checkFirebaseAdminEnvConfig().ready
+            ? 'حزمة Firebase Admin SDK وبيانات المالك مفعّلة على الخادم مع مطابقة /admins/{uid} وإبطال الجلسة فور الخروج.'
+            : 'يرجى ضبط متغيرات FIREBASE_SERVICE_ACCOUNT_JSON وADMIN_OWNER_EMAIL على الخادم لتفعيل التحقق التشفيري من Firebase ID Token.',
+          en: checkFirebaseAdminEnvConfig().ready
+            ? 'Firebase Admin SDK & owner verification are active with Firestore /admins/{uid} check and instant logout revocation.'
+            : 'Configure FIREBASE_SERVICE_ACCOUNT_JSON and ADMIN_OWNER_EMAIL server secrets to enable cryptographic Firebase ID Token verification.',
         },
       },
       {
@@ -1370,7 +1406,7 @@ export function createExpressApp(): express.Express {
         id: 'SEC-03',
         area: 'Firebase ID Token & Admin UID Verification',
         severity: 'Critical',
-        status: getFirebaseAdminVerificationServices().ready ? 'SECURE' : 'ATTENTION_REQUIRED',
+        status: checkFirebaseAdminEnvConfig().ready ? 'SECURE' : 'ATTENTION_REQUIRED',
         finding: {
           ar: 'يتحقق الخادم من Firebase ID Token عبر Firebase Admin SDK، ويطابق UID مع ADMIN_OWNER_UID ووثيقة /admins/{uid} دون الاعتماد على أي UID أو Email من المتصفح.',
           en: 'Server cryptographically verifies Firebase ID Token via Firebase Admin SDK and checks both ADMIN_OWNER_UID and Firestore /admins/{uid}.',
