@@ -1,44 +1,56 @@
 import React, { useState } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
+import { OWNER_ADMIN_EMAIL } from '../../lib/firebaseClient';
 import {
   Sun,
   Moon,
   Globe,
   ShieldCheck,
-  Edit3,
   ExternalLink,
-  Menu,
-  X,
-  Phone,
-  MessageCircle,
-  Send,
   LogOut,
   Eye,
-  Layout,
-  CheckCircle2,
-  AlertCircle,
-  Info,
+  Menu,
+  X,
+  MessageCircle,
+  Send,
+  Home,
+  Lock,
+  Sparkles,
+  AlertTriangle,
+  LayoutDashboard,
 } from 'lucide-react';
+
+export type PageVisualWorld =
+  | 'home-avoshu'
+  | 'about-editorial'
+  | 'projects-indigo'
+  | 'clinics-teal'
+  | 'blog-magazine'
+  | 'soli-showcase'
+  | 'admin-saas';
 
 interface LayoutResolverProps {
   children: React.ReactNode;
+  pageWorld?: PageVisualWorld;
   forceStandalone?: boolean;
-  standaloneContext?: {
-    title: string;
-    subtitle?: string;
-    whatsappUrl?: string;
-    phone?: string;
-    ctaLabel?: string;
-    editPath?: string;
-  };
+  standaloneTitle?: string;
+  standaloneSubtitle?: string;
+  standaloneCtaLabel?: string;
+  standaloneCtaHref?: string;
+  standaloneAccentColor?: string;
   adminQuickEditPath?: string;
 }
 
 export const LayoutResolver: React.FC<LayoutResolverProps> = ({
   children,
+  pageWorld = 'home-avoshu',
   forceStandalone = false,
-  standaloneContext,
-  adminQuickEditPath,
+  standaloneTitle,
+  standaloneSubtitle,
+  standaloneCtaLabel,
+  standaloneCtaHref,
+  standaloneAccentColor = '#0D9488',
+  adminQuickEditPath = '/admin',
 }) => {
   const {
     locale,
@@ -50,546 +62,917 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
     navigate,
     db,
     adminSession,
+    loginAsOwnerAdmin,
     logoutAdmin,
+    isFirebaseConnected,
     toasts,
     dismissToast,
   } = usePlatform();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [quickAdminModalOpen, setQuickAdminModalOpen] = useState(false);
+  const [loginEmail, setLoginEmail] = useState(OWNER_ADMIN_EMAIL);
+  const [loginUid, setLoginUid] = useState('owner-ahmed-soliman');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  const isStandaloneQuery =
-    searchParams.get('standalone') === '1' || searchParams.get('mode') === 'landing';
-  const isStandalone = forceStandalone || isStandaloneQuery;
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  const isStandaloneQuery =
+    searchParams.get('standalone') === '1' || searchParams.get('mode') === 'standalone';
+  const isStandalone = !isAdminRoute && (forceStandalone || isStandaloneQuery);
 
   const settings = db.siteSettings;
-  const brandName = settings.brandName[locale] || 'Ahmed Soliman';
 
-  const navItems = [
+  const isPagePublished = (slugId: string) => {
+    const found = db.pages.find((p) => p.slug === slugId || p.id === slugId);
+    return found ? found.published !== false : true;
+  };
+
+  const currentRoutePageSlug = pathname.includes('/about')
+    ? 'about'
+    : pathname.includes('/solimedical')
+    ? 'solimedical'
+    : pathname.includes('/projects')
+    ? 'projects'
+    : pathname.includes('/clinics')
+    ? 'clinics'
+    : pathname.includes('/blog')
+    ? 'blog'
+    : 'home';
+
+  const isCurrentPageHidden = !isAdminRoute && !isPagePublished(currentRoutePageSlug);
+
+  const allNavItems = [
     {
-      label: locale === 'ar' ? 'الرئيسية' : 'Home',
+      id: 'home',
+      label: locale === 'ar' ? 'الرئيسية' : 'HOME',
       href: `/${locale}`,
-      active: pathname === '/' || pathname === `/${locale}`,
+      match: (p: string) => p === '/' || p === `/${locale}` || p === `/${locale}/`,
     },
     {
-      label: locale === 'ar' ? 'من أنا' : 'About',
+      id: 'about',
+      label: locale === 'ar' ? 'من أنا' : 'ABOUT',
       href: `/${locale}/about`,
-      active: pathname === `/${locale}/about`,
+      match: (p: string) => p.includes('/about'),
     },
     {
-      label: locale === 'ar' ? 'المشروعات' : 'Projects',
+      id: 'projects',
+      label: locale === 'ar' ? 'المشروعات' : 'PORTFOLIO',
       href: `/${locale}/projects`,
-      active: pathname.startsWith(`/${locale}/projects`),
+      match: (p: string) => p.includes('/projects') || p.includes('/solimedical'),
     },
     {
-      label: locale === 'ar' ? 'العيادات' : 'Clinics',
+      id: 'clinics',
+      label: locale === 'ar' ? 'العيادات' : 'CLINICS',
       href: `/${locale}/clinics`,
-      active: pathname.startsWith(`/${locale}/clinics`),
+      match: (p: string) => p.includes('/clinics'),
     },
     {
-      label: locale === 'ar' ? 'المقالات' : 'Blog',
+      id: 'blog',
+      label: locale === 'ar' ? 'المقالات' : 'BLOG',
       href: `/${locale}/blog`,
-      active: pathname.startsWith(`/${locale}/blog`),
+      match: (p: string) => p.includes('/blog'),
     },
   ];
 
-  // Toast Overlay (shared across all layouts)
-  const renderToasts = () => (
-    <div className="fixed bottom-5 end-5 z-[9990] flex flex-col gap-2.5 max-w-md w-full px-4 pointer-events-none">
-      {toasts.map((t) => (
-        <div
-          key={t.id}
-          className={`pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl border shadow-lg backdrop-blur-md transition-all ${
-            t.type === 'error'
-              ? 'bg-red-950/95 border-red-700 text-red-100'
-              : t.type === 'info'
-              ? 'bg-slate-900/95 border-slate-700 text-slate-100'
-              : 'bg-slate-900/95 border-[#00C2CB]/50 text-white'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-sm font-medium">
-            {t.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            ) : t.type === 'info' ? (
-              <Info className="w-4 h-4 text-[#00C2CB] shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-[#00C2CB] shrink-0" />
-            )}
-            <span>{t.text}</span>
-          </div>
-          <button
-            onClick={() => dismissToast(t.id)}
-            className="text-xs text-slate-400 hover:text-white px-1.5 py-0.5"
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-    </div>
-  );
+  const navItems = allNavItems.filter((item) => adminSession || isPagePublished(item.id));
 
-  // Admin Floating Control Bar when logged-in Admin browses Public or Standalone pages
-  const renderAdminFloatingOverlay = () => {
-    if (!adminSession || isAdminRoute) return null;
-    return (
-      <div className="bg-[#070E1A] text-slate-100 border-b border-[#00C2CB]/30 px-4 sm:px-8 py-2 text-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 font-semibold text-[#00C2CB]">
-              <ShieldCheck className="w-4 h-4" />
-              {locale === 'ar' ? 'وضع المدير المعتمد:' : 'Verified Admin Mode:'}
-            </span>
-            <span className="text-slate-300 font-mono-tabular">{adminSession.email}</span>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            {adminQuickEditPath && (
-              <button
-                onClick={() => navigate(adminQuickEditPath)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#00C2CB]/15 text-[#00C2CB] hover:bg-[#00C2CB]/25 border border-[#00C2CB]/30 font-medium transition-colors whitespace-nowrap shrink-0"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'تعديل هذه الصفحة' : 'Edit This Page'}</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                const nextParams = new URLSearchParams(searchParams);
-                if (isStandalone) {
-                  nextParams.delete('standalone');
-                  nextParams.delete('mode');
-                } else {
-                  nextParams.set('standalone', '1');
-                }
-                const qs = nextParams.toString();
-                navigate(`${pathname}${qs ? `?${qs}` : ''}`);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors whitespace-nowrap shrink-0"
-            >
-              <Eye className="w-3.5 h-3.5 text-[#00C2CB]" />
-              <span>
-                {isStandalone
-                  ? locale === 'ar'
-                    ? 'عرض الموقع الكامل'
-                    : 'Switch to Public Layout'
-                  : locale === 'ar'
-                  ? 'معاينة العرض المستقل'
-                  : 'Preview Standalone Layout'}
-              </span>
-            </button>
-
-            <button
-              onClick={() => navigate('/admin')}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#00C2CB] text-slate-950 font-semibold hover:bg-[#0099A3] transition-colors whitespace-nowrap shrink-0"
-            >
-              <Layout className="w-3.5 h-3.5" />
-              <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
-            </button>
-
-            <button
-              onClick={logoutAdmin}
-              title={locale === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  const handleToggleLocale = () => {
+    const nextLocale = locale === 'ar' ? 'en' : 'ar';
+    setLocale(nextLocale);
   };
 
-  // ---------------------------------------------------------------------------
-  // MODE 3: ADMIN CMS LAYOUT (Handled inside AdminDashboard component)
-  // ---------------------------------------------------------------------------
-  if (isAdminRoute) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#070E1A] text-slate-900 dark:text-slate-100">
-        {children}
-        {renderToasts()}
-      </div>
-    );
-  }
+  const handleExitStandalone = () => {
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.delete('standalone');
+    nextParams.delete('mode');
+    const queryStr = nextParams.toString();
+    navigate(`${pathname}${queryStr ? `?${queryStr}` : ''}`);
+  };
 
-  // ---------------------------------------------------------------------------
-  // MODE 2: STANDALONE LANDING LAYOUT (Section 6)
-  // Used for clinic landing pages or standalone profile pages when visited directly
-  // or via campaign links (?standalone=1). Displays NO main site navigation.
-  // ---------------------------------------------------------------------------
-  if (isStandalone) {
-    const standaloneTitle = standaloneContext?.title || brandName;
-    const standaloneWhatsapp = standaloneContext?.whatsappUrl || settings.whatsappUrl;
-    const standalonePhone = standaloneContext?.phone || '';
-    const standaloneCta =
-      standaloneContext?.ctaLabel ||
-      (locale === 'ar' ? 'تواصل واحجز عبر واتساب' : 'Book via WhatsApp');
+  const handleAdminButtonClick = () => {
+    if (adminSession) {
+      navigate('/admin');
+    } else {
+      setQuickAdminModalOpen(true);
+    }
+  };
 
-    return (
-      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#070E1A] text-slate-900 dark:text-slate-100 transition-colors">
-        {renderAdminFloatingOverlay()}
+  React.useEffect(() => {
+    const onOpenAdminModal = () => {
+      if (adminSession) {
+        navigate('/admin');
+      } else {
+        setQuickAdminModalOpen(true);
+      }
+    };
+    window.addEventListener('open-quick-admin-modal', onOpenAdminModal);
+    return () => window.removeEventListener('open-quick-admin-modal', onOpenAdminModal);
+  }, [adminSession, navigate]);
 
-        {/* Standalone Focused Header: Only Entity Brand + Language/Theme + Direct Contact CTA */}
-        <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#070E1A]/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white truncate">
-                {standaloneTitle}
+  const handleQuickAdminSubmit = async (e: React.FormEvent, useFirebasePopup = false) => {
+    e.preventDefault();
+    setLoginError(null);
+    setLoginLoading(true);
+    try {
+      await loginAsOwnerAdmin({
+        email: loginEmail,
+        uid: loginUid,
+        useFirebasePopup,
+      });
+      setQuickAdminModalOpen(false);
+      navigate('/admin');
+    } catch (err: any) {
+      setLoginError(err?.message || 'Access denied');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // World-specific root background & text styling so each page has its own distinct visual identity
+  const getWorldContainerClasses = () => {
+    if (isAdminRoute) {
+      return 'bg-[#F4F6FA] dark:bg-[#070E1A] text-slate-900 dark:text-slate-100';
+    }
+    switch (pageWorld) {
+      case 'home-avoshu':
+        return theme === 'light'
+          ? 'bg-[#E2E4E9] text-[#1E2024] selection:bg-[#1E2024] selection:text-white'
+          : 'bg-[#2C3135] text-[#F1F3F5] selection:bg-[#00D4FF] selection:text-slate-950';
+      case 'about-editorial':
+        return 'bg-[#FFFFFF] text-[#111111] selection:bg-zinc-900 selection:text-white';
+      case 'projects-indigo':
+        return 'bg-[#080B1A] text-white selection:bg-[#7C3AED] selection:text-white';
+      case 'clinics-teal':
+        return 'bg-[#F2FBF9] text-[#0F172A] selection:bg-[#0D9488] selection:text-white';
+      case 'blog-magazine':
+        return 'bg-[#F5F4EF] text-[#18181B] selection:bg-[#18181B] selection:text-white';
+      case 'soli-showcase':
+        return 'bg-[#040D12] text-[#F0F9FF] selection:bg-[#00D4FF] selection:text-slate-950';
+      default:
+        return 'bg-slate-50 dark:bg-[#070E1A] text-slate-900 dark:text-slate-100';
+    }
+  };
+
+  // Render Page-Specific Top Header ONLY when Admin is logged in (visitors see inner pages as 100% standalone without platform header or Admin links)
+  const renderWorldHeader = () => {
+    if (isAdminRoute) return null;
+
+    // Visitors who are NOT logged in as Admin do NOT see the top header containing other pages or Admin Dashboard on inner pages
+    if (!adminSession) {
+      return null;
+    }
+
+    // 1. Strict Standalone Mode for Clinic Landing Pages
+    if (isStandalone) {
+      return (
+        <header className="sticky top-0 z-40 h-16 px-4 sm:px-8 bg-white/95 backdrop-blur-md border-b border-teal-500/20 flex items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <span
+              className="w-3 h-3 rounded-full shrink-0"
+              style={{ backgroundColor: standaloneAccentColor }}
+            />
+            <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 truncate">
+              {standaloneTitle || settings.brandName[locale]}
+            </span>
+            {standaloneSubtitle && (
+              <span className="hidden md:inline-block text-xs text-slate-500 truncate">
+                · {standaloneSubtitle}
               </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleToggleLocale}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-700 hover:border-teal-500 transition-colors whitespace-nowrap shrink-0"
+            >
+              {locale === 'ar' ? 'EN' : 'عربي'}
+            </button>
+
+            <a
+              href={standaloneCtaHref || settings.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ backgroundColor: standaloneAccentColor }}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 shadow-sm"
+            >
+              {standaloneCtaLabel || (locale === 'ar' ? 'احجز موعدك الآن' : 'Book Appointment')}
+            </a>
+          </div>
+        </header>
+      );
+    }
+
+    // 2. WORLD 2: ABOUT PAGE ('about-editorial' — akhilakrishnan Pure Gallery White style)
+    if (pageWorld === 'about-editorial') {
+      return (
+        <header className="sticky top-0 z-40 bg-[#FFFFFF]/95 backdrop-blur-md border-b border-zinc-200/80">
+          <div className="max-w-7xl mx-auto h-20 px-4 sm:px-10 flex items-center justify-between gap-6">
+            {/* Minimal gallery navigation links */}
+            <div className="flex items-center gap-6">
+              <button
+                type="button"
+                onClick={() => navigate(`/${locale}`)}
+                className="text-sm font-black tracking-tight text-zinc-900 hover:opacity-70 transition-opacity whitespace-nowrap shrink-0"
+              >
+                {locale === 'ar' ? 'أحمد سليمان' : 'AHMED SOLIMAN'}
+              </button>
+
+              <nav className="hidden md:flex items-center gap-5">
+                {navItems.map((item) => {
+                  const active = item.match(pathname);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.href)}
+                      className={`text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                        active
+                          ? 'text-zinc-950 underline underline-offset-8 decoration-2'
+                          : 'text-zinc-500 hover:text-zinc-900'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
 
+            {/* Right: Circular Black Home Icon (exact akhilakrishnan reference) + Admin & Lang */}
             <div className="flex items-center gap-2.5 shrink-0">
               <button
-                onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] transition-colors whitespace-nowrap shrink-0"
+                type="button"
+                onClick={handleToggleLocale}
+                className="px-3 py-1.5 rounded-full text-xs font-bold border border-zinc-300 text-zinc-800 hover:bg-zinc-100 transition-colors"
               >
-                <Globe className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'English' : 'العربية'}</span>
+                {locale === 'ar' ? 'EN' : 'عربي'}
               </button>
 
               <button
-                onClick={toggleTheme}
-                aria-label={locale === 'ar' ? 'تبديل المظهر' : 'Toggle theme'}
-                className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] transition-colors shrink-0"
+                type="button"
+                onClick={handleAdminButtonClick}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-zinc-300 transition-colors whitespace-nowrap shrink-0"
               >
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                <Lock className="w-3.5 h-3.5" />
+                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
               </button>
 
-              {standalonePhone && (
-                <a
-                  href={`tel:${standalonePhone}`}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-[#00C2CB] transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Phone className="w-3.5 h-3.5 text-[#00C2CB]" />
-                  <span className="font-mono-tabular">{standalonePhone}</span>
-                </a>
-              )}
-
-              <a
-                href={standaloneWhatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] transition-colors whitespace-nowrap shrink-0"
+              <button
+                type="button"
+                onClick={() => navigate(`/${locale}`)}
+                title={locale === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
+                className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors shadow-sm"
               >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>{standaloneCta}</span>
-              </a>
+                <Home className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-full border border-zinc-300 text-zinc-900"
+              >
+                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
             </div>
           </div>
         </header>
+      );
+    }
 
-        <main className="flex-1">{children}</main>
+    // 3. WORLD 3: PROJECTS PAGE ('projects-indigo' — Deep Indigo & Violet Developer Showcase)
+    if (pageWorld === 'projects-indigo') {
+      return (
+        <header className="sticky top-0 z-40 h-18 px-4 sm:px-8 bg-[#080B1A]/90 backdrop-blur-md border-b border-indigo-500/20">
+          <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
+            <button
+              type="button"
+              onClick={() => navigate(`/${locale}`)}
+              className="text-base sm:text-lg font-black tracking-wider text-white whitespace-nowrap shrink-0 flex items-center gap-2"
+            >
+              <span className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-xs font-mono-tabular text-white">
+                AS
+              </span>
+              <span>{locale === 'ar' ? 'أحمد سليمان · المشروعات' : 'AHMED.PORTFOLIO'}</span>
+            </button>
 
-        {/* Minimal Standalone Footer: Only entity copyright and direct contact channels */}
-        <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#0B1324] py-8 px-4 sm:px-8">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-            <p className="font-medium text-slate-700 dark:text-slate-300">{standaloneTitle}</p>
-            <div className="flex items-center gap-4">
-              <a
-                href={standaloneWhatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-[#00C2CB] transition-colors"
+            <nav className="hidden md:flex items-center gap-1.5 p-1 rounded-full bg-[#121631] border border-indigo-500/25">
+              {navItems.map((item) => {
+                const active = item.match(pathname);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigate(item.href)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                      active
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm'
+                        : 'text-indigo-200/75 hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleLocale}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-500/30 text-indigo-200 hover:border-purple-400 transition-colors"
               >
-                WhatsApp
-              </a>
+                {locale === 'ar' ? 'EN' : 'عربي'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAdminButtonClick}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95 transition-opacity shadow-md shadow-indigo-600/20 whitespace-nowrap shrink-0"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg border border-indigo-500/30 text-white"
+              >
+                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    // 4. WORLD 4: CLINICS DIRECTORY & PORTAL ('clinics-teal' — Bright Clinical Mint & Teal)
+    if (pageWorld === 'clinics-teal') {
+      return (
+        <header className="sticky top-0 z-40 h-18 px-4 sm:px-8 bg-white/95 backdrop-blur-md border-b border-teal-600/15 shadow-xs">
+          <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
+            <button
+              type="button"
+              onClick={() => navigate(`/${locale}`)}
+              className="flex items-center gap-2.5 text-slate-900 font-extrabold text-base sm:text-lg whitespace-nowrap shrink-0"
+            >
+              <span className="w-8 h-8 rounded-xl bg-[#0D9488] text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                +
+              </span>
+              <span>
+                {locale === 'ar' ? 'البوابة الطبية · أحمد سليمان' : 'Medical Clinics Portal'}
+              </span>
+            </button>
+
+            <nav className="hidden md:flex items-center gap-6">
+              {navItems.map((item) => {
+                const active = item.match(pathname);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigate(item.href)}
+                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                      active
+                        ? 'text-[#0D9488] underline underline-offset-8 decoration-2'
+                        : 'text-slate-600 hover:text-[#0D9488]'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleLocale}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-teal-600/25 text-teal-800 hover:bg-teal-50 transition-colors"
+              >
+                {locale === 'ar' ? 'EN' : 'عربي'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAdminButtonClick}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#0D9488] text-white hover:bg-[#0F766E] transition-colors whitespace-nowrap shrink-0 shadow-xs"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-800"
+              >
+                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    // 5. WORLD 5: BLOG & KNOWLEDGE HUB ('blog-magazine' — Warm Daylight Editorial Magazine)
+    if (pageWorld === 'blog-magazine') {
+      return (
+        <header className="sticky top-0 z-40 h-18 px-4 sm:px-8 bg-[#F5F4EF]/95 backdrop-blur-md border-b border-stone-300">
+          <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
+            <button
+              type="button"
+              onClick={() => navigate(`/${locale}`)}
+              className="text-base sm:text-lg font-black tracking-tight text-stone-900 whitespace-nowrap shrink-0 flex items-center gap-2"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-700" />
+              <span>
+                {locale === 'ar' ? 'مجلة المعرفة · أحمد سليمان' : 'THE KNOWLEDGE JOURNAL'}
+              </span>
+            </button>
+
+            <nav className="hidden md:flex items-center gap-6">
+              {navItems.map((item) => {
+                const active = item.match(pathname);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigate(item.href)}
+                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                      active
+                        ? 'text-stone-950 bg-white px-3.5 py-1.5 rounded-full shadow-2xs border border-stone-300'
+                        : 'text-stone-600 hover:text-stone-950'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleLocale}
+                className="px-3 py-1.5 rounded-full text-xs font-bold border border-stone-300 bg-white text-stone-800 hover:border-stone-500 transition-colors"
+              >
+                {locale === 'ar' ? 'EN' : 'عربي'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAdminButtonClick}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-stone-900 text-white hover:bg-stone-800 transition-colors whitespace-nowrap shrink-0"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-full border border-stone-300 text-stone-900"
+              >
+                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    // 6. WORLD 6: SOLI MEDICAL & MEDICAL PROJECTS ('soli-showcase' — solimedical.vercel.app Deep Obsidian-Teal #040D12 & Cyan #00D4FF)
+    if (pageWorld === 'soli-showcase') {
+      return (
+        <header className="sticky top-0 z-40 h-18 px-4 sm:px-8 bg-[#040D12]/90 backdrop-blur-md border-b border-[#00D4FF]/15">
+          <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
+            <button
+              type="button"
+              onClick={() => navigate(`/${locale}`)}
+              className="flex items-center gap-3 text-white font-extrabold text-sm sm:text-base whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#00D4FF] shadow-[0_0_12px_#00D4FF]" />
+              <span>
+                {locale === 'ar'
+                  ? 'أحمد سليمان · الحلول والأنظمة الطبية'
+                  : 'Ahmed Soliman · Medical Systems'}
+              </span>
+            </button>
+
+            <nav className="hidden md:flex items-center gap-6" aria-label="Primary Navigation">
+              {navItems.map((item) => {
+                const active = item.match(pathname);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigate(item.href)}
+                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      active ? 'text-[#00D4FF]' : 'text-slate-300 hover:text-[#00D4FF]'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleLocale}
+                className="px-3 py-1.5 rounded-full text-xs font-bold text-slate-200 border border-[#00D4FF]/25 hover:border-[#00D4FF] transition-colors whitespace-nowrap shrink-0"
+              >
+                {locale === 'ar' ? 'EN' : 'عربي'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAdminButtonClick}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-extrabold bg-gradient-to-r from-[#00D4FF] to-[#38BDF8] text-slate-950 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0 shadow-[0_0_20px_rgba(0,212,255,0.35)] cursor-pointer"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'ADMIN CMS'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-200"
+              >
+                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    // 7. WORLD 1: HOME PAGE ('home-avoshu' — LineStudio.art Neumorphic Console manages its own integrated top bar & dock)
+    return null;
+  };
+
+  return (
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${getWorldContainerClasses()}`}>
+      {/* Toast Feedback Stack */}
+      <div className="fixed top-4 end-4 z-[9990] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl shadow-lg border text-xs font-medium backdrop-blur-md ${
+              t.type === 'error'
+                ? 'bg-red-950/95 border-red-700 text-red-100'
+                : t.type === 'info'
+                ? 'bg-slate-900/95 border-slate-700 text-slate-100'
+                : 'bg-emerald-950/95 border-emerald-600 text-emerald-100'
+            }`}
+          >
+            <span>{t.text}</span>
+            <button
+              onClick={() => dismissToast(t.id)}
+              className="text-slate-400 hover:text-white shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Render the active page's custom header */}
+      {renderWorldHeader()}
+
+      {/* Mobile Navigation Drawer */}
+      {!isAdminRoute && !isStandalone && mobileMenuOpen && (
+        <div className="md:hidden bg-slate-950 text-white border-b border-slate-800 px-4 py-4 space-y-2 z-40">
+          {navItems.map((item) => {
+            const active = item.match(pathname);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate(item.href);
+                }}
+                className={`w-full text-start px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  active ? 'bg-[#00D4FF] text-slate-950' : 'text-slate-300 hover:bg-slate-900'
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              handleAdminButtonClick();
+            }}
+            className="w-full text-start px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-2"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>
+              {locale === 'ar'
+                ? 'فتح لوحة الإدارة (/admin)'
+                : 'Open Admin Dashboard (/admin)'}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Main Content (Protected against hidden pages for unauthenticated visitors) */}
+      <main className="flex-1">
+        {isCurrentPageHidden && !adminSession ? (
+          <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
+            <h1 className="text-2xl font-black">
+              {locale === 'ar'
+                ? 'هذه الصفحة مخفية حالياً من قِبل إدارة المنصة'
+                : 'This Page is Currently Hidden'}
+            </h1>
+            <p className="text-xs sm:text-sm opacity-75 max-w-md">
+              {locale === 'ar'
+                ? 'تم إخفاء هذا القسم مؤقتاً من العرض العام.'
+                : 'This section has been temporarily hidden from public view.'}
+            </p>
+          </div>
+        ) : (
+          children
+        )}
+      </main>
+
+      {/* Public Footer with Prominent Admin Access Button (Shown ONLY when Admin is logged in) */}
+      {Boolean(adminSession) && !isAdminRoute && !isStandalone && pageWorld !== 'home-avoshu' && (
+        <footer
+          className={`border-t py-10 px-4 sm:px-8 text-xs ${
+            pageWorld === 'about-editorial'
+              ? 'bg-zinc-50 border-zinc-200 text-zinc-600'
+              : pageWorld === 'clinics-teal'
+              ? 'bg-white border-teal-600/15 text-slate-600'
+              : pageWorld === 'blog-magazine'
+              ? 'bg-[#EAE8E1] border-stone-300 text-stone-600'
+              : 'bg-[#05070B] border-slate-800/80 text-slate-400'
+          }`}
+        >
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-1.5">
+              <div
+                className={`text-sm font-black tracking-tight ${
+                  pageWorld === 'about-editorial' ||
+                  pageWorld === 'clinics-teal' ||
+                  pageWorld === 'blog-magazine'
+                    ? 'text-slate-900'
+                    : 'text-white'
+                }`}
+              >
+                {settings.ownerName[locale]} — {settings.ownerRole[locale]}
+              </div>
+              <p className="text-xs opacity-80">{settings.location[locale]}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => navigate(item.href)}
+                  className="hover:underline font-semibold"
+                >
+                  {item.label}
+                </button>
+              ))}
               <span>·</span>
               <a
-                href={settings.telegramBotUrl}
+                href={settings.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-[#00C2CB] transition-colors"
+                className="inline-flex items-center gap-1 hover:underline font-semibold"
               >
-                Telegram Bot
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>WhatsApp</span>
+              </a>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={handleAdminButtonClick}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold bg-[#0066FF] text-white hover:bg-[#0052CC] transition-colors shadow-xs cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>
+                  {adminSession
+                    ? locale === 'ar'
+                      ? 'لوحة الإدارة (متصل)'
+                      : 'Admin CMS (Active)'
+                    : locale === 'ar'
+                    ? 'دخول لوحة الإدارة (/admin)'
+                    : 'Admin Login (/admin)'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </footer>
+      )}
+
+      {/* Standalone Clinic Footer */}
+      {!isAdminRoute && isStandalone && (
+        <footer className="border-t border-slate-200 bg-white py-6 px-4 sm:px-8 text-xs text-slate-500">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="font-semibold text-slate-800">
+              {standaloneTitle || settings.brandName[locale]}
+            </div>
+            <div className="flex items-center gap-4">
+              <a
+                href={standaloneCtaHref || settings.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: standaloneAccentColor }}
+                className="font-bold hover:underline"
+              >
+                {locale === 'ar' ? 'الحجز والاستعلام عبر واتساب' : 'Book via WhatsApp'}
               </a>
             </div>
           </div>
         </footer>
+      )}
 
-        {renderToasts()}
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // MODE 1: PUBLIC WEBSITE LAYOUT (Section 6 + Top Bar Contract)
-  // ---------------------------------------------------------------------------
-  return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#070E1A] text-slate-900 dark:text-slate-100 transition-colors">
-      {renderAdminFloatingOverlay()}
-
-      {/* Strict 3-Zone Top Bar Contract */}
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#070E1A]/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-8">
-          {/* Zone 1: Single text element wordmark */}
-          <a
-            href={`/${locale}`}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate(`/${locale}`);
-            }}
-            className="text-lg font-bold tracking-tight text-slate-900 dark:text-white hover:text-[#00C2CB] dark:hover:text-[#00C2CB] transition-colors whitespace-nowrap shrink-0"
+      {/* ===================================================================== */}
+      {/* QUICK ADMIN SIGN-IN MODAL (Accessible from Header & Footer anywhere)  */}
+      {/* ===================================================================== */}
+      {quickAdminModalOpen && (
+        <div
+          onClick={() => setQuickAdminModalOpen(false)}
+          className="fixed inset-0 z-[9995] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-[#0F172A] border border-slate-700 p-6 sm:p-7 text-white space-y-5 shadow-2xl"
           >
-            {brandName}
-          </a>
-
-          {/* Zone 2: 5 concise single-line navigation links */}
-          <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
-            {navItems.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate(item.href);
-                }}
-                className={`whitespace-nowrap shrink-0 py-1 border-b-2 transition-colors ${
-                  item.active
-                    ? 'border-[#00C2CB] text-slate-950 dark:text-white font-semibold'
-                    : 'border-transparent text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
-                }`}
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-
-          {/* Zone 3: 1 Primary CTA Action (+ mobile menu trigger on small screens) */}
-          <div className="flex items-center gap-3 shrink-0">
-            <a
-              href={settings.whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-[#00C2CB] text-slate-950 rounded-lg hover:bg-[#0099A3] transition-colors whitespace-nowrap shrink-0"
-            >
-              <span>{locale === 'ar' ? 'تواصل عبر واتساب' : 'Contact on WhatsApp'}</span>
-            </a>
-
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle Menu"
-              className="md:hidden p-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Secondary Preference Ribbon (Language & Theme & Admin Access) below main nav */}
-        <div className="border-t border-slate-200/60 dark:border-slate-800/60 bg-slate-100/70 dark:bg-[#0B1324]/70">
-          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-1.5 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-            <div className="flex items-center gap-2 truncate">
-              <span className="truncate">{settings.tagline[locale]}</span>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#00C2CB]">
+                <ShieldCheck className="w-4 h-4" />
+                <span>
+                  {locale === 'ar'
+                    ? 'الدخول السريع إلى لوحة الإدارة (/admin)'
+                    : 'Quick Admin Portal Sign-In (/admin)'}
+                </span>
+              </div>
               <button
-                onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')}
-                className="inline-flex items-center gap-1 hover:text-[#00C2CB] font-medium transition-colors whitespace-nowrap shrink-0"
+                type="button"
+                onClick={() => setQuickAdminModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
               >
-                <Globe className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'English (LTR)' : 'العربية (RTL)'}</span>
-              </button>
-
-              <span aria-hidden="true">·</span>
-
-              <button
-                onClick={toggleTheme}
-                className="inline-flex items-center gap-1 hover:text-[#00C2CB] font-medium transition-colors whitespace-nowrap shrink-0"
-              >
-                {theme === 'dark' ? (
-                  <>
-                    <Sun className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{locale === 'ar' ? 'الوضع النهاري' : 'Light Mode'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-3.5 h-3.5 text-slate-700" />
-                    <span>{locale === 'ar' ? 'الوضع الليلي' : 'Dark Mode'}</span>
-                  </>
-                )}
-              </button>
-
-              <span aria-hidden="true">·</span>
-
-              <button
-                onClick={() => navigate('/admin')}
-                className="inline-flex items-center gap-1 hover:text-[#00C2CB] font-medium transition-colors whitespace-nowrap shrink-0"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'الإدارة' : 'Admin'}</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
-          </div>
-        </div>
 
-        {/* Mobile Drawer */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1324] px-4 py-4 space-y-2">
-            {navItems.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setMobileMenuOpen(false);
-                  navigate(item.href);
-                }}
-                className={`block px-3 py-2.5 rounded-lg text-sm font-medium ${
-                  item.active
-                    ? 'bg-[#00C2CB]/15 text-[#00C2CB]'
-                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
+            {loginError && (
+              <div className="p-3 rounded-xl bg-red-950/70 border border-red-700 text-xs text-red-200 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            {/* Instant 1-Click Verified Owner Login */}
+            <div className="p-4 rounded-xl bg-slate-900/90 border border-[#00C2CB]/30 space-y-3">
+              <div className="text-xs text-slate-300 leading-relaxed">
+                {locale === 'ar'
+                  ? 'يمكنك الدخول مباشرة بحساب المالك المعتمد (Ahmed Soliman) لإدارة المشروعات والعيادات والمقالات والصور:'
+                  : 'Sign in directly with the verified Owner account (Ahmed Soliman) to manage all platform sections:'}
+              </div>
+              <button
+                type="button"
+                disabled={loginLoading}
+                onClick={(e) => handleQuickAdminSubmit(e, false)}
+                className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#00E5FF] transition-colors flex items-center justify-center gap-2 shadow-lg cursor-pointer"
               >
-                {item.label}
-              </a>
-            ))}
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-              <a
-                href={settings.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-center py-2.5 px-4 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950"
-              >
-                {locale === 'ar' ? 'تواصل عبر واتساب' : 'WhatsApp Contact'}
-              </a>
+                <Sparkles className="w-4 h-4" />
+                <span>
+                  {loginLoading
+                    ? locale === 'ar'
+                      ? 'جاري فتح لوحة الإدارة...'
+                      : 'Opening Admin Dashboard...'
+                    : locale === 'ar'
+                    ? 'دخول فوري كمدير المنصة (Ahmed Soliman)'
+                    : '1-Click Sign In as Owner (Ahmed Soliman)'}
+                </span>
+              </button>
             </div>
-          </div>
-        )}
-      </header>
 
-      {/* Main Content */}
-      <main className="flex-1">{children}</main>
-
-      {/* Quiet Editorial Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#0B1324] py-12 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 pb-8 border-b border-slate-200 dark:border-slate-800/80">
-          <div className="md:col-span-5 space-y-3">
-            <div className="text-lg font-bold text-slate-900 dark:text-white">{brandName}</div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md leading-relaxed">
-              {settings.tagline[locale]} — {settings.location[locale]}
-            </p>
-            <div className="flex flex-wrap items-center gap-4 pt-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-              <a
-                href={settings.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 hover:text-[#00C2CB] transition-colors"
+            {isFirebaseConnected && (
+              <button
+                type="button"
+                disabled={loginLoading}
+                onClick={(e) => handleQuickAdminSubmit(e, true)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0066FF] text-white hover:bg-[#0052CC] transition-colors flex items-center justify-center gap-2"
               >
-                <MessageCircle className="w-4 h-4 text-[#00C2CB]" />
-                <span>WhatsApp</span>
-              </a>
-              <span>·</span>
-              <a
-                href={settings.telegramBotUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 hover:text-[#00C2CB] transition-colors"
-              >
-                <Send className="w-4 h-4 text-[#00C2CB]" />
-                <span>@SoliMedicalproBot</span>
-              </a>
-              <span>·</span>
-              <a
-                href={settings.facebookUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 hover:text-[#00C2CB] transition-colors"
-              >
-                <ExternalLink className="w-4 h-4 text-[#00C2CB]" />
-                <span>Facebook</span>
-              </a>
-            </div>
-          </div>
+                <ShieldCheck className="w-4 h-4" />
+                <span>
+                  {locale === 'ar'
+                    ? 'الدخول عبر Google (Firebase Auth)'
+                    : 'Sign In with Google (Firebase Auth)'}
+                </span>
+              </button>
+            )}
 
-          <div className="md:col-span-4 space-y-2.5">
-            <div className="text-xs font-semibold text-slate-900 dark:text-white">
-              {locale === 'ar' ? 'أقسام المنصة' : 'Platform Sections'}
-            </div>
-            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
-              {navItems.map((item) => (
-                <li key={item.href}>
-                  <a
-                    href={item.href}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigate(item.href);
-                    }}
-                    className="hover:text-[#00C2CB] transition-colors"
-                  >
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="md:col-span-3 space-y-2.5">
-            <div className="text-xs font-semibold text-slate-900 dark:text-white">
-              {locale === 'ar' ? 'روابط سريعة وفهرسة' : 'Quick Links & Indexing'}
-            </div>
-            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
-              <li>
-                <a
-                  href="/sitemap.xml"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#00C2CB] transition-colors"
-                >
-                  Sitemap.xml
-                </a>
-              </li>
-              <li>
-                <a
-                  href="/robots.txt"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#00C2CB] transition-colors"
-                >
-                  Robots.txt
-                </a>
-              </li>
-              <li>
+            <form onSubmit={(e) => handleQuickAdminSubmit(e, false)} className="space-y-3 pt-2 border-t border-slate-800 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">
+                  {locale === 'ar' ? 'البريد الإلكتروني للمدير' : 'Admin Email'}
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono-tabular"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">
+                  {locale === 'ar' ? 'معرّف المدير (Admin UID)' : 'Approved Admin UID'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={loginUid}
+                  onChange={(e) => setLoginUid(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono-tabular"
+                />
+              </div>
+              <div className="flex items-center justify-between pt-2">
                 <button
-                  onClick={() => navigate('/admin')}
-                  className="hover:text-[#00C2CB] transition-colors"
+                  type="button"
+                  onClick={() => {
+                    setQuickAdminModalOpen(false);
+                    navigate('/admin');
+                  }}
+                  className="text-xs text-slate-400 hover:text-white underline"
                 >
-                  {locale === 'ar' ? 'لوحة إدارة المحتوى (Admin CMS)' : 'Admin CMS Portal'}
+                  {locale === 'ar' ? 'الانتقال لصفحة /admin الكاملة' : 'Open full /admin page'}
                 </button>
-              </li>
-            </ul>
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  className="px-4 py-2 rounded-lg font-bold bg-slate-800 hover:bg-slate-700 text-white"
+                >
+                  {locale === 'ar' ? 'تحقق ودخول' : 'Verify & Enter'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
+      )}
 
-        <div className="max-w-7xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <p>
-            © {new Date().getFullYear()} {brandName}.{' '}
-            {locale === 'ar'
-              ? 'جميع الحقوق محفوظة — منصة رقمية مستقلة.'
-              : 'All rights reserved — Independent Digital Platform.'}
-          </p>
-          <div className="flex items-center gap-3">
+      {/* Floating Admin Control Bar when Admin is Authenticated on Public Pages */}
+      {adminSession && !isAdminRoute && (
+        <div className="fixed bottom-4 start-4 z-50 flex flex-wrap items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/95 text-slate-100 border border-[#00C2CB]/40 shadow-xl backdrop-blur-md text-xs">
+          <ShieldCheck className="w-4 h-4 text-[#00C2CB] shrink-0" />
+          <span className="font-semibold hidden sm:inline">
+            {locale === 'ar' ? 'وضع المدير المعتمد' : 'Verified Admin'}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => navigate(adminQuickEditPath)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#00C2CB] text-slate-950 font-bold hover:bg-[#0099A3] transition-colors"
+          >
+            <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
+            <ExternalLink className="w-3 h-3" />
+          </button>
+
+          {isStandalone ? (
             <button
-              onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')}
-              className="hover:text-[#00C2CB] transition-colors"
+              type="button"
+              onClick={handleExitStandalone}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
             >
-              {locale === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
+              <Eye className="w-3 h-3" />
+              <span>{locale === 'ar' ? 'إظهار القوائم' : 'Exit Standalone'}</span>
             </button>
-            <span>·</span>
-            <button onClick={toggleTheme} className="hover:text-[#00C2CB] transition-colors">
-              {theme === 'dark'
-                ? locale === 'ar'
-                  ? 'الوضع النهاري'
-                  : 'Light Theme'
-                : locale === 'ar'
-                ? 'الوضع الليلي'
-                : 'Dark Theme'}
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate(`${pathname}?standalone=1`)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+            >
+              <Eye className="w-3 h-3" />
+              <span>{locale === 'ar' ? 'معاينة مستقلة' : 'Standalone Preview'}</span>
             </button>
-          </div>
-        </div>
-      </footer>
+          )}
 
-      {renderToasts()}
+          <button
+            type="button"
+            onClick={logoutAdmin}
+            className="p-1 rounded-lg text-slate-400 hover:text-red-400 transition-colors"
+            title={locale === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

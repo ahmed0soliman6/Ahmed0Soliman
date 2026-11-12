@@ -75,6 +75,148 @@ function loadDatabase(): PlatformDatabase {
     }
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as PlatformDatabase;
+
+    let mutated = false;
+
+    // Non-destructively enrich pages with new editorial fields (qualifications, achievements, interests)
+    for (const seedPage of INITIAL_PLATFORM_DATA.pages) {
+      const existingPage = parsed.pages?.find((p) => p.id === seedPage.id);
+      if (!existingPage) {
+        parsed.pages = [...(parsed.pages || []), seedPage];
+        mutated = true;
+      } else {
+        if (!existingPage.qualifications && seedPage.qualifications) {
+          existingPage.qualifications = seedPage.qualifications;
+          mutated = true;
+        }
+        if (!existingPage.achievements && seedPage.achievements) {
+          existingPage.achievements = seedPage.achievements;
+          mutated = true;
+        }
+        if (!existingPage.interests && seedPage.interests) {
+          existingPage.interests = seedPage.interests;
+          mutated = true;
+        }
+        if (existingPage.experienceTimeline?.length < (seedPage.experienceTimeline?.length || 0)) {
+          existingPage.experienceTimeline = seedPage.experienceTimeline;
+          existingPage.biography = seedPage.biography;
+          mutated = true;
+        }
+        if (seedPage.id === 'home' && existingPage.headline?.en !== 'I DESIGN. I CREATE. I DEVELOP.') {
+          existingPage.headline = seedPage.headline;
+          existingPage.kicker = seedPage.kicker;
+          existingPage.subheadline = seedPage.subheadline;
+          existingPage.highlights = seedPage.highlights;
+          existingPage.metrics = seedPage.metrics;
+          mutated = true;
+        }
+      }
+    }
+
+    // Non-destructively merge new portfolio projects & enrich problem/solution/screens
+    const obsoleteComplexIdx = (parsed.projects || []).findIndex(
+      (p) => p.id === 'soli-medical-complex-erp'
+    );
+    if (obsoleteComplexIdx !== -1 && !parsed.projects.some((p) => p.id === 'mitali-hospital-erp')) {
+      parsed.projects.splice(obsoleteComplexIdx, 1);
+      mutated = true;
+    }
+
+    for (const seedProj of INITIAL_PLATFORM_DATA.projects) {
+      const existingProj = parsed.projects?.find((p) => p.id === seedProj.id);
+      if (!existingProj) {
+        parsed.projects = [...(parsed.projects || []), seedProj];
+        mutated = true;
+      } else {
+        if (!existingProj.problem && seedProj.problem) {
+          existingProj.problem = seedProj.problem;
+          existingProj.solution = seedProj.solution;
+          mutated = true;
+        }
+        if (seedProj.id === 'soli-medical-single-clinic') {
+          existingProj.showcaseRoute = '/solimedical';
+          existingProj.coverImage = seedProj.coverImage;
+          existingProj.screens = seedProj.screens;
+          existingProj.liveUrl = seedProj.liveUrl;
+          mutated = true;
+        }
+      }
+    }
+
+    // Non-destructively enrich clinics with themeColor, galleryImages, mapEmbedUrl, and updated coverImage
+    for (const seedClinic of INITIAL_PLATFORM_DATA.clinics) {
+      const existingClinic = parsed.clinics?.find((c) => c.id === seedClinic.id);
+      if (!existingClinic) {
+        parsed.clinics = [...(parsed.clinics || []), seedClinic];
+        mutated = true;
+      } else {
+        if (!existingClinic.themeColor && seedClinic.themeColor) {
+          existingClinic.themeColor = seedClinic.themeColor;
+          mutated = true;
+        }
+        if (!existingClinic.galleryImages && seedClinic.galleryImages) {
+          existingClinic.galleryImages = seedClinic.galleryImages;
+          mutated = true;
+        }
+        if (!existingClinic.mapEmbedUrl && seedClinic.mapEmbedUrl) {
+          existingClinic.mapEmbedUrl = seedClinic.mapEmbedUrl;
+          mutated = true;
+        }
+        if (existingClinic.coverImage === '/assets/aistudio/logo_ae3842b8.png') {
+          existingClinic.coverImage = seedClinic.coverImage;
+          mutated = true;
+        }
+        if (existingClinic.phone === '+201012687315' || existingClinic.phone === '+201000000000') {
+          existingClinic.phone = '';
+          mutated = true;
+        }
+        if (existingClinic.whatsapp?.includes('201012687315')) {
+          existingClinic.whatsapp = existingClinic.whatsapp.replace('201012687315', 'Ahmed0soliman');
+          mutated = true;
+        }
+      }
+    }
+
+    // Ensure official social links and remove fake numbers in siteSettings
+    if (
+      parsed.siteSettings &&
+      (parsed.siteSettings.whatsappNumber === '201012687315' ||
+        parsed.siteSettings.whatsappUrl !== 'https://wa.me/Ahmed0soliman' ||
+        parsed.siteSettings.githubUrl ||
+        parsed.siteSettings.linkedinUrl)
+    ) {
+      parsed.siteSettings.whatsappNumber = 'Ahmed0soliman';
+      parsed.siteSettings.whatsappUrl = 'https://wa.me/Ahmed0soliman';
+      parsed.siteSettings.facebookUrl = 'https://www.facebook.com/SoliMedical/';
+      parsed.siteSettings.telegramBotUrl = 'https://t.me/SoliMedicalproBot';
+      parsed.siteSettings.githubUrl = '';
+      parsed.siteSettings.linkedinUrl = '';
+      mutated = true;
+    }
+
+    // Non-destructively merge new articles & media
+    for (const seedArt of INITIAL_PLATFORM_DATA.articles) {
+      const existingArt = parsed.articles?.find((a) => a.id === seedArt.id);
+      if (!existingArt) {
+        parsed.articles = [...(parsed.articles || []), seedArt];
+        mutated = true;
+      } else if (existingArt.coverImage === '/assets/aistudio/logo_ae3842b8.png') {
+        existingArt.coverImage = seedArt.coverImage;
+        mutated = true;
+      }
+    }
+
+    for (const seedMedia of INITIAL_PLATFORM_DATA.media) {
+      if (!parsed.media?.some((m) => m.id === seedMedia.id)) {
+        parsed.media = [...(parsed.media || []), seedMedia];
+        mutated = true;
+      }
+    }
+
+    if (mutated) {
+      fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
+    }
+
     return parsed;
   } catch (err) {
     console.error('Error loading CMS database, falling back to initial seed:', err);
@@ -928,6 +1070,8 @@ async function startServer() {
       '/en/about',
       '/ar/projects',
       '/en/projects',
+      '/ar/solimedical',
+      '/en/solimedical',
       '/ar/clinics',
       '/en/clinics',
       '/ar/blog',
@@ -985,6 +1129,9 @@ async function startServer() {
 
     res.type('application/xml').send(xml);
   });
+
+  // Serve generated /src/assets images in both dev and production
+  app.use('/src/assets', express.static(path.resolve(process.cwd(), 'src/assets')));
 
   // ---------------------------------------------------------------------------
   // 7. VITE MIDDLEWARE (DEV) OR STATIC ASSETS (PROD)

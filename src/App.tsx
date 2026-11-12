@@ -3,7 +3,7 @@ import { PlatformProvider, usePlatform } from './context/PlatformContext';
 import { CustomCursorAndRipple } from './components/common/CustomCursorAndRipple';
 import { HomePage } from './pages/HomePage';
 
-// Lazy-load secondary & admin routes for optimal mobile First Contentful Paint & Core Web Vitals (PROMPT 5.3)
+// Lazy-load secondary & admin routes for optimal mobile First Contentful Paint & Core Web Vitals
 const AboutPage = lazy(() =>
   import('./pages/AboutPage').then((m) => ({ default: m.AboutPage }))
 );
@@ -12,6 +12,11 @@ const ProjectsPage = lazy(() =>
 );
 const ProjectDetailPage = lazy(() =>
   import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage }))
+);
+const SoliMedicalShowcasePage = lazy(() =>
+  import('./pages/SoliMedicalShowcasePage').then((m) => ({
+    default: m.SoliMedicalShowcasePage,
+  }))
 );
 const ClinicsPage = lazy(() =>
   import('./pages/ClinicsPage').then((m) => ({ default: m.ClinicsPage }))
@@ -117,18 +122,27 @@ const RouteDispatcher: React.FC = () => {
     <Suspense fallback={<RouteLoadingFallback />}>
       {routeWithoutLocale === '/about' ? (
         <AboutPage />
+      ) : routeWithoutLocale === '/solimedical' ||
+        routeWithoutLocale === '/projects/solimedical' ? (
+        <SoliMedicalShowcasePage />
       ) : routeWithoutLocale === '/projects' ? (
         <ProjectsPage />
       ) : routeWithoutLocale.startsWith('/projects/') ? (
-        <ProjectDetailPage slug={decodeURIComponent(routeWithoutLocale.slice('/projects/'.length))} />
+        <ProjectDetailPage
+          slug={decodeURIComponent(routeWithoutLocale.slice('/projects/'.length))}
+        />
       ) : routeWithoutLocale === '/clinics' ? (
         <ClinicsPage />
       ) : routeWithoutLocale.startsWith('/clinics/') ? (
-        <ClinicDetailPage slug={decodeURIComponent(routeWithoutLocale.slice('/clinics/'.length))} />
+        <ClinicDetailPage
+          slug={decodeURIComponent(routeWithoutLocale.slice('/clinics/'.length))}
+        />
       ) : routeWithoutLocale === '/blog' ? (
         <BlogPage />
       ) : routeWithoutLocale.startsWith('/blog/') ? (
-        <BlogDetailPage slug={decodeURIComponent(routeWithoutLocale.slice('/blog/'.length))} />
+        <BlogDetailPage
+          slug={decodeURIComponent(routeWithoutLocale.slice('/blog/'.length))}
+        />
       ) : (
         <HomePage />
       )}

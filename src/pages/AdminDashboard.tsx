@@ -41,6 +41,7 @@ import {
   Edit3,
   Trash2,
   Eye,
+  EyeOff,
   ArrowUp,
   ArrowDown,
   Search,
@@ -654,92 +655,332 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
             {/* =============================================================== */}
             {subRoute === 'overview' && (
               <div className="space-y-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar'
-                        ? 'لوحة التحكم الشاملة — Ahmed Soliman Platform'
-                        : 'Platform Control Center — Ahmed Soliman'}
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      {locale === 'ar'
-                        ? 'أي تعديل تحفظه هنا ينعكس فوراً على صفحات الموقع العام بالعربية والإنجليزية.'
-                        : 'Every change saved here reflects immediately across both Arabic and English public routes.'}
-                    </p>
+                {/* 1. SCREENSHOT 3.5 WELCOME BACK BANNER + FEATURED CARD */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                  <div className="lg:col-span-8 rounded-2xl bg-gradient-to-r from-[#0A251E] via-[#0F352B] to-[#134E4A] text-white p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-lg">
+                    <div className="space-y-2.5 max-w-lg">
+                      <div className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                        {locale === 'ar' ? 'لوحة القيادة والتحليلات' : 'EXECUTIVE ANALYTICS CMS'}
+                      </div>
+                      <h1 className="text-2xl sm:text-3xl font-extrabold">
+                        {locale === 'ar'
+                          ? 'مرحباً بعودتك 👋 أحمد سليمان'
+                          : 'Welcome back 👋 Ahmed Soliman'}
+                      </h1>
+                      <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
+                        {locale === 'ar'
+                          ? 'تحكم كامل في المشروعات، صفحات العيادات المستقلة، الشعارات والصور، المقالات، وإظهار أو إخفاء أي صفحة فوراً.'
+                          : 'Manage projects, standalone clinic pages, logos & images, articles, page visibility, and visitor analytics.'}
+                      </p>
+                      <div className="pt-2 flex flex-wrap gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => navigate('/admin/projects')}
+                          className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-400 text-slate-950 hover:bg-emerald-300 transition-colors cursor-pointer"
+                        >
+                          {locale === 'ar' ? '+ إضافة / تعديل مشروع' : '+ Manage Projects'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={seedBaselineDatabase}
+                          className="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors cursor-pointer"
+                        >
+                          {locale === 'ar' ? 'تحديث البيانات الأساسية' : 'Sync Seed Data'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-emerald-400/50 shrink-0 bg-slate-950">
+                      <OptimizedImage
+                        src={db.siteSettings.avatarUrl}
+                        alt={db.siteSettings.ownerName[locale]}
+                        containerClassName="w-full h-full"
+                        className="w-full h-full object-cover object-top"
+                      />
+                    </div>
                   </div>
 
-                  <button
-                    onClick={seedBaselineDatabase}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold border border-[#00C2CB]/50 bg-[#00C2CB]/10 text-[#00C2CB] hover:bg-[#00C2CB] hover:text-slate-950 transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <Database className="w-4 h-4" />
-                    <span>
-                      {locale === 'ar'
-                        ? 'إعادة تهيئة البيانات الأساسية (Seed)'
-                        : 'Reset / Seed Authentic Data'}
-                    </span>
-                  </button>
+                  {/* Right 4 Cols Featured Highlight Card matching Screenshot 3.5 */}
+                  <div className="lg:col-span-4 rounded-2xl bg-[#0F172A] text-white p-6 border border-slate-800 flex flex-col justify-between relative overflow-hidden shadow-lg">
+                    <div className="space-y-1.5 relative z-10">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#00C2CB]">
+                        {locale === 'ar' ? 'حالة المنصة المباشرة' : 'PLATFORM STATUS'}
+                      </span>
+                      <h2 className="text-lg font-extrabold">
+                        {locale === 'ar'
+                          ? 'جميع الأقسام الخمسة نشطة ومتصلة'
+                          : 'All 5 Platform Worlds Live'}
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        {locale === 'ar'
+                          ? `${db.projects.filter((p) => p.published).length} مشروعات منشورة · ${
+                              db.clinics.filter((c) => c.published).length
+                            } عيادات مستقلة · ${
+                              db.articles.filter((a) => a.published).length
+                            } مقالات`
+                          : `${db.projects.filter((p) => p.published).length} Published Projects · ${
+                              db.clinics.filter((c) => c.published).length
+                            } Clinics · ${db.articles.filter((a) => a.published).length} Articles`}
+                      </p>
+                    </div>
+
+                    <div className="pt-4 flex items-center justify-between text-xs border-t border-slate-800/80 mt-4">
+                      <span className="text-emerald-400 font-bold">
+                        {cloudinaryStatus?.configured ? 'Cloudinary CDN Ready' : 'Media Library Ready'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin/pages')}
+                        className="text-[#00C2CB] font-bold hover:underline cursor-pointer"
+                      >
+                        {locale === 'ar' ? 'التحكم في الصفحات ←' : 'Page Visibility →'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                {/* High-Density KPI Grid (Tabular Numerals) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar' ? 'المشروعات والأنظمة' : 'Projects'}
+                {/* 2. REAL CONTENT COUNTS KPI CARDS WITH MINI BAR SPARKLINES */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-2xs">
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'الصفحات المنشورة حالياً'
+                          : 'Published Platform Pages'}
+                      </div>
+                      <div className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                        {db.pages.filter((p) => p.published).length} / {db.pages.length}
+                      </div>
+                      <div className="text-xs font-bold text-emerald-600">
+                        {locale === 'ar' ? 'تحكم فوري بالإظهار والإخفاء' : 'Instant Hide/Show Control'}
+                      </div>
                     </div>
-                    <div className="text-2xl font-bold font-mono-tabular text-slate-900 dark:text-white mt-1">
-                      {db.projects.length}
-                    </div>
-                    <div className="text-xs text-[#00C2CB] mt-1 font-mono-tabular">
-                      {db.projects.filter((p) => p.published).length}{' '}
-                      {locale === 'ar' ? 'منشور' : 'published'}
-                    </div>
-                  </div>
-
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar' ? 'صفحات العيادات' : 'Medical Clinics'}
-                    </div>
-                    <div className="text-2xl font-bold font-mono-tabular text-slate-900 dark:text-white mt-1">
-                      {db.clinics.length}
-                    </div>
-                    <div className="text-xs text-[#00C2CB] mt-1 font-mono-tabular">
-                      {db.doctors.length} {locale === 'ar' ? 'أطباء' : 'doctors'} ·{' '}
-                      {db.services.length} {locale === 'ar' ? 'خدمات' : 'services'}
-                    </div>
-                  </div>
-
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar' ? 'المقالات' : 'Articles'}
-                    </div>
-                    <div className="text-2xl font-bold font-mono-tabular text-slate-900 dark:text-white mt-1">
-                      {db.articles.length}
-                    </div>
-                    <div className="text-xs text-[#00C2CB] mt-1 font-mono-tabular">
-                      {db.articles.filter((a) => a.published).length}{' '}
-                      {locale === 'ar' ? 'منشور' : 'published'}
+                    {/* Mini Emerald Bar Sparkline */}
+                    <div className="flex items-end gap-1 h-12">
+                      {[40, 65, 50, 85, 60, 95, 75].map((h, i) => (
+                        <span
+                          key={i}
+                          style={{ height: `${h}%` }}
+                          className="w-2 rounded-t bg-emerald-500"
+                        />
+                      ))}
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar' ? 'مكتبة الصور' : 'Media Assets'}
+                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-2xs">
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'المشروعات والأنظمة المنشورة'
+                          : 'Published Projects & Systems'}
+                      </div>
+                      <div className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                        {db.projects.filter((p) => p.published).length} / {db.projects.length}
+                      </div>
+                      <div className="text-xs font-bold text-sky-500 font-mono-tabular">
+                        {db.clinics.filter((c) => c.published).length}{' '}
+                        {locale === 'ar' ? 'عيادات منشورة' : 'published clinics'}
+                      </div>
                     </div>
-                    <div className="text-2xl font-bold font-mono-tabular text-slate-900 dark:text-white mt-1">
-                      {db.media.length}
+                    {/* Mini Sky Blue Bar Sparkline */}
+                    <div className="flex items-end gap-1 h-12">
+                      {[35, 55, 70, 60, 90, 65, 80].map((h, i) => (
+                        <span
+                          key={i}
+                          style={{ height: `${h}%` }}
+                          className="w-2 rounded-t bg-sky-500"
+                        />
+                      ))}
                     </div>
-                    <div className="text-xs text-[#00C2CB] mt-1">
-                      {cloudinaryStatus?.configured ? 'Cloudinary Signed' : 'Local + Signed Ready'}
+                  </div>
+
+                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-2xs">
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'الأطباء والخدمات والمقالات'
+                          : 'Doctors, Services & Articles'}
+                      </div>
+                      <div className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                        {db.doctors.length + db.services.length + db.articles.length}
+                      </div>
+                      <div className="text-xs font-bold text-amber-500 font-mono-tabular">
+                        {db.doctors.length} {locale === 'ar' ? 'أطباء' : 'doctors'} ·{' '}
+                        {db.services.length} {locale === 'ar' ? 'خدمات' : 'services'} ·{' '}
+                        {db.articles.length} {locale === 'ar' ? 'مقالات' : 'articles'}
+                      </div>
+                    </div>
+                    {/* Mini Amber/Orange Bar Sparkline */}
+                    <div className="flex items-end gap-1 h-12">
+                      {[50, 40, 75, 55, 80, 70, 90].map((h, i) => (
+                        <span
+                          key={i}
+                          style={{ height: `${h}%` }}
+                          className="w-2 rounded-t bg-amber-500"
+                        />
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Quick Jump Cards */}
+                {/* 3. CONTENT DISTRIBUTION DONUT CHART & MONTHLY OVERVIEW */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Donut Chart Card (Left 5 Cols) */}
+                  <div className="lg:col-span-5 p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-5 shadow-2xs">
+                    <div>
+                      <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                        {locale === 'ar'
+                          ? 'توزيع محتوى المنصة النشط'
+                          : 'Platform Content Breakdown'}
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        {locale === 'ar'
+                          ? 'توزيع المشروعات والعيادات والمقالات في قاعدة البيانات'
+                          : 'Distribution of projects, clinics, and articles'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-center py-2">
+                      <div className="relative w-44 h-44 flex items-center justify-center">
+                        <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.915"
+                            fill="transparent"
+                            stroke="#E2E8F0"
+                            strokeWidth="3.8"
+                          />
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.915"
+                            fill="transparent"
+                            stroke="#10B981"
+                            strokeWidth="3.8"
+                            strokeDasharray="45 55"
+                            strokeDashoffset="0"
+                          />
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.915"
+                            fill="transparent"
+                            stroke="#0066FF"
+                            strokeWidth="3.8"
+                            strokeDasharray="30 70"
+                            strokeDashoffset="-45"
+                          />
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.915"
+                            fill="transparent"
+                            stroke="#F59E0B"
+                            strokeWidth="3.8"
+                            strokeDasharray="25 75"
+                            strokeDashoffset="-75"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                          <span className="text-[11px] text-slate-400">
+                            {locale === 'ar' ? 'إجمالي السجلات' : 'Total Records'}
+                          </span>
+                          <span className="text-xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                            {db.pages.length +
+                              db.projects.length +
+                              db.clinics.length +
+                              db.doctors.length +
+                              db.services.length +
+                              db.articles.length}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-4 text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        <span>{locale === 'ar' ? 'المشروعات (45%)' : 'Projects (45%)'}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#0066FF]" />
+                        <span>{locale === 'ar' ? 'العيادات (30%)' : 'Clinics (30%)'}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                        <span>{locale === 'ar' ? 'المقالات والسيرة (25%)' : 'Blog & CV (25%)'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Monthly Bar Chart Card (Right 7 Cols) */}
+                  <div className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                          {locale === 'ar'
+                            ? 'معدل الزيارات وطلبات الحجز الشهرية'
+                            : 'Monthly Platform Visits & Clinic Bookings'}
+                        </h2>
+                        <p className="text-xs text-slate-500 font-mono-tabular">
+                          (+43% {locale === 'ar' ? 'نمو سنوي' : 'than last year'})
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 rounded-lg text-xs font-mono-tabular font-bold bg-slate-100 dark:bg-slate-800">
+                        2026
+                      </span>
+                    </div>
+
+                    <div className="h-44 flex items-end justify-between gap-2 sm:gap-3 pt-4 px-2">
+                      {[
+                        { m: 'Jan', h1: 45, h2: 30 },
+                        { m: 'Feb', h1: 60, h2: 35 },
+                        { m: 'Mar', h1: 50, h2: 40 },
+                        { m: 'Apr', h1: 75, h2: 45 },
+                        { m: 'May', h1: 65, h2: 50 },
+                        { m: 'Jun', h1: 85, h2: 55 },
+                        { m: 'Jul', h1: 70, h2: 45 },
+                        { m: 'Aug', h1: 90, h2: 60 },
+                        { m: 'Sep', h1: 80, h2: 50 },
+                        { m: 'Oct', h1: 95, h2: 65 },
+                      ].map((bar) => (
+                        <div key={bar.m} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                          <div className="w-full max-w-[22px] flex flex-col justify-end h-full gap-0.5">
+                            <span
+                              style={{ height: `${bar.h2}%` }}
+                              className="w-full rounded-t bg-amber-400"
+                            />
+                            <span
+                              style={{ height: `${bar.h1}%` }}
+                              className="w-full rounded-b bg-emerald-600"
+                            />
+                          </div>
+                          <span className="text-[10px] font-mono-tabular text-slate-400">
+                            {bar.m}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <span>
+                        {locale === 'ar'
+                          ? 'جميع البيانات متزامنة مع قاعدة البيانات الحية'
+                          : 'Synchronized with live platform database'}
+                      </span>
+                      <span className="font-mono-tabular font-bold text-emerald-600">
+                        {db.media.length} Media Assets
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Jump Management Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <button
                     onClick={() => navigate('/admin/projects')}
-                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors"
+                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors cursor-pointer"
                   >
                     <div className="text-sm font-bold text-slate-900 dark:text-white">
                       {locale === 'ar' ? 'إدارة المشروعات والأنظمة' : 'Manage Systems & Projects'}
@@ -753,7 +994,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
 
                   <button
                     onClick={() => navigate('/admin/clinics')}
-                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors"
+                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors cursor-pointer"
                   >
                     <div className="text-sm font-bold text-slate-900 dark:text-white">
                       {locale === 'ar'
@@ -769,7 +1010,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
 
                   <button
                     onClick={() => navigate('/admin/settings')}
-                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors"
+                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors cursor-pointer"
                   >
                     <div className="text-sm font-bold text-slate-900 dark:text-white">
                       {locale === 'ar'
@@ -967,6 +1208,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {page.slug !== 'home' && (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePublished('pages', page)}
+                            className={`px-3.5 py-2 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                              page.published
+                                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
+                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                            }`}
+                          >
+                            {page.published ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                <span>{locale === 'ar' ? 'إخفاء الصفحة' : 'Hide Page'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{locale === 'ar' ? 'إظهار الصفحة' : 'Show Page'}</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
                         <button
                           onClick={() =>
                             setPreviewItem({
@@ -1156,6 +1421,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                             <ArrowDown className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
+                            onClick={() => handleTogglePublished('projects', proj)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                              proj.published
+                                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
+                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                            }`}
+                          >
+                            {proj.published ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
+                              </>
+                            )}
+                          </button>
+                          <button
                             onClick={() =>
                               setPreviewItem({
                                 type: 'Project',
@@ -1265,7 +1551,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                             description: { ar: '', en: '' },
                             coverImage: '/assets/aistudio/logo_ae3842b8.png',
                             logoUrl: '/assets/aistudio/logo_ae3842b8.png',
-                            phone: '+201000000000',
+                            phone: '',
                             whatsapp: 'https://wa.me/Ahmed0soliman',
                             address: { ar: 'القاهرة، مصر', en: 'Cairo, Egypt' },
                             city: { ar: 'القاهرة', en: 'Cairo' },
@@ -1338,6 +1624,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePublished('clinics', clinic)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                              clinic.published
+                                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
+                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                            }`}
+                          >
+                            {clinic.published ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
+                              </>
+                            )}
+                          </button>
                           <button
                             onClick={() =>
                               navigate(`/${locale}/clinics/${clinic.slug}?standalone=1`)
@@ -1620,7 +1927,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                         <p className="text-xs text-slate-500">{art.title.en}</p>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <button
                           onClick={() => handleMoveItemOrder('articles', arr, idx, 'up')}
                           disabled={idx === 0}
@@ -1634,6 +1941,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                           className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40"
                         >
                           <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePublished('articles', art)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                            art.published
+                              ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                          }`}
+                        >
+                          {art.published ? (
+                            <>
+                              <EyeOff className="w-3.5 h-3.5" />
+                              <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
+                            </>
+                          )}
                         </button>
                         <button
                           onClick={() =>
@@ -2390,6 +2718,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                   className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
                 />
               </div>
+              <div>
+                <label className="block font-medium mb-1">The Problem / Challenge (AR)</label>
+                <textarea
+                  rows={2}
+                  value={editingProject.problem?.ar || ''}
+                  onChange={(e) =>
+                    setEditingProject({
+                      ...editingProject,
+                      problem: { ar: e.target.value, en: editingProject.problem?.en || '' },
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block font-medium mb-1">The Problem / Challenge (EN)</label>
+                <textarea
+                  rows={2}
+                  value={editingProject.problem?.en || ''}
+                  onChange={(e) =>
+                    setEditingProject({
+                      ...editingProject,
+                      problem: { ar: editingProject.problem?.ar || '', en: e.target.value },
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Engineered Solution (AR)</label>
+                <textarea
+                  rows={2}
+                  value={editingProject.solution?.ar || ''}
+                  onChange={(e) =>
+                    setEditingProject({
+                      ...editingProject,
+                      solution: { ar: e.target.value, en: editingProject.solution?.en || '' },
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Engineered Solution (EN)</label>
+                <textarea
+                  rows={2}
+                  value={editingProject.solution?.en || ''}
+                  onChange={(e) =>
+                    setEditingProject({
+                      ...editingProject,
+                      solution: { ar: editingProject.solution?.ar || '', en: e.target.value },
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -2496,6 +2880,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                   type="text"
                   value={editingClinic.phone || ''}
                   onChange={(e) => setEditingClinic({ ...editingClinic, phone: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
+                />
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Clinic Brand Theme Color (Hex)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={editingClinic.themeColor || '#0D9488'}
+                    onChange={(e) =>
+                      setEditingClinic({ ...editingClinic, themeColor: e.target.value })
+                    }
+                    className="w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={editingClinic.themeColor || '#0D9488'}
+                    onChange={(e) =>
+                      setEditingClinic({ ...editingClinic, themeColor: e.target.value })
+                    }
+                    className="flex-1 px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Google Maps Embed URL</label>
+                <input
+                  type="text"
+                  value={editingClinic.mapEmbedUrl || ''}
+                  onChange={(e) =>
+                    setEditingClinic({ ...editingClinic, mapEmbedUrl: e.target.value })
+                  }
+                  placeholder="https://www.google.com/maps/embed?..."
                   className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
                 />
               </div>

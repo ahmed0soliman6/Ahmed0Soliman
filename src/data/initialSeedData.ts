@@ -21,16 +21,16 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       en: 'Ahmed Soliman',
     },
     tagline: {
-      ar: 'مطوّر أنظمة العيادات الطبية والبرمجيات الصحية',
-      en: 'Healthcare Systems Architect & Full-Stack Engineer',
+      ar: 'أخصائي التمريض وجودة الرعاية الصحية ومطوّر الأنظمة الطبية الرقمية',
+      en: 'Healthcare Quality Specialist & Medical Systems Architect',
     },
     ownerName: {
       ar: 'أحمد سليمان',
       en: 'Ahmed Soliman',
     },
     ownerRole: {
-      ar: 'مطوّر ومشغّل أنظمة العيادات والمجمعات الطبية',
-      en: 'Medical Clinic & Healthcare Complex Systems Developer',
+      ar: 'مطوّر أنظمة العيادات والمستشفيات وأخصائي جودة الرعاية الصحية',
+      en: 'Medical Systems Developer & Healthcare Quality Specialist',
     },
     avatarUrl: '/assets/aistudio/1770146906397_16665dd0.png',
     primaryColor: '#00C2CB',
@@ -41,22 +41,22 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
     whatsappUrl: 'https://wa.me/Ahmed0soliman',
     telegramBotUrl: 'https://t.me/SoliMedicalproBot',
     facebookUrl: 'https://www.facebook.com/SoliMedical/',
-    githubUrl: 'https://github.com/Ahmed0soliman',
-    linkedinUrl: 'https://www.linkedin.com/in/ahmed-soliman',
+    githubUrl: '',
+    linkedinUrl: '',
     contactEmail: 'ahmed0soliman6@gmail.com',
     location: {
-      ar: 'مصر — تطوير وتشغيل الأنظمة الطبية الرقمية',
-      en: 'Egypt — Healthcare Software Engineering & Operations',
+      ar: 'مصر — تطوير وتشغيل الأنظمة الطبية وجودة الرعاية الصحية',
+      en: 'Egypt — Healthcare Software Engineering & Clinical Quality',
     },
     published: true,
     seo: {
       title: {
-        ar: 'أحمد سليمان | مطوّر أنظمة العيادات والبرمجيات الصحية – Ahmed Soliman',
-        en: 'Ahmed Soliman | Healthcare Systems Architect & Digital Platform',
+        ar: 'أحمد سليمان | المنصة الرقمية الشخصية ومطوّر الأنظمة الطبية – Ahmed Soliman',
+        en: 'Ahmed Soliman | Personal Digital Platform & Medical Systems Architect',
       },
       description: {
-        ar: 'المنصة الرقمية الرسمية للمهندس أحمد سليمان: تطوير وإدارة أنظمة العيادات والمجمعات الطبية الخيرية والخاصة في مصر، صفحات الهبوط الطبية، والمقالات التقنية.',
-        en: 'Official digital platform of Ahmed Soliman: developing and operating clinic management systems, charitable medical complex software, and custom healthcare landing pages.',
+        ar: 'المنصة الرقمية الرسمية لأحمد سليمان: أخصائي التمريض وجودة الرعاية الصحية ومطوّر أنظمة العيادات والمستشفيات (Soli Medical، ICU-Sync، Mitali Hospital).',
+        en: 'Official personal platform of Ahmed Soliman: Healthcare Quality Specialist & Architect of Soli Medical, ICU-Sync, Mitali Hospital, and standalone clinic portals.',
       },
       ogImage: '/assets/aistudio/1770146906397_16665dd0.png',
       canonicalSlug: '/',
@@ -73,62 +73,62 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         en: 'Home',
       },
       kicker: {
-        ar: 'من يوميات العيادة إلى قرار إداري أوضح',
-        en: 'From Daily Clinic Workflows to Clearer Executive Decisions',
+        ar: 'أحمد سليمان · التمريض وجودة الرعاية الصحية وتطوير الأنظمة الطبية',
+        en: 'Ahmed Soliman · Clinical Quality & Healthcare Software Engineering',
       },
       headline: {
-        ar: 'أبني وأشغّل البنية الرقمية للعيادات والمجمعات الطبية العربية',
-        en: 'Engineering Practical Digital Systems for Clinics & Medical Complexes',
+        ar: 'أصمّم. أبتكر. أطوّر.',
+        en: 'I DESIGN. I CREATE. I DEVELOP.',
       },
       subheadline: {
-        ar: 'أطوّر وأدير أنظمة إدارة العيادات، وأبني وأشغّل برمجيات للمجمعات الطبية الخيرية والخاصة في مصر، من التطوير الهندسي حتى التشغيل الفعلي على أرض الواقع.',
-        en: 'I architect, build, and operate clinic management software and integrated operational platforms for charitable and private medical complexes across Egypt—from code to real-world daily operations.',
+        ar: 'أجمع بين الخبرة الميدانية في التمريض والرعاية الحرجة وإدارة الجودة الصحية وبين هندسة البرمجيات لبناء أنظمة طبية حقيقية (Soli Medical، ICU-Sync، Mitali Hospital) تخدم الأطباء والمجمعات الطبية والمرضى.',
+        en: 'Bridging frontline clinical nursing, ICU care, and healthcare quality management with full-stack software engineering to build practical digital medical systems.',
       },
       biography: {
-        ar: 'مهتم بالبرمجيات العربية الأصيلة (RTL) وبالبنية الرقمية للرعاية الصحية المجتمعية التي تبدأ من واقع العمل الطبي اليومي، لا من قوائم معقدة.',
-        en: 'Focused on native Arabic-first (RTL) healthcare software and community medical infrastructure designed around real clinical workflows rather than bloated menus.',
+        ar: 'من قلب الممارسة الطبية السريرية وإدارة الجودة إلى هندسة البرمجيات الصحية العربية الأصيلة: أبني حلولاً رقمية تختصر الوقت، تمنع الأخطاء، وترفع كفاءة تشغيل العيادات والمجمعات الطبية.',
+        en: 'From bedside clinical operations and quality governance to native Arabic/English health-tech architecture: building digital systems that eliminate workflow friction.',
       },
       highlights: {
         ar: [
-          'أنظمة عربية RTL أصيلة مصممة للسوق المصري والعربي',
-          'بناء وتشغيل برمجيات المجمعات الطبية الخيرية والخاصة',
-          'تطوير متكامل من هندسة النظام حتى التدريب والتشغيل الفعلي',
-          'صفحات هبوط طبية مستقلة للعيادات والأطباء مع حجز مباشر',
+          'خبرة مزدوجة تجمع الممارسة السريرية وجودة الرعاية مع هندسة البرمجيات',
+          'مؤسس ومطوّر منظومة Soli Medical لإدارة العيادات والمجمعات الطبية',
+          'ابتكار أنظمة متخصصة للرعاية المركزة (ICU-Sync) والمخازن والجودة الصحية',
+          'بناء صفحات هبوط طبية مستقلة عالية التحويل للعيادات والمراكز التخصصية',
         ],
         en: [
-          'Native Arabic RTL systems engineered for Egyptian & Arab healthcare',
-          'End-to-end software for single clinics & charitable medical complexes',
-          'Hands-on lifecycle from system architecture to live on-site operation',
-          'Standalone high-conversion medical landing pages for clinics & doctors',
+          'Dual expertise uniting clinical nursing & healthcare quality with software architecture',
+          'Creator of Soli Medical for single-doctor clinics and multi-clinic complexes',
+          'Engineered specialized systems for ICU telemetry (ICU-Sync), inventory, and quality',
+          'High-conversion standalone medical landing pages with custom clinic branding',
         ],
       },
       metrics: [
         {
-          value: '100%',
+          value: '+5',
           label: {
-            ar: 'توافق عربي وإنجليزي RTL / LTR من البداية',
-            en: 'Native Bilingual RTL / LTR Architecture',
+            ar: 'منظومات طبية ورقمية متكاملة قيد التشغيل والتطوير',
+            en: 'Production Healthcare & ERP Software Systems Built',
           },
         },
         {
-          value: '2+',
+          value: '100%',
           label: {
-            ar: 'مسارات تشغيلية متكاملة (عيادة فردية ومجمع طبي)',
-            en: 'Specialized Clinical & Complex Tracks',
+            ar: 'توافق ثنائي اللغة RTL / LTR وتجربة مصممة لواقع العمل الطبي',
+            en: 'Native Bilingual RTL / LTR Clinical Workflow Fit',
           },
         },
         {
           value: '24/7',
           label: {
-            ar: 'استعلام وحجز آلي عبر بوت تليجرام وواتساب',
-            en: 'Automated Patient Inquiry via Telegram & WhatsApp',
+            ar: 'أتمتة حجز واستعلام المرضى عبر واتساب وبوت تليجرام الذكي',
+            en: 'Automated Patient Booking via WhatsApp & Telegram Bot',
           },
         },
         {
-          value: 'Zero',
+          value: '+99.9%',
           label: {
-            ar: 'تعقيد غير ضروري في رحلة الطبيب والاستقبال',
-            en: 'Unnecessary Friction in Doctor & Reception Workflows',
+            ar: 'اعتمادية واستقرار سحابي مع حماية صارمة لبيانات المنشأة',
+            en: 'Cloud Reliability & Zero-Trust Role Security',
           },
         },
       ],
@@ -141,11 +141,11 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       seo: {
         title: {
           ar: 'أحمد سليمان | المنصة الرقمية الرسمية ومطوّر الأنظمة الطبية',
-          en: 'Ahmed Soliman | Official Digital Platform & Healthcare Systems Developer',
+          en: 'Ahmed Soliman | Official Personal Platform & Healthcare Systems Developer',
         },
         description: {
-          ar: 'استكشف مشروعات وأنظمة أحمد سليمان لإدارة العيادات والمجمعات الطبية، صفحات الهبوط الطبية المستقلة، والمقالات التقنية.',
-          en: 'Explore Ahmed Soliman’s healthcare software systems, medical clinic landing pages, and technical insights.',
+          ar: 'استكشف مشروعات وأنظمة أحمد سليمان: Soli Medical، ICU-Sync، Mitali Hospital، صفحات العيادات المستقلة، والمقالات التقنية والطبية.',
+          en: 'Explore Ahmed Soliman’s healthcare software systems, Soli Medical, ICU-Sync, standalone clinic portals, and editorial articles.',
         },
         ogImage: '/assets/aistudio/1770146906397_16665dd0.png',
         canonicalSlug: '/',
@@ -159,156 +159,485 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       slug: 'about',
       title: {
         ar: 'من أنا — السيرة المهنية',
-        en: 'About — Editorial Profile',
+        en: 'About — Editorial Monograph',
       },
       kicker: {
-        ar: 'الملف التعريفي المهني · Ahmed Soliman',
-        en: 'Editorial Profile & Engineering Philosophy · Ahmed Soliman',
+        ar: 'الملف الشخصي التحريري · Ahmed Soliman',
+        en: 'Editorial Monograph & Career Timeline · Ahmed Soliman',
       },
       headline: {
-        ar: 'أحمد سليمان — مطوّر أنظمة العيادات الطبية والبرمجيات الصحية',
-        en: 'Ahmed Soliman — Architect of Practical Healthcare Software',
+        ar: 'أحمد سليمان — بين الممارسة السريرية وجودة الرعاية وهندسة الأنظمة الطبية',
+        en: 'Ahmed Soliman — Where Clinical Care Meets Software Architecture',
       },
       subheadline: {
-        ar: 'أطوّر وأدير أنظمة إدارة العيادات، وأبني وأشغّل برمجيات للمجمعات الطبية الخيرية في مصر، من التطوير حتى التشغيل الفعلي.',
-        en: 'Developing and managing clinic systems, and building and operating software for charitable medical complexes in Egypt from inception to live daily operation.',
+        ar: 'متخصص في التمريض والرعاية الصحية وإدارة الجودة، ومطوّر برمجيات وأنظمة رقمية للعيادات والمجمعات الطبية والمستشفيات في مصر.',
+        en: 'Nursing & Healthcare Quality Specialist and Full-Stack Developer architecting digital platforms for clinics, ICUs, and medical complexes in Egypt.',
       },
       biography: {
-        ar: 'تنطلق فلسفتي الهندسية من حقيقة بسيطة: لا نعالج العيادة الفردية بمنطق مجمع كبير، ولا نختصر تشغيل مجمع طبي متكامل في مجرد شاشة مواعيد. لذلك أعمل عن قرب مع الأطباء ومديري المجمعات الطبية الخيرية والخاصة لتحويل يوميات الاستقبال، الكشف، الروشتة، الخزينة، والمخزون إلى مسار رقمي واضح وسريع يستوعبه الفريق الطبي من اليوم الأول.',
-        en: 'My engineering philosophy starts from a ground truth: you never burden a solo physician’s clinic with enterprise bloat, nor do you reduce a multi-department medical complex to a basic calendar screen. I work closely with physicians and directors of charitable and private healthcare facilities in Egypt to translate reception, clinical consultations, e-prescriptions, treasury, and department coordination into clear, dependable digital workflows.',
+        ar: `بدأت رحلتي المهنية من داخل المستشفيات ووحدات الرعاية الحرجة والمجمعات الطبية، حيث عايشت عن قرب التحديات الحقيقية التي يواجهها الأطباء وهيئة التمريض وموظفو الاستقبال ومديرو الجودة يومياً. أدركت مبكراً أن معظم الأنظمة البرمجية تفشل في القطاع الطبي لأنها تُكتب من خارج الميدان الطبي، فتأتي إما معقدة ومزدحمة بقوائم تعطل الكشف، أو سطحية لا تغطي الدورة المالية والطبية الفعلية.
+
+لذلك قررت الجمع بين تخصصي في التمريض وإدارة جودة الرعاية الصحية وبين هندسة البرمجيات الحديثة. قمت بتصميم وتطوير وتشغيل منظومات رقمية متخصصة مثل نظام Soli Medical لإدارة العيادات والمجمعات الطبية، ونظام ICU-Sync لتنسيق الرعاية المركزة، ومنظومة Mitali Hospital، بالإضافة إلى أنظمة إدارة المخازن الطبية ومشروعات تحسين الجودة وسلامة المرضى.
+
+أؤمن بأن التحول الرقمي الصحي الناجح يبدأ من فهم تفاصيل رحلة المريض داخل المنشأة: من لحظة البحث عن الطبيب والحجز عبر الموبايل، إلى شاشة الاستقبال، إلى ملف التاريخ المرضي والروشتة أمام الطبيب، وصولاً إلى التقارير الإدارية والمالية ومؤشرات الجودة التي تساعد الإدارة على اتخاذ قرارات دقيقة.`,
+        en: `My career began on the clinical frontlines—inside hospitals, intensive care units (ICUs), and community medical complexes—where I experienced firsthand the daily operational pressures faced by physicians, nurses, reception teams, and quality directors. I quickly realized why most generic healthcare software fails: it is built by people who have never worked a clinical shift, resulting in bloated menus that slow down consultations or shallow tools that miss critical financial and clinical controls.
+
+To bridge that gap, I combined my professional background in clinical nursing and healthcare quality management with modern full-stack software engineering. I have architected, built, and deployed specialized health-tech platforms including Soli Medical (for solo clinics and multi-department complexes), ICU-Sync (critical care coordination), Mitali Hospital ERP, medical inventory & warehouse systems, and clinical quality audit suites.
+
+My philosophy is grounded in practical impact: great medical software must respect the doctor's focus, simplify the receptionist's queue, safeguard patient records, and give healthcare leaders real-time visibility into both clinical quality and financial performance.`,
       },
       highlights: {
         ar: [
-          'أنظمة عربية RTL مصممة خصيصاً لطريقة عمل العيادات والمنشآت الطبية في مصر والمنطقة',
-          'بناء وتشغيل برمجيات المجمعات الطبية الخيرية متعددة العيادات والأقسام',
-          'مرافقة المنشأة الطبية من تحليل الاحتياج والتطوير حتى التدريب والتشغيل الفعلي',
-          'تصميم صفحات هبوط طبية مستقلة عالية التحويل للعيادات والمراكز التخصصية',
+          'خلفية أكاديمية وعملية راسخة في التمريض، الرعاية الحرجة (ICU)، وإدارة الجودة الصحية',
+          'تطوير وتشغيل أنظمة إدارة العيادات والمجمعات الطبية الخيرية والخاصة من التخطيط حتى التدريب الميداني',
+          'تصميم معماري لأنظمة ويب سحابية ثنائية اللغة (RTL/LTR) سريعة وآمنة ومتوافقة مع الموبايل',
+          'ربط الأنظمة الطبية بقنوات التواصل الذكية (بوتات تليجرام، واتساب، وصفحات هبوط مستقلة للعيادات)',
         ],
         en: [
-          'Arabic-first RTL software tailored to real clinical workflows in Egypt and the MENA region',
-          'Multi-department systems for charitable medical complexes, labs, and pharmacies',
-          'Full operational ownership from requirements analysis to staff training and live deployment',
-          'High-conversion standalone medical landing pages for specialized clinics and centers',
+          'Strong clinical foundation in Nursing, Critical Care (ICU), and Healthcare Quality Assurance',
+          'End-to-end engineering and on-site deployment of clinic and charitable medical complex systems',
+          'Cloud-native bilingual (Arabic RTL / English LTR) web platforms built with React & TypeScript',
+          'Seamless patient automation connecting clinics with Telegram bots, WhatsApp, and standalone portals',
         ],
       },
       metrics: [
         {
           value: '01',
           label: {
-            ar: 'عيادة الطبيب الواحد — تنظيم الاستقبال والكشف والروشتة والفاتورة',
-            en: 'Solo Physician Clinic — Reception, EMR, Prescription & Billing',
+            ar: 'الممارسة السريرية وجودة الرعاية — فهم عميق لمسارات العمل داخل المستشفيات والعيادات',
+            en: 'Clinical & Quality Foundation — Deep understanding of hospital and outpatient workflows',
           },
         },
         {
           value: '02',
           label: {
-            ar: 'المجمعات والمستشفيات الصغيرة — ربط العيادات والأقسام والمالية',
-            en: 'Medical Complexes — Unified Departments, Permissions & Finance',
+            ar: 'هندسة البرمجيات الطبية — تطوير منصات ويب سحابية متكاملة (Soli Medical & ICU-Sync)',
+            en: 'Health-Tech Engineering — Cloud SaaS & ERP development (Soli Medical & ICU-Sync)',
           },
         },
         {
           value: '03',
           label: {
-            ar: 'أتمتة التواصل — بوت تليجرام وربط واتساب المباشر للمرضى',
-            en: 'Patient Automation — Telegram Booking Bot & WhatsApp Workflows',
+            ar: 'التشغيل الميداني والأتمتة — تدريب الفرق الطبية وربط الحجز الآلي عبر تليجرام وواتساب',
+            en: 'Field Deployment & Automation — Staff onboarding and Telegram/WhatsApp patient flows',
           },
         },
       ],
       experienceTimeline: [
         {
           period: {
-            ar: 'الحاضر — مستمر',
-            en: 'Present — Ongoing',
+            ar: '2024 — الحاضر',
+            en: '2024 — Present',
           },
           role: {
-            ar: 'مؤسس ومطوّر رئيسي لأنظمة الإدارة الطبية',
-            en: 'Founder & Lead Healthcare Systems Architect',
+            ar: 'مؤسس ومطوّر رئيسي لمنظومة Soli Medical والمنصات الطبية الرقمية',
+            en: 'Founder & Lead Architect — Soli Medical & Digital Healthcare Systems',
           },
           organization: {
-            ar: 'منصة أحمد سليمان / أنظمة Soli Medical',
-            en: 'Ahmed Soliman Platform / Soli Medical Systems',
+            ar: 'منصة أحمد سليمان الرقمية / أنظمة Soli Medical',
+            en: 'Ahmed Soliman Digital Platform / Soli Medical Systems',
           },
           description: {
-            ar: 'تطوير وتشغيل نظامين متكاملين: نظام عيادة الطبيب الواحد، ومنظومة تشغيل المجمعات الطبية والمستشفيات الصغيرة مع التكامل الآلي عبر تليجرام وواتساب.',
-            en: 'Architecting and operating dual healthcare systems: Single-Doctor Clinic Suite and Multi-Department Medical Complex ERP with Telegram & WhatsApp automation.',
+            ar: 'تصميم وتطوير وتشغيل حزمة أنظمة Soli Medical لعيادة الطبيب الواحد وللمجمعات الطبية متعددة التخصصات، مع تطوير بوت الحجز الذكي (@SoliMedicalproBot) وبناء صفحات الهبوط الطبية المستقلة للعيادات.',
+            en: 'Architecting and operating the Soli Medical suite for solo clinics and multi-department polyclinics, alongside the @SoliMedicalproBot automated booking assistant and standalone clinic portals.',
           },
         },
         {
           period: {
-            ar: 'تطوير وتشغيل ميداني',
-            en: 'Field Engineering & Operations',
+            ar: '2023 — الحاضر',
+            en: '2023 — Present',
           },
           role: {
-            ar: 'مطوّر ومشغّل برمجيات المجمعات الطبية الخيرية',
-            en: 'Charitable Medical Complexes Software Engineer',
+            ar: 'مطوّر ومشغّل برمجيات المجمعات الطبية وأنظمة المخازن (ERP)',
+            en: 'Medical Complex ERP & Inventory Systems Developer',
           },
           organization: {
-            ar: 'مجمعات ومراكز طبية مجتمعية في مصر',
-            en: 'Community & Charitable Medical Complexes in Egypt',
+            ar: 'مجمعات ومراكز طبية خيرية وخاصة في مصر (Mitali & Community Centers)',
+            en: 'Charitable & Private Medical Complexes in Egypt',
           },
           description: {
-            ar: 'بناء البنية التحتية الرقمية للمجمعات الطبية الخيرية لتنظيم حركة المراجعين، تعدد العيادات التخصصية، التقارير المالية، وصلاحيات الفرق التشغيلية.',
-            en: 'Building digital infrastructure for high-volume charitable medical complexes, managing patient queues, multi-specialty clinics, financial accountability, and RBAC.',
+            ar: 'بناء وتشغيل البنية الرقمية للمجمعات الطبية لتنظيم شباك التذاكر المركزي، تعدد العيادات، حسابات الأطباء، تقفيل الورديات، وإدارة المخازن والمستلزمات الطبية.',
+            en: 'Building and operating facility-wide software governing central ticketing, multi-specialty clinics, physician revenue shares, shift accounting, and medical supply inventory.',
           },
         },
         {
           period: {
-            ar: 'هندسة الواجهات والمنصات',
-            en: 'Web Platforms & Digital Identity',
+            ar: '2022 — 2024',
+            en: '2022 — 2024',
           },
           role: {
-            ar: 'مهندس برمجيات متكامل (Full-Stack Web Developer)',
-            en: 'Full-Stack Web Engineer (React / Next.js / TypeScript)',
+            ar: 'أخصائي جودة الرعاية الصحية ومطوّر مشروع ICU-Sync',
+            en: 'Healthcare Quality Specialist & Creator of ICU-Sync',
           },
           organization: {
-            ar: 'استشارات وتطوير منصات رقمية مستقلة',
-            en: 'Independent Digital Platforms & Medical Web Portals',
+            ar: 'وحدات الرعاية الحرجة وإدارة الجودة وسلامة المرضى',
+            en: 'Critical Care Units (ICU) & Healthcare Quality Governance',
           },
           description: {
-            ar: 'تصميم وتنفيذ منصات ويب ثنائية اللغة، صفحات هبوط تسويقية للعيادات والمراكز الطبية، ولوحات تحكم سحابية سريعة وآمنة.',
-            en: 'Designing and building bilingual web platforms, standalone medical clinic landing pages, and secure cloud CMS dashboards.',
+            ar: 'تطوير نظام ICU-Sync لمزامنة بيانات أسرة الرعاية المركزة والعلامات الحيوية وتسليم الورديات السريرية، بالتوازي مع تطبيق معايير الجودة ومكافحة العدوى وتدقيق الملفات الطبية.',
+            en: 'Engineered ICU-Sync for intensive care bed telemetry and clinical shift handoffs while leading healthcare quality assurance, infection control audits, and patient safety standards.',
+          },
+        },
+        {
+          period: {
+            ar: 'بداية المسيرة المهنية',
+            en: 'Early Clinical Career',
+          },
+          role: {
+            ar: 'ممارس سريري في التمريض والرعاية الحرجة والطوارئ',
+            en: 'Clinical Nursing & Critical Care Practitioner',
+          },
+          organization: {
+            ar: 'المستشفيات والمنشآت الصحية',
+            en: 'Hospitals & Clinical Facilities',
+          },
+          description: {
+            ar: 'العمل المباشر في رعاية المرضى، إدارة الحالات الحرجة، وتنسيق مسارات العمل بين الأطباء والتمريض والمعامل، وهي التجربة التي شكلت الأساس العملي لكل نظام برمجي قمت ببنائه لاحقاً.',
+            en: 'Hands-on bedside patient care, emergency triage, and inter-departmental clinical coordination—forming the domain bedrock for every software system built thereafter.',
           },
         },
       ],
       skills: [
         {
           category: {
-            ar: 'هندسة الواجهات والتجربة البصرية',
-            en: 'Frontend Architecture & UX',
+            ar: 'الخبرات الطبية وجودة الرعاية الصحية',
+            en: 'Clinical Care & Healthcare Quality',
           },
-          items: ['React 19', 'Next.js App Router', 'TypeScript', 'Tailwind CSS', 'Framer Motion', 'RTL/LTR Bilingual Systems'],
+          items: [
+            'Critical Care & ICU Workflows',
+            'Healthcare Quality Standards (GAHAR / JCI)',
+            'Patient Safety & Risk Management',
+            'Infection Control Protocols',
+            'Clinical Audit &KPI Dashboards',
+            'Outpatient & Polyclinic Operations',
+          ],
         },
         {
           category: {
-            ar: 'قواعد البيانات والخدمات السحابية',
-            en: 'Cloud Backend & Security',
+            ar: 'هندسة البرمجيات وتطوير الويب',
+            en: 'Full-Stack Software Engineering',
           },
-          items: ['Firebase Authentication', 'Cloud Firestore', 'Zero-Trust Security Rules', 'Cloudinary Signed CDN', 'Node.js / Express', 'REST APIs'],
+          items: [
+            'React 19 & Next.js',
+            'TypeScript & JavaScript (ES2024)',
+            'Tailwind CSS & Responsive RTL/LTR UI',
+            'Node.js & Express APIs',
+            'Cloud Firestore & Firebase Auth',
+            'Zero-Trust Security Rules & RBAC',
+          ],
         },
         {
           category: {
-            ar: 'الأنظمة الطبية والتشغيلية',
-            en: 'Healthcare Domain & Automation',
+            ar: 'الأنظمة الطبية والأتمتة الرقمية',
+            en: 'Medical Systems & Patient Automation',
           },
-          items: ['Clinic Reception & Queue Flow', 'E-Prescription & Patient Files', 'Medical Complex Treasury & Accounting', 'Telegram Bot API (@SoliMedicalproBot)', 'WhatsApp Business Workflows', 'Technical SEO & Schema.org'],
+          items: [
+            'Electronic Medical Records (Cloud EMR)',
+            'Clinic Treasury & Shift Accounting',
+            'Medical Inventory & Pharmacy Stock',
+            'Telegram Bot API (@SoliMedicalproBot)',
+            'WhatsApp Business Consultation Flows',
+            'Technical SEO & Medical Schema.org',
+          ],
         },
       ],
+      qualifications: [
+        {
+          degree: {
+            ar: 'بكالوريوس ومؤهلات متخصصة في علوم التمريض والرعاية الصحية',
+            en: 'Academic & Professional Credentials in Nursing & Healthcare Sciences',
+          },
+          institution: {
+            ar: 'التعليم الجامعي والتدريب السريري المتقدم — مصر',
+            en: 'University Clinical Education & Advanced Healthcare Training — Egypt',
+          },
+          year: 'Clinical & Academic Track',
+          details: {
+            ar: 'تأهيل علمي وعملي في الرعاية الحرجة، إدارة الحالات السريرية، نظم المعلومات الصحية، ومعايير سلامة المرضى.',
+            en: 'Comprehensive academic and clinical grounding in critical care nursing, patient safety, and health informatics.',
+          },
+        },
+        {
+          degree: {
+            ar: 'دراسات وتطبيقات إدارة الجودة الشاملة في الرعاية الصحية',
+            en: 'Healthcare Quality Management & Clinical Governance',
+          },
+          institution: {
+            ar: 'مؤشرات الأداء الطبي ومكافحة العدوى والاعتماد الصحي',
+            en: 'Clinical KPIs, Infection Control & Accreditation Readiness',
+          },
+          year: 'Quality Track',
+          details: {
+            ar: 'بناء قوائم المراجعة السريرية، قياس مؤشرات الأداء (KPIs)، وتحويل معايير الجودة الورقية إلى أنظمة رقمية قابلة للقياس.',
+            en: 'Designing clinical audit checklists, tracking hospital KPIs, and digitizing quality assurance workflows.',
+          },
+        },
+        {
+          degree: {
+            ar: 'هندسة وتطوير تطبيقات الويب السحابية المتكاملة (Full-Stack Engineering)',
+            en: 'Full-Stack Web & Cloud Software Architecture',
+          },
+          institution: {
+            ar: 'تطوير الأنظمة الطبية السحابية وقواعد البيانات الآمنة',
+            en: 'Cloud SaaS Architecture, TypeScript, React & Firebase Security',
+          },
+          year: 'Engineering Track',
+          details: {
+            ar: 'احتراف بناء تطبيقات الويب التفاعلية، هيكلة قواعد البيانات السحابية، وتأمين صلاحيات المستخدمين في الأنظمة الطبية.',
+            en: 'Mastering modern web application architecture, multi-tenant database modeling, and role-based security.',
+          },
+        },
+      ],
+      achievements: [
+        {
+          title: {
+            ar: 'إطلاق وتشغيل منظومة Soli Medical بمساريها الفردي والمجمعات',
+            en: 'Launched & Operated Soli Medical Dual-Track Platform',
+          },
+          metric: 'Soli Medical Suite',
+          description: {
+            ar: 'بناء منصة سحابية متكاملة تغطي عيادة الطبيب الواحد والمجمعات الطبية والمستشفيات الصغيرة مع حجز ذاتي وبوت تليجرام.',
+            en: 'Engineered a complete cloud platform serving both solo physician practices and multi-department polyclinics.',
+          },
+        },
+        {
+          title: {
+            ar: 'ابتكار نظام ICU-Sync لتنسيق الرعاية المركزة',
+            en: 'Architected ICU-Sync Critical Care Telemetry System',
+          },
+          metric: 'ICU-Sync',
+          description: {
+            ar: 'تطوير لوحة قيادة سريرية لمتابعة حالة أسرة الرعاية المركزة وتوثيق العلامات الحيوية وتسليم الورديات الطبية بدقة.',
+            en: 'Created a specialized ICU command dashboard for real-time bed status, vital signs tracking, and structured shift handoffs.',
+          },
+        },
+        {
+          title: {
+            ar: 'رقمنة تشغيل المجمعات الطبية الخيرية وأنظمة المخازن',
+            en: 'Digitized Charitable Medical Complexes & Medical Warehouses',
+          },
+          metric: '100% Digital Flow',
+          description: {
+            ar: 'تحويل الدورة الورقية في المجمعات الطبية والمخازن إلى مسار رقمي يضبط التذاكر، الخزينة، والأرصدة الدوائية.',
+            en: 'Transformed paper-based community clinic and warehouse operations into auditable digital ledgers.',
+          },
+        },
+      ],
+      interests: {
+        ar: [
+          'معلوماتية الرعاية الصحية والتحول الرقمي للمستشفيات',
+          'تصميم واجهات المستخدم الطبية السريعة الخالية من التعقيد',
+          'نظم دعم القرار السريري وسلامة المرضى في الرعاية الحرجة',
+          'أتمتة رحلة المريض عبر البوتات الذكية والرسائل التفاعلية',
+          'الكتابة التقنية ومشاركة الخبرات الميدانية في التكنولوجيا الصحية',
+        ],
+        en: [
+          'Health Informatics & Hospital Digital Transformation',
+          'Zero-Friction Clinical User Interface (UI/UX) Design',
+          'Clinical Decision Support & ICU Patient Safety',
+          'Conversational Patient Automation & Smart Bots',
+          'Technical Writing & Health-Tech Knowledge Sharing',
+        ],
+      },
       heroImage: '/assets/aistudio/1770146906397_16665dd0.png',
       standaloneByDefault: false,
       published: true,
       order: 2,
       seo: {
         title: {
-          ar: 'من أنا | أحمد سليمان — مطوّر أنظمة العيادات الطبية والبرمجيات الصحية',
-          en: 'About Ahmed Soliman — Healthcare Systems Architect & Developer',
+          ar: 'من أنا | أحمد سليمان — السيرة المهنية ومطوّر الأنظمة الطبية',
+          en: 'About Ahmed Soliman — Editorial Profile & Career Timeline',
         },
         description: {
-          ar: 'تعرف على المسيرة المهنية للمهندس أحمد سليمان في تطوير وتشغيل أنظمة إدارة العيادات وبرمجيات المجمعات الطبية الخيرية في مصر.',
-          en: 'Learn about Ahmed Soliman’s background in developing and operating clinic management systems and charitable medical complex software in Egypt.',
+          ar: 'تعرف على المسيرة المهنية لأحمد سليمان بين التمريض وإدارة الجودة الصحية وتطوير أنظمة العيادات والمستشفيات في مصر.',
+          en: 'Explore Ahmed Soliman’s monograph, career timeline, qualifications, and philosophy at the intersection of healthcare quality and software engineering.',
         },
         ogImage: '/assets/aistudio/1770146906397_16665dd0.png',
         canonicalSlug: '/about',
         structuredDataType: 'Person',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'projects',
+      slug: 'projects',
+      title: {
+        ar: 'معرض المشروعات والأنظمة',
+        en: 'Projects & Systems Gallery',
+      },
+      kicker: {
+        ar: 'معرض الأعمال والأنظمة الطبية',
+        en: 'Healthcare Software & ERP Systems',
+      },
+      headline: {
+        ar: 'معرض المشروعات والأنظمة الطبية الرقمية',
+        en: 'Featured Healthcare Software & Digital Systems',
+      },
+      subheadline: {
+        ar: 'استعرض الأنظمة البرمجية والمنصات الطبية المطوّرة للعيادات والمجمعات الطبية والمستشفيات.',
+        en: 'Explore specialized healthcare software platforms engineered for clinics, ICUs, and hospitals.',
+      },
+      biography: {
+        ar: 'مجموعة متكاملة من الأنظمة السحابية الطبية المصممة لواقع العمل اليومي داخل العيادات والمستشفيات.',
+        en: 'Cloud healthcare systems built around real clinical and administrative workflows.',
+      },
+      highlights: { ar: [], en: [] },
+      metrics: [],
+      experienceTimeline: [],
+      skills: [],
+      heroImage: '/assets/aistudio/logo_ae3842b8.png',
+      standaloneByDefault: false,
+      published: true,
+      order: 3,
+      seo: {
+        title: {
+          ar: 'معرض المشروعات والأنظمة الطبية | أحمد سليمان',
+          en: 'Projects & Healthcare Systems | Ahmed Soliman',
+        },
+        description: {
+          ar: 'استكشف مشروعات وأنظمة أحمد سليمان الطبية والبرمجية.',
+          en: 'Explore healthcare software systems by Ahmed Soliman.',
+        },
+        canonicalSlug: '/projects',
+        structuredDataType: 'WebSite',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'solimedical',
+      slug: 'solimedical',
+      title: {
+        ar: 'صفحة عرض نظام Soli Medical',
+        en: 'Soli Medical Showcase Page',
+      },
+      kicker: {
+        ar: 'Soli Medical · نظام إدارة العيادات والمجمعات الطبية',
+        en: 'Soli Medical · Clinic & Polyclinic Management Suite',
+      },
+      headline: {
+        ar: 'نظامان عربيان لرعاية تتحرك معك.',
+        en: 'Two Clinical Systems Engineered Around Your Care.',
+      },
+      subheadline: {
+        ar: 'اختر ما يناسب حجم منشأتك: نظام واضح لإدارة عيادة الطبيب الواحد، أو منظومة تشغيل مترابطة لمجمع العيادات والمستشفيات الصغيرة.',
+        en: 'Choose what fits your facility: a streamlined system for solo clinics or an interconnected platform for medical complexes.',
+      },
+      biography: {
+        ar: 'من يوميات العيادة إلى قرار إداري أوضح.',
+        en: 'From daily clinic workflows to clearer executive decisions.',
+      },
+      highlights: { ar: [], en: [] },
+      metrics: [],
+      experienceTimeline: [],
+      skills: [],
+      heroImage: '/assets/aistudio/logo_ae3842b8.png',
+      standaloneByDefault: false,
+      published: true,
+      order: 4,
+      seo: {
+        title: {
+          ar: 'Soli Medical | نظام إدارة العيادات والمجمعات الطبية',
+          en: 'Soli Medical | Clinic & Polyclinic Management System',
+        },
+        description: {
+          ar: 'نظام عربي لإدارة العيادات والمجمعات الطبية: استقبال، حجز مواعيد، ملفات مرضى، فواتير وتقارير.',
+          en: 'Bilingual clinic management system: reception, appointments, EMR, billing, and analytics.',
+        },
+        canonicalSlug: '/solimedical',
+        structuredDataType: 'SoftwareApplication',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'clinics',
+      slug: 'clinics',
+      title: {
+        ar: 'صفحات العيادات والمراكز الطبية',
+        en: 'Medical Clinics Directory',
+      },
+      kicker: {
+        ar: 'بوابات العيادات والمراكز الطبية المستقلة',
+        en: 'Standalone Clinic Landing Portals',
+      },
+      headline: {
+        ar: 'رعاية طبية متكاملة وصفحات هبوط مستقلة للعيادات',
+        en: 'Dedicated Standalone Portals for Clinics & Medical Centers',
+      },
+      subheadline: {
+        ar: 'لكل عيادة أو مركز طبي صفحة هبوط مستقلة تعرض الأطباء والخدمات والأسعار ومواعيد العمل والحجز المباشر.',
+        en: 'Each clinic features a dedicated standalone landing page showcasing doctors, services, pricing, and direct booking.',
+      },
+      biography: {
+        ar: 'دليل البوابات الطبية وصفحات الهبوط المستقلة للعيادات.',
+        en: 'Directory of standalone medical clinic landing pages.',
+      },
+      highlights: { ar: [], en: [] },
+      metrics: [],
+      experienceTimeline: [],
+      skills: [],
+      heroImage: '/assets/aistudio/logo_ae3842b8.png',
+      standaloneByDefault: false,
+      published: true,
+      order: 5,
+      seo: {
+        title: {
+          ar: 'صفحات العيادات والمراكز الطبية | أحمد سليمان',
+          en: 'Medical Clinics & Portals | Ahmed Soliman',
+        },
+        description: {
+          ar: 'استعرض صفحات الهبوط المستقلة للعيادات والمجمعات الطبية.',
+          en: 'Browse standalone medical clinic landing pages.',
+        },
+        canonicalSlug: '/clinics',
+        structuredDataType: 'MedicalClinic',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'blog',
+      slug: 'blog',
+      title: {
+        ar: 'مساحة المقالات والمعرفة',
+        en: 'Blog & Knowledge Hub',
+      },
+      kicker: {
+        ar: 'المجلة التحريرية والمعرفية',
+        en: 'Editorial & Knowledge Hub',
+      },
+      headline: {
+        ar: 'مقالات تقنية وطبية وتجارب عملية من الميدان',
+        en: 'Healthcare Engineering & Clinical Quality Articles',
+      },
+      subheadline: {
+        ar: 'شروحات ومقالات متخصصة في التحول الرقمي الصحي، إدارة العيادات، وجودة الرعاية الطبية.',
+        en: 'In-depth articles on digital healthcare transformation, clinic operations, and clinical quality.',
+      },
+      biography: {
+        ar: 'مساحة المعرفة والمقالات التقنية والطبية.',
+        en: 'Technical and clinical knowledge hub.',
+      },
+      highlights: { ar: [], en: [] },
+      metrics: [],
+      experienceTimeline: [],
+      skills: [],
+      heroImage: '/assets/aistudio/1770146906397_16665dd0.png',
+      standaloneByDefault: false,
+      published: true,
+      order: 6,
+      seo: {
+        title: {
+          ar: 'المقالات ومساحة المعرفة | أحمد سليمان',
+          en: 'Articles & Knowledge Hub | Ahmed Soliman',
+        },
+        description: {
+          ar: 'مقالات وشروحات تقنية وطبية بقلم أحمد سليمان.',
+          en: 'Articles and guides by Ahmed Soliman.',
+        },
+        canonicalSlug: '/blog',
+        structuredDataType: 'BlogPosting',
       },
       createdAt: NOW,
       updatedAt: NOW,
@@ -319,95 +648,104 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       id: 'soli-medical-single-clinic',
       slug: 'soli-medical-clinic-system',
       title: {
-        ar: 'نظام Soli Medical — إدارة عيادة الطبيب الواحد',
-        en: 'Soli Medical — Single Physician Clinic Management System',
+        ar: 'منظومة Soli Medical — نظام إدارة العيادات والمجمعات الطبية المتكامل',
+        en: 'Soli Medical — Integrated Clinic & Medical Complex Management Suite',
       },
       kicker: {
-        ar: '01 · للطبيب الفرد والعيادات التخصصية',
-        en: '01 · For Solo Physicians & Specialized Clinics',
+        ar: '01 · المنظومة الطبية الرئيسية (عيادة فردية + مجمعات طبية)',
+        en: '01 · Flagship Medical SaaS (Solo Clinics + Polyclinics)',
       },
       summary: {
-        ar: 'يبدأ يوم العيادة من تسجيل المريض إلى الكشف والروشتة والفاتورة والمتابعة. النظام مبني ليكون واضحاً للطبيب والاستقبال بدون تعقيدات لا تحتاجها.',
-        en: 'Covers the entire clinic day from patient check-in to examination, prescription, billing, and follow-up—engineered for clarity across reception and doctor screens.',
+        ar: 'الجيل الجديد من إدارة العيادات والمراكز الطبية: نظام سحابي يجمع الحجز الذكي، السجل الطبي الإلكتروني (Cloud EMR)، الإدارة المالية، وأتمتة التواصل عبر واتساب وبوت تليجرام.',
+        en: 'Next-generation cloud healthcare management uniting smart booking, Cloud EMR, e-prescriptions, financial accounting, and Telegram/WhatsApp patient automation.',
       },
       description: {
-        ar: 'صُمم نظام Soli Medical لعيادة الطبيب الواحد ليعالج التحدي اليومي الأهم في العيادات الخاصة: تنظيم حركة المرضى بين الاستقبال وغرفة الكشف بسرعة ودقة دون إرباك الطبيب بقوائم معقدة. يجمع النظام ملف المريض، التاريخ العلاجي، الزيارات السابقة، طباعة الروشتة، وحسابات الخزينة اليومية في سياق عملي واحد يعمل بالعربية والإنجليزية من المتصفح أو الموبايل.',
-        en: 'Soli Medical for Single-Doctor Clinics solves the core operational challenge of private practices: synchronizing patient flow between reception and the consultation room without overwhelming the physician. It unifies patient medical history, visit notes, prescription printing, and daily treasury accounting in a responsive Arabic/English web application.',
+        ar: 'صُممت منظومة Soli Medical لتقدم مسارين مصممين بدقة حسب حجم المنشأة: مسار "عيادة الطبيب الواحد" الذي يركز على سرعة الاستقبال والكشف والروشتة والخزينة اليومية بدون تعقيد، ومسار "المجمعات الطبية والمستشفيات الصغيرة" الذي يربط العيادات المتعددة والأقسام والمالية والصلاحيات في لوحة قيادة واحدة.',
+        en: 'Soli Medical provides two purpose-built operational tracks: the Single-Doctor Clinic track focused on rapid check-in, EMR, e-prescription, and daily cash balance, and the Medical Complex track connecting multi-specialty clinics, departments, RBAC permissions, and central finance.',
+      },
+      problem: {
+        ar: 'معظم العيادات والمجمعات الطبية تعاني إما من الدفاتر الورقية وتشتت ملفات المرضى وضغط مكالمات الحجز، أو من برامج محاسبية معقدة غير مصممة لبيئة الكشف الطبي السريع وتفتقر لدعم اللغة العربية الأصيل.',
+        en: 'Clinics and medical centers either struggle with fragmented paper records and overwhelmed reception phones, or face bloated legacy software that slows doctors down during consultations.',
+      },
+      solution: {
+        ar: 'بناء منصة سحابية عربية وإنجليزية (RTL/LTR) بواجهة فائقة الوضوح تربط شاشة الاستقبال بشاشة الطبيب لحظياً، مع ملف مريض إلكتروني كامل، روشتة جاهزة للطباعة، تقارير خزينة دقيقة، وبوت تليجرام وواتساب للحجز الذاتي.',
+        en: 'Engineered a fast, native RTL/LTR cloud platform synchronizing reception queues with the doctor’s consultation screen in real time, complete with Cloud EMR, printable prescriptions, financial ledgers, and automated bot booking.',
       },
       category: 'medical-systems',
       categoryLabel: {
         ar: 'أنظمة إدارة العيادات',
         en: 'Clinic Management Systems',
       },
-      coverImage: '/assets/aistudio/logo_ae3842b8.png',
+      coverImage: 'https://solimedical.vercel.app/assets/images/dashboard.webp',
       logoImage: '/assets/aistudio/logo_ae3842b8.png',
       videoUrl: 'https://www.youtube.com/watch?v=l90OUlLJT-I',
       youtubeId: 'l90OUlLJT-I',
-      liveUrl: 'https://solimedical.vercel.app/clinics',
+      liveUrl: 'https://solimedical.vercel.app/solimedical',
+      showcaseRoute: '/solimedical',
       whatsappInquireText: {
-        ar: 'مرحباً، أريد نظام Soli Medical لعيادة الطبيب الواحد.',
-        en: 'Hello Ahmed, I would like to inquire about the Soli Medical Single-Doctor Clinic system.',
+        ar: 'مرحباً م. أحمد، أريد الاستفسار عن منظومة Soli Medical لإدارة العيادات والمجمعات الطبية.',
+        en: 'Hello Ahmed, I would like to inquire about the Soli Medical Clinic & Complex Management System.',
       },
       features: {
         ar: [
           'إدارة المواعيد والزيارات وقائمة الانتظار اللحظية بين الاستقبال والطبيب',
-          'الملف الطبي والرحلة العلاجية والروشتة الإلكترونية في شاشة واحدة',
-          'الفواتير والخزينة اليومية ومتابعة التحصيل والمصروفات بدقة',
-          'التقارير والإحصائيات اليومية والشهرية لنشاط العيادة',
-          'يعمل من المتصفح والموبايل مع دعم كامل للغتين العربية (RTL) والإنجليزية',
+          'سجل طبي إلكتروني سحابي (Cloud EMR) والروشتة الإلكترونية في شاشة واحدة',
+          'الفواتير والخزينة اليومية وحساب نسب الأطباء والمصروفات بدقة',
+          'مسار مخصص لعيادة الطبيب الواحد ومسار متكامل للمجمعات الطبية',
+          'تكامل مباشر مع بوت تليجرام (@SoliMedicalproBot) ورسائل واتساب',
         ],
         en: [
-          'Real-time appointments, visits, and live waiting queue between reception and doctor',
-          'Unified patient medical dossier, treatment journey, and e-prescription workspace',
-          'Daily billing, treasury ledger, revenue collection, and expense tracking',
-          'Clear operational reports and daily/monthly performance analytics',
-          'Runs seamlessly on desktop and mobile browsers with native RTL Arabic & English support',
+          'Real-time appointment scheduling and live waiting queue synchronization',
+          'Cloud Electronic Medical Records (EMR) and one-click printable e-prescriptions',
+          'Daily billing, shift treasury reconciliation, and physician revenue share ledgers',
+          'Dedicated tracks for Single-Doctor Clinics and Multi-Department Medical Complexes',
+          'Integrated Telegram booking bot (@SoliMedicalproBot) and WhatsApp notifications',
         ],
       },
-      techStack: ['React', 'TypeScript', 'Next.js', 'Tailwind CSS', 'Cloud Database', 'PWA Ready'],
+      techStack: ['React 19', 'TypeScript', 'Next.js', 'Tailwind CSS', 'Cloud Firestore', 'Telegram Bot API'],
       screens: [
         {
           id: 'screen-dashboard',
           title: {
-            ar: 'لوحة التحكم اليومية',
-            en: 'Daily Clinic Dashboard',
+            ar: 'لوحة التحكم',
+            en: 'Command Dashboard',
           },
           caption: {
             ar: 'نظرة سريعة على نشاط اليوم: الكشوفات، قائمة الانتظار، المواعيد المؤكدة، والإيراد اليومي.',
             en: 'Instant overview of today’s clinical activity: consultations, waiting queue, confirmed bookings, and daily revenue.',
           },
-          imageUrl: '/assets/aistudio/logo_ae3842b8.png',
+          imageUrl: 'https://solimedical.vercel.app/assets/images/dashboard.webp',
         },
         {
           id: 'screen-appointments',
           title: {
-            ar: 'حجز المواعيد والاستقبال',
-            en: 'Appointments & Reception Flow',
+            ar: 'حجز المواعيد',
+            en: 'Appointments & Queue',
           },
           caption: {
-            ar: 'مسار واضح لموظف الاستقبال لتسجيل الحضور وتحديث حالة المريض لحظياً أمام الطبيب.',
+            ar: 'إدارة واضحة لحركة المرضى من التسجيل إلى الدخول على الطبيب وتحديث الحالة لحظياً.',
             en: 'Streamlined reception workflow for patient check-in and real-time status synchronization with the doctor.',
           },
-          imageUrl: '/assets/aistudio/logo_ae3842b8.png',
+          imageUrl: 'https://solimedical.vercel.app/assets/images/booking.webp',
         },
         {
           id: 'screen-patients',
           title: {
-            ar: 'ملفات المرضى والروشتة',
-            en: 'Patient Records & E-Prescription',
+            ar: 'ملفات المرضى',
+            en: 'Cloud EMR & Prescriptions',
           },
           caption: {
-            ar: 'معلومات المريض والزيارات السابقة والملاحظات والوصفات الطبية في سياق عملي واحد.',
+            ar: 'معلومات المريض والزيارات السابقة والملاحظات والروشتة في سياق عملي واحد.',
             en: 'Complete patient history, clinical notes, and printable prescriptions organized in one view.',
           },
-          imageUrl: '/assets/aistudio/logo_ae3842b8.png',
+          imageUrl: 'https://solimedical.vercel.app/assets/images/emr.webp',
         },
       ],
       comparisonTable: [
         {
           axis: { ar: 'صاحب القرار', en: 'Decision Maker' },
           singleClinic: { ar: 'الطبيب أو صاحب العيادة', en: 'Solo Physician or Clinic Owner' },
-          medicalComplex: { ar: 'مدير المجمع أو مجلس الإدارة', en: 'Complex Director or Management Board' },
+          medicalComplex: { ar: 'مدير المجمع أو الإدارة', en: 'Complex Director or Management Board' },
         },
         {
           axis: { ar: 'نقطة البداية', en: 'Starting Point' },
@@ -417,7 +755,7 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         {
           axis: { ar: 'الوحدات التشغيلية', en: 'Operational Units' },
           singleClinic: { ar: 'عيادة واحدة وفريق عمل صغير', en: 'Single clinic with a lean reception team' },
-          medicalComplex: { ar: 'عيادات متعددة وأقسام ومعامل وصيدليات', en: 'Multi-specialty clinics, labs, pharmacies & cashier desks' },
+          medicalComplex: { ar: 'عيادات متعددة وأقسام ووحدات مختلفة', en: 'Multi-specialty clinics, labs, pharmacies & cashier desks' },
         },
         {
           axis: { ar: 'أول أسئلة العرض', en: 'First Discovery Question' },
@@ -426,8 +764,8 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         },
         {
           axis: { ar: 'نموذج التنفيذ', en: 'Deployment Model' },
-          singleClinic: { ar: 'تفعيل مباشر وتدريب سريع خلال أيام', en: 'Direct activation and rapid onboarding' },
-          medicalComplex: { ar: 'تنفيذ مرحلي مخصص حسب الوحدات والأقسام', en: 'Phased rollout tailored to each operational unit' },
+          singleClinic: { ar: 'تفعيل مباشر وتدريب سريع', en: 'Direct activation and rapid onboarding' },
+          medicalComplex: { ar: 'تنفيذ مرحلي حسب الوحدات والأقسام', en: 'Phased rollout tailored to each operational unit' },
         },
       ],
       featured: true,
@@ -435,12 +773,12 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       order: 1,
       seo: {
         title: {
-          ar: 'نظام Soli Medical لإدارة عيادة الطبيب الواحد | مشروعات أحمد سليمان',
-          en: 'Soli Medical Single-Doctor Clinic System | Ahmed Soliman Projects',
+          ar: 'نظام Soli Medical لإدارة العيادات والمجمعات الطبية | أحمد سليمان',
+          en: 'Soli Medical Clinic & Polyclinic Management System | Ahmed Soliman',
         },
         description: {
-          ar: 'تعرف على نظام Soli Medical لإدارة عيادة الطبيب الواحد: المواعيد، الملف الطبي، الروشتة، والخزينة اليومية بواجهة عربية RTL واضحة.',
-          en: 'Explore the Soli Medical Single-Doctor Clinic System by Ahmed Soliman: appointments, EMR, prescriptions, and billing.',
+          ar: 'تعرف على منظومة Soli Medical لإدارة عيادة الطبيب الواحد والمجمعات الطبية: المواعيد، الملف الطبي، الروشتة، والخزينة اليومية.',
+          en: 'Explore Soli Medical by Ahmed Soliman: smart clinic appointments, Cloud EMR, prescriptions, billing, and multi-clinic ERP.',
         },
         ogImage: '/assets/aistudio/logo_ae3842b8.png',
         canonicalSlug: '/projects/soli-medical-clinic-system',
@@ -450,65 +788,72 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       updatedAt: NOW,
     },
     {
-      id: 'soli-medical-complex-erp',
-      slug: 'medical-complex-management-system',
+      id: 'icu-sync-critical-care',
+      slug: 'icu-sync-critical-care-system',
       title: {
-        ar: 'منظومة تشغيل المجمعات الطبية والمستشفيات الصغيرة',
-        en: 'Integrated Medical Complex & Polyclinic Operations Platform',
+        ar: 'نظام ICU-Sync — متابعة وتنسيق الرعاية المركزة والحالات الحرجة',
+        en: 'ICU-Sync — Intensive Care Telemetry & Clinical Shift Synchronization',
       },
       kicker: {
-        ar: '02 · للمجمعات الطبية الخيرية والخاصة والمستشفيات الصغيرة',
-        en: '02 · For Charitable & Private Medical Complexes',
+        ar: '02 · أنظمة الرعاية الحرجة والطوارئ (Critical Care Tech)',
+        en: '02 · Critical Care & Hospital ICU Coordination',
       },
       summary: {
-        ar: 'عندما تتعدد العيادات والوحدات، يحتاج مدير المجمع إلى رؤية واحدة تجمع التشغيل والمالية والأقسام والصلاحيات في مكان واحد.',
-        en: 'When multiple clinics and diagnostic units operate under one roof, management needs a single unified platform connecting operations, permissions, and finance.',
+        ar: 'منصة سريرية متخصصة لوحدات الرعاية المركزة (ICU) تتيح متابعة حالة الأسرة لحظياً، توثيق العلامات الحيوية وأجهزة التنفس، وتنظيم تسليم الورديات بين الأطباء والتمريض.',
+        en: 'Specialized clinical cockpit for Intensive Care Units tracking real-time bed occupancy, vital signs trends, ventilator parameters, and structured SBAR shift handoffs.',
       },
       description: {
-        ar: 'منظومة تشغيلية مترابطة طُوّرت خصيصاً من واقع العمل الميداني داخل المجمعات الطبية الخيرية والخاصة في مصر. تتيح للإدارة ربط عشرات العيادات التخصصية، شباك التذاكر والحجز المركزي، المعامل، والأقسام المالية مع نظام صلاحيات دقيق لكل موظف وطبيب ومدير قسم، وتقارير مالية وتشغيلية لحظية.',
-        en: 'Built from hands-on field experience operating charitable and private medical complexes in Egypt, this platform links central ticketing, multi-specialty clinics, laboratory/radiology referrals, and central treasury with strict role-based access control and executive reporting.',
+        ar: 'وُلد مشروع ICU-Sync من واقع العمل الفعلي داخل وحدات العناية المركزة، حيث تمثل سرعة الوصول للمعلومة السريرية ودقة تسليم الورديات فارقاً حاسماً في سلامة المريض. يوفر النظام شاشة قيادة مركزية تعرض كل سرير وحالته الحرجة (Stable / Alert / Critical)، العلامات الحيوية، الأدوية المستمرة (Infusions)، وتنبيهات التدخل السريع.',
+        en: 'Born directly from bedside experience inside Intensive Care Units, ICU-Sync addresses the critical risk of fragmented shift handoffs and delayed chart updates. It provides a central dark-mode command display showing every ICU bed status, hemodynamic trends, active infusions, and structured clinical handoff logs.',
       },
-      category: 'charitable-healthcare',
+      problem: {
+        ar: 'تعدد أوراق الملاحظة السريرية في الرعاية المركزة وصعوبة متابعة التغيرات الحرجة لجميع الأسرة في وقت واحد، مما قد يؤدي لفقدان تفاصيل مهمة أثناء تسليم الورديات الطبية والتمريضية.',
+        en: 'Paper-heavy ICU flowcharts and fragmented bedside notes make it difficult to monitor unit-wide acuity shifts and create communication gaps during physician/nursing shift handovers.',
+      },
+      solution: {
+        ar: 'تطوير لوحة قيادة رقمية موحدة (ICU Command Center) تعرض المؤشرات الحيوية وتنبيهات الخطورة لكل سرير، مع نموذج تسليم وردية رقمي منظم (SBAR Handoff) وسجل تدقيق زمني للتدخلات السريرية.',
+        en: 'Built a real-time ICU Command Center interface visualizing bed acuity, vital sign alerts, ventilator settings, and standardized digital SBAR shift handoff protocols.',
+      },
+      category: 'medical-systems',
       categoryLabel: {
-        ar: 'منظومات المجمعات الطبية',
-        en: 'Medical Complex ERP',
+        ar: 'أنظمة الرعاية المركزة',
+        en: 'Critical Care Systems',
       },
-      coverImage: '/assets/aistudio/logo_ae3842b8.png',
-      logoImage: '/assets/aistudio/logo_ae3842b8.png',
-      videoUrl: 'https://www.youtube.com/watch?v=l90OUlLJT-I',
-      youtubeId: 'l90OUlLJT-I',
-      liveUrl: 'https://solimedical.vercel.app/clinics',
+      coverImage: '/src/assets/images/project_icu_sync_dashboard_1794472511322.jpg',
+      liveUrl: 'https://solimedical.vercel.app/solimedical',
       whatsappInquireText: {
-        ar: 'مرحباً، أريد مناقشة نظام لمجمع طبي أو مستشفى صغير.',
-        en: 'Hello Ahmed, I would like to discuss an operational system for our medical complex.',
+        ar: 'مرحباً م. أحمد، أريد الاستفسار عن نظام ICU-Sync لوحدات الرعاية المركزة.',
+        en: 'Hello Ahmed, I would like to inquire about the ICU-Sync critical care system.',
       },
       features: {
         ar: [
-          'إدارة المستخدمين وتوزيع الصلاحيات الدقيقة للأطباء والاستقبال والمحاسبين',
-          'إدارة تعدد العيادات والأقسام والتخصصات الطبية تحت سقف واحد',
-          'الرقابة المالية الكاملة: التحصيل المركزي، نسب الأطباء، المصروفات، وتقفيل الورديات',
-          'لوحة قيادة إدارية لمتابعة مؤشرات التشغيل والانتظار والإيراد لكل قسم',
+          'خريطة حية لأسرة الرعاية المركزة مع تصنيف درجة الخطورة (Acuity Triage)',
+          'توثيق ومتابعة العلامات الحيوية وإعدادات أجهزة التنفس الصناعي والمضخات الدوائية',
+          'نظام تسليم ورديات رقمي منظم (SBAR Shift Handoff) بين التمريض والأطباء',
+          'تنبيهات فورية للقيم الحرجة ومؤشرات مكافحة العدوى داخل العناية',
+          'واجهة ليلية مريحة للعين مصممة لبيئة العمل المستمرة 24/7 في غرف التحكم',
         ],
         en: [
-          'Granular Role-Based Access Control (RBAC) for doctors, receptionists, cashiers, and managers',
-          'Multi-clinic and multi-department routing under a single unified facility architecture',
-          'Comprehensive financial governance: shift closing, doctor revenue shares, and expense ledgers',
-          'Executive operations cockpit monitoring queue load and revenue across every clinic unit',
+          'Live ICU bed map with color-coded clinical acuity and triage status',
+          'Structured tracking for vital signs, ventilator modes, and continuous IV infusions',
+          'Standardized digital SBAR shift handoff workflow for physicians and ICU nurses',
+          'Early warning score (NEWS2) alerts and central line / infection control timers',
+          'Low-glare dark-mode command interface engineered for 24/7 clinical stations',
         ],
       },
-      techStack: ['React', 'TypeScript', 'Multi-Tenant RBAC', 'Financial Ledger Engine', 'Arabic RTL UI', 'Cloud Sync'],
+      techStack: ['React', 'TypeScript', 'Real-Time Telemetry UI', 'Clinical SBAR Engine', 'Tailwind CSS'],
       screens: [
         {
-          id: 'complex-screen-1',
+          id: 'icu-screen-1',
           title: {
-            ar: 'رؤية تشغيلية موحدة للأقسام',
-            en: 'Unified Multi-Department Cockpit',
+            ar: 'شاشة قيادة وحدة العناية المركزة',
+            en: 'ICU Central Telemetry Cockpit',
           },
           caption: {
-            ar: 'متابعة لحظية لجميع العيادات والوحدات العاملة داخل المجمع الطبي من شاشة إدارة واحدة.',
-            en: 'Real-time operational visibility across all active specialty clinics and service units.',
+            ar: 'عرض متزامن لحالة الأسرة والمؤشرات الحيوية والتنبيهات السريرية العاجلة.',
+            en: 'Synchronized multi-bed monitoring of hemodynamic vitals and critical alerts.',
           },
-          imageUrl: '/assets/aistudio/logo_ae3842b8.png',
+          imageUrl: '/src/assets/images/project_icu_sync_dashboard_1794472511322.jpg',
         },
       ],
       featured: true,
@@ -516,15 +861,289 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       order: 2,
       seo: {
         title: {
-          ar: 'منظومة إدارة المجمعات الطبية والمستشفيات الصغيرة | أحمد سليمان',
-          en: 'Medical Complex & Polyclinic Management Platform | Ahmed Soliman',
+          ar: 'نظام ICU-Sync لإدارة وتنسيق الرعاية المركزة | مشروعات أحمد سليمان',
+          en: 'ICU-Sync Intensive Care Coordination System | Ahmed Soliman Projects',
         },
         description: {
-          ar: 'منظومة تشغيل مترابطة للمجمعات الطبية الخيرية والخاصة في مصر: إدارة المستخدمين والصلاحيات، العيادات والأقسام، والمالية والتقارير.',
-          en: 'Integrated operations software for medical complexes and small hospitals in Egypt by Ahmed Soliman.',
+          ar: 'تعرف على نظام ICU-Sync لتنسيق وحدات الرعاية المركزة ومتابعة الأسرة وتسليم الورديات الطبية من تطوير أحمد سليمان.',
+          en: 'Explore ICU-Sync by Ahmed Soliman: intensive care bed telemetry, vital signs monitoring, and digital shift handoffs.',
         },
-        ogImage: '/assets/aistudio/logo_ae3842b8.png',
-        canonicalSlug: '/projects/medical-complex-management-system',
+        ogImage: '/src/assets/images/project_icu_sync_dashboard_1794472511322.jpg',
+        canonicalSlug: '/projects/icu-sync-critical-care-system',
+        structuredDataType: 'SoftwareApplication',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'mitali-hospital-erp',
+      slug: 'mitali-hospital-management-system',
+      title: {
+        ar: 'منظومة Mitali Hospital — إدارة المستشفيات والمجمعات الطبية التخصصية',
+        en: 'Mitali Hospital — Multi-Department Hospital & Polyclinic ERP',
+      },
+      kicker: {
+        ar: '03 · منظومات المستشفيات والمراكز الكبرى',
+        en: '03 · Hospital & Multi-Specialty Center ERP',
+      },
+      summary: {
+        ar: 'منظومة تشغيلية وإدارية مترابطة للمستشفيات الصغيرة والمجمعات الطبية تربط الاستقبال المركزي، العيادات الخارجية، الأقسام الداخلية، المعامل، والرقابة المالية.',
+        en: 'Enterprise hospital management platform connecting central reception, outpatient clinics, diagnostic referrals, inpatient admissions, and financial governance.',
+      },
+      description: {
+        ar: 'صُمم مشروع Mitali Hospital لتلبية احتياجات المستشفيات التخصصية والمجمعات الطبية التي تضم عشرات التخصصات والوحدات الخدمية تحت سقف واحد. يوفر النظام دورة مريض متكاملة تبدأ من الرقم الموحد للمريض (UHID)، مروراً بالحجز والتحويل الداخلي بين العيادات والمعمل والأشعة، وحتى التسوية المالية وتقارير أداء الأقسام.',
+        en: 'Mitali Hospital ERP orchestrates patient and financial flows across multi-specialty hospitals and large polyclinics. Every patient receives a Unified Health ID (UHID) linking outpatient visits, lab/radiology orders, pharmacy dispensing, and central cashier billing.',
+      },
+      problem: {
+        ar: 'انفصال الأقسام الطبية عن الإدارة المالية في المستشفيات الصغيرة والمجمعات، مما يسبب طوابير انتظار طويلة، تسرباً في الإيرادات، وصعوبة حساب مستحقات الأطباء والتعاقدات.',
+        en: 'Disconnected hospital departments lead to long patient queues, revenue leakage between clinics and diagnostics, and manual errors in calculating physician shares.',
+      },
+      solution: {
+        ar: 'بناء منصة موحدة تربط شباك التذاكر المركزي، العيادات الخارجية، الأقسام التشخيصية، والخزينة العامة مع نظام صلاحيات متعدد المستويات (RBAC) وتقارير لحظية للإدارة.',
+        en: 'Implemented an integrated hospital ERP with unified patient ticketing, cross-department service orders, automated doctor share calculation, and role-based access control.',
+      },
+      category: 'charitable-healthcare',
+      categoryLabel: {
+        ar: 'أنظمة المستشفيات والمجمعات',
+        en: 'Hospital & Complex ERP',
+      },
+      coverImage: '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
+      liveUrl: 'https://solimedical.vercel.app/clinics',
+      whatsappInquireText: {
+        ar: 'مرحباً م. أحمد، أريد الاستفسار عن منظومة Mitali Hospital لإدارة المستشفيات والمجمعات.',
+        en: 'Hello Ahmed, I would like to discuss the Mitali Hospital & Polyclinic ERP system.',
+      },
+      features: {
+        ar: [
+          'ملف ورقم طبي موحد للمريض (UHID) عبر جميع عيادات وأقسام المستشفى',
+          'إدارة الحجز المركزي وقوائم الانتظار والتحويلات الداخلية للمعمل والأشعة',
+          'نظام مالي شامل: الخزينة المركزية، تقفيل الورديات، ونسب الأطباء والتعاقدات',
+          'صلاحيات دقيقة لكل دور وظيفي (مدير طبي، استقبال، محاسب، طبيب، تمريض)',
+          'لوحة مؤشرات إدارية لمتابعة معدلات الإشغال والإيراد اليومي والشهري لكل قسم',
+        ],
+        en: [
+          'Unified Health Identifier (UHID) connecting all outpatient and diagnostic visits',
+          'Centralized reception ticketing, queue displays, and internal lab/radiology referrals',
+          'Complete financial engine: shift closing, insurance/contract tiers, and doctor payouts',
+          'Granular Role-Based Access Control (RBAC) across clinical and administrative staff',
+          'Executive analytics tracking departmental utilization, wait times, and revenue',
+        ],
+      },
+      techStack: ['React', 'TypeScript', 'Multi-Department ERP', 'RBAC Security', 'Financial Ledger', 'Cloud DB'],
+      screens: [
+        {
+          id: 'mitali-screen-1',
+          title: {
+            ar: 'لوحة الاستقبال والأقسام الطبية',
+            en: 'Hospital Reception & Department Hub',
+          },
+          caption: {
+            ar: 'إدارة متكاملة لحركة المراجعين وتوزيع العيادات التخصصية والوحدات التشخيصية.',
+            en: 'Centralized patient registration and real-time routing across hospital departments.',
+          },
+          imageUrl: '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
+        },
+        {
+          id: 'mitali-screen-2',
+          title: {
+            ar: 'إدارة المجمع متعدد العيادات',
+            en: 'Multi-Clinic Operations View',
+          },
+          caption: {
+            ar: 'رؤية موحدة لجميع العيادات والوحدات المالية والتشغيلية في شاشة واحدة.',
+            en: 'Unified operational oversight across all active clinics and financial desks.',
+          },
+          imageUrl: 'https://solimedical.vercel.app/assets/images/complex.webp',
+        },
+      ],
+      featured: true,
+      published: true,
+      order: 3,
+      seo: {
+        title: {
+          ar: 'منظومة Mitali Hospital لإدارة المستشفيات والمجمعات الطبية | أحمد سليمان',
+          en: 'Mitali Hospital & Polyclinic ERP System | Ahmed Soliman',
+        },
+        description: {
+          ar: 'منظومة متكاملة لإدارة المستشفيات والمجمعات الطبية التخصصية: الاستقبال المركزي، العيادات، الحسابات، والصلاحيات.',
+          en: 'Integrated hospital and medical complex management platform engineered by Ahmed Soliman.',
+        },
+        ogImage: '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
+        canonicalSlug: '/projects/mitali-hospital-management-system',
+        structuredDataType: 'SoftwareApplication',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'clinic-warehouse-inventory-system',
+      slug: 'medical-warehouse-and-inventory-system',
+      title: {
+        ar: 'أنظمة إدارة العيادات والمخازن الطبية والمستلزمات (Medi-Logix)',
+        en: 'Medi-Logix — Medical Warehouse, Pharmacy & Clinic Inventory System',
+      },
+      kicker: {
+        ar: '04 · إدارة المخزون الطبي وسلاسل الإمداد',
+        en: '04 · Medical Supply Chain & Inventory ERP',
+      },
+      summary: {
+        ar: 'نظام رقمي لضبط مخازن المستلزمات الطبية والأدوية في المجمعات والعيادات: متابعة الأرصدة، تواريخ الصلاحية، حد الطلب، وأذون الصرف للأقسام.',
+        en: 'Precision inventory and supply-chain control for medical complexes and clinics—tracking stock levels, batch expiry dates, reorder thresholds, and departmental dispensing.',
+      },
+      description: {
+        ar: 'تمثل المستلزمات الطبية والأدوية أحد أكبر بنود التكلفة في المراكز الطبية والمستشفيات. صممت هذا النظام ليربط المخزن الرئيسي بالعيادات وغرف الإجراءات والصيدلية الداخلية، مع تنبيهات مبكرة لقرب انتهاء الصلاحية أو انخفاض الرصيد تحت الحد الآمن، وتقارير استهلاك فعلية لكل عيادة.',
+        en: 'Medical consumables and pharmaceuticals represent a major cost center in healthcare facilities. Medi-Logix connects central medical stores with procedure rooms and internal pharmacies, automating batch expiry alerts, minimum stock warnings, and per-clinic consumption costing.',
+      },
+      problem: {
+        ar: 'الهدر المالي الناتج عن انتهاء صلاحية الأدوية والمستلزمات أو نفاد الأصناف الحرجة فجأة أثناء العمل لعدم وجود رقابة لحظية على الصرف والأرصدة.',
+        en: 'Financial waste from expired medical supplies and sudden stockouts of critical consumables caused by manual spreadsheet tracking.',
+      },
+      solution: {
+        ar: 'نظام مخازن طبي ذكي يدعم الباركود، يراقب التشغيلات وتواريخ الصلاحية (FEFO)، ويربط صرف المستلزمات بالخدمات الطبية المنفذة فعلياً.',
+        en: 'Engineered a barcode-ready medical inventory platform enforcing First-Expire-First-Out (FEFO) rules and linking supply consumption directly to clinical procedures.',
+      },
+      category: 'inventory-erp',
+      categoryLabel: {
+        ar: 'أنظمة المخازن والإمداد الطبي',
+        en: 'Inventory & Supply Systems',
+      },
+      coverImage: '/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+      whatsappInquireText: {
+        ar: 'مرحباً م. أحمد، أريد الاستفسار عن نظام إدارة المخازن الطبية والمستلزمات.',
+        en: 'Hello Ahmed, I want to inquire about the Medical Warehouse & Inventory Management System.',
+      },
+      features: {
+        ar: [
+          'مراقبة لحظية لأرصدة المستلزمات والأدوية مع تنبيهات الحد الأدنى للرصيد',
+          'إدارة التشغيلات وتواريخ الصلاحية (FEFO) لمنع الهدر والتوالف',
+          'أذون إضافة وصرف وتحويل بين المخزن الرئيسي والعيادات الفرعية',
+          'ربط استهلاك المستلزمات بالخدمات والإجراءات الطبية لحساب التكلفة الفعلية',
+          'تقارير جرد دورية وحركة موردين وفواتير مشتريات متكاملة',
+        ],
+        en: [
+          'Real-time stock tracking with automated low-inventory reorder alerts',
+          'Batch and expiration date management (FEFO) to eliminate expired stock waste',
+          'Digital requisition and transfer vouchers between central stores and clinics',
+          'Procedure-level consumable linking for accurate clinical cost accounting',
+          'Audit-ready stocktake reports, supplier ledgers, and purchase order workflows',
+        ],
+      },
+      techStack: ['React', 'TypeScript', 'Barcode & FEFO Engine', 'Cost Analytics', 'Cloud Sync'],
+      screens: [
+        {
+          id: 'warehouse-screen-1',
+          title: {
+            ar: 'لوحة مراقبة المخزون والصلاحيات',
+            en: 'Inventory & Expiry Control Dashboard',
+          },
+          caption: {
+            ar: 'متابعة دقيقة للأصناف، معدلات الاستهلاك، وتنبيهات الأصناف الحرجة.',
+            en: 'Granular visibility into stock levels, turnover rates, and critical shortage alerts.',
+          },
+          imageUrl: '/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+        },
+      ],
+      featured: true,
+      published: true,
+      order: 4,
+      seo: {
+        title: {
+          ar: 'نظام إدارة المخازن الطبية والمستلزمات والعيادات | أحمد سليمان',
+          en: 'Medical Warehouse & Clinic Inventory System | Ahmed Soliman',
+        },
+        description: {
+          ar: 'نظام رقمي لإدارة المخازن الطبية والمستلزمات والصيدليات الداخلية في المراكز الطبية والمستشفيات.',
+          en: 'Digital medical inventory and supply chain management system for clinics and hospitals by Ahmed Soliman.',
+        },
+        ogImage: '/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+        canonicalSlug: '/projects/medical-warehouse-and-inventory-system',
+        structuredDataType: 'SoftwareApplication',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'healthcare-quality-management-suite',
+      slug: 'healthcare-quality-and-audit-system',
+      title: {
+        ar: 'مشروعات إدارة الجودة الصحية ومكافحة العدوى (Q-Care Quality Suite)',
+        en: 'Q-Care — Healthcare Quality Management, Infection Control & Audit Suite',
+      },
+      kicker: {
+        ar: '05 · جودة الرعاية الصحية وسلامة المرضى',
+        en: '05 · Clinical Quality & Patient Safety Systems',
+      },
+      summary: {
+        ar: 'منظومة رقمية لفرق الجودة ومكافحة العدوى في المنشآت الصحية لرقمنة قوائم المرور اليومي، الإبلاغ عن الأحداث العارضة (OVR)، ومتابعة مؤشرات الأداء السريرية.',
+        en: 'Digital governance toolkit for hospital quality and infection control teams—digitizing clinical rounds, Occurrence Variance Reports (OVR), and accreditation KPIs.',
+      },
+      description: {
+        ar: 'انطلاقاً من خبرتي المتخصصة في جودة الرعاية الصحية، قمت ببناء حزمة Q-Care لتحويل أعمال قسم الجودة ومكافحة العدوى من النماذج الورقية المرهقة إلى لوحات قياس تفاعلية. يتيح النظام تنفيذ جولات المرور اليومية من التابلت أو الموبايل، تسجيل ملاحظات السلامة، تتبع الخطط التصحيحية (CAPA)، وإصدار تقارير مؤشرات الجودة الشهرية تلقائياً.',
+        en: 'Drawing directly on my specialization in healthcare quality assurance, Q-Care replaces paper audit binders with mobile-ready digital checklists. Quality officers can conduct infection control rounds, log Occurrence Variance Reports (OVRs), assign Corrective and Preventive Actions (CAPA), and generate automated monthly KPI scorecards.',
+      },
+      problem: {
+        ar: 'اعتماد أقسام الجودة ومكافحة العدوى على استمارات ورقية يصعب تجميعها وتحليلها، مما يؤخر اكتشاف المخاطر السريرية ومتابعة الخطط التصحيحية.',
+        en: 'Reliance on paper audit forms delays risk identification, buries compliance trends, and makes CAPA follow-up across hospital departments slow and error-prone.',
+      },
+      solution: {
+        ar: 'منصة تدقيق رقمية تعمل على الموبايل والكمبيوتر لقوائم الفحص، تقارير حوادث سلامة المرضى (OVR)، ولوحات قياس مؤشرات الجودة المعتمدة.',
+        en: 'Built a mobile-responsive clinical audit and KPI platform automating infection control checklists, anonymous OVR incident workflows, and CAPA tracking.',
+      },
+      category: 'quality-systems',
+      categoryLabel: {
+        ar: 'مشروعات إدارة الجودة الصحية',
+        en: 'Healthcare Quality Systems',
+      },
+      coverImage: '/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+      whatsappInquireText: {
+        ar: 'مرحباً م. أحمد، أريد الاستفسار عن أنظمة ومشروعات إدارة الجودة الصحية ومكافحة العدوى.',
+        en: 'Hello Ahmed, I would like to inquire about your Healthcare Quality & Clinical Audit systems.',
+      },
+      features: {
+        ar: [
+          'قوائم مرور رقمية (Digital Checklists) لمكافحة العدوى وسلامة البيئة وأمن المريض',
+          'نظام الإبلاغ عن الأحداث العارضة والمخاطر (OVR / Incident Reporting) ومتابعة التحقيق',
+          'إدارة الخطط التصحيحية والوقائية (CAPA) مع تنبيهات المواعيد النهائية',
+          'لوحة مؤشرات الأداء السريرية (Clinical KPIs) المتوافقة مع معايير الاعتماد (GAHAR / JCI)',
+          'تقييم استبيانات رضا المرضى وتحليل نقاط التحسين في رحلة الخدمة الطبية',
+        ],
+        en: [
+          'Mobile-ready digital audit checklists for infection control and facility safety rounds',
+          'Structured Occurrence Variance Reporting (OVR) and root-cause analysis workflows',
+          'Corrective & Preventive Action (CAPA) tracker with departmental accountability',
+          'Clinical KPI dashboards aligned with GAHAR and JCI accreditation standards',
+          'Patient satisfaction survey analytics and service quality improvement tracking',
+        ],
+      },
+      techStack: ['React', 'TypeScript', 'Clinical KPI Engine', 'GAHAR / JCI Checklists', 'CAPA Workflow'],
+      screens: [
+        {
+          id: 'quality-screen-1',
+          title: {
+            ar: 'لوحة مؤشرات الجودة والتدقيق السريري',
+            en: 'Quality KPI & Clinical Compliance Dashboard',
+          },
+          caption: {
+            ar: 'قياس مباشر لنسب الالتزام بمعايير مكافحة العدوى وسلامة المرضى في جميع الأقسام.',
+            en: 'Real-time compliance scoring across infection control, patient safety, and departmental audits.',
+          },
+          imageUrl: '/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+        },
+      ],
+      featured: true,
+      published: true,
+      order: 5,
+      seo: {
+        title: {
+          ar: 'مشروعات وأنظمة إدارة الجودة الصحية ومكافحة العدوى | أحمد سليمان',
+          en: 'Healthcare Quality Management & Audit Systems | Ahmed Soliman',
+        },
+        description: {
+          ar: 'أنظمة رقمية لإدارة الجودة الصحية، مكافحة العدوى، تقارير OVR، ومؤشرات الأداء السريري من تطوير أحمد سليمان.',
+          en: 'Digital healthcare quality assurance, infection control checklists, OVR reporting, and clinical KPI dashboards by Ahmed Soliman.',
+        },
+        ogImage: '/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+        canonicalSlug: '/projects/healthcare-quality-and-audit-system',
         structuredDataType: 'SoftwareApplication',
       },
       createdAt: NOW,
@@ -538,8 +1157,8 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         en: 'Automated Clinic Telegram Booking Bot (@SoliMedicalproBot)',
       },
       kicker: {
-        ar: '03 · أتمتة حجز المواعيد واستعلام المرضى',
-        en: '03 · Patient Self-Service & Booking Automation',
+        ar: '06 · أتمتة حجز المواعيد واستعلام المرضى',
+        en: '06 · Patient Self-Service & Booking Automation',
       },
       summary: {
         ar: 'يتيح للمريض السؤال عن مواعيد العمل والأطباء والأسعار والحجز المباشر من تليجرام بدون الحاجة لتحميل أي تطبيق إضافي.',
@@ -549,16 +1168,24 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         ar: 'لتخفيف ضغط المكالمات الهاتفية المتكررة على موظفي الاستقبال في العيادات والمجمعات الطبية، قمت بتطوير وتشغيل بوت تليجرام تفاعلي (@SoliMedicalproBot) مرتبط بنظام العيادة. يستطيع المريض من خلاله استعراض التخصصات، معرفة مواعيد الأطباء، وتأكيد حجز موعده في ثوانٍ.',
         en: 'To reduce repetitive phone call load on clinic reception desks, I engineered @SoliMedicalproBot—an interactive Telegram assistant connected to the clinic schedule. Patients can browse specialties, check doctor hours, and book appointments in seconds.',
       },
+      problem: {
+        ar: 'انشغال خط الهاتف في العيادات والمراكز الطبية بالأسئلة المتكررة عن مواعيد الأطباء وسعر الكشف والعنوان، مما يضيع حجوزات حقيقية.',
+        en: 'Clinic phone lines are constantly tied up with repetitive questions about doctor schedules, consultation fees, and location addresses.',
+      },
+      solution: {
+        ar: 'بوت محادثة آلي على تليجرام يعمل 24/7 للرد الفوري على استفسارات المرضى وتسجيل الحجوزات مباشرة في جدول العيادة.',
+        en: 'Deployed a 24/7 conversational Telegram bot that answers patient inquiries instantly and logs confirmed bookings directly into the clinic queue.',
+      },
       category: 'automation-bots',
       categoryLabel: {
         ar: 'أتمتة التواصل والحجز',
         en: 'Patient Booking Automation',
       },
-      coverImage: '/assets/aistudio/logo_ae3842b8.png',
+      coverImage: 'https://solimedical.vercel.app/assets/images/booking.webp',
       logoImage: '/assets/aistudio/logo_ae3842b8.png',
       liveUrl: 'https://t.me/SoliMedicalproBot',
       whatsappInquireText: {
-        ar: 'مرحباً، أريد ربط بوت تليجرام لحجز المواعيد بعيادتي.',
+        ar: 'مرحباً م. أحمد، أريد ربط بوت تليجرام لحجز المواعيد بعيادتي.',
         en: 'Hello Ahmed, I want to integrate the Telegram appointment booking bot with my clinic.',
       },
       features: {
@@ -577,9 +1204,9 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       },
       techStack: ['Telegram Bot API', 'Node.js', 'Webhook Automation', 'Clinic Schedule Sync'],
       screens: [],
-      featured: true,
+      featured: false,
       published: true,
-      order: 3,
+      order: 6,
       seo: {
         title: {
           ar: 'بوت تليجرام لحجز مواعيد العيادات @SoliMedicalproBot | أحمد سليمان',
@@ -617,19 +1244,26 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         ar: 'يقدم مجمع النور الطبي التخصصي خدمات الكشف والتشخيص والمتابعة في تخصصات الباطنة والقلب، طب الأطفال، الأسنان، والعيون، مع نظام حجز إلكتروني مسبق يضمن عدم الانتظار الطويل وتجربة علاجية مريحة للمريض والأسرة.',
         en: 'Al-Noor Specialized Medical Complex delivers outpatient consultations and diagnostic care across Internal Medicine, Cardiology, Pediatrics, Dentistry, and Ophthalmology—powered by structured digital appointment scheduling.',
       },
-      coverImage: '/assets/aistudio/logo_ae3842b8.png',
+      coverImage: '/src/assets/images/clinic_interior_reception_1794472515936.jpg',
       logoUrl: '/assets/aistudio/logo_ae3842b8.png',
-      phone: '+201000000000',
-      whatsapp: 'https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%AD%D8%AC%D8%B2%20%D9%85%D9%88%D8%B9%D8%AF%20%D9%81%D9%8A%20%D9%85%D8%AC%D9%85%D8%B9%20%D8%A7%D9%84%D9%86%D9%88%D8%B1%20%D8%A7%D9%84%D8%B7%D8%A8%D9%8A.',
+      themeColor: '#0D9488',
+      galleryImages: [
+        '/src/assets/images/clinic_interior_reception_1794472515936.jpg',
+        '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
+      ],
+      phone: '',
+      whatsapp:
+        'https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%AD%D8%AC%D8%B2%20%D9%85%D9%88%D8%B9%D8%AF%20%D9%81%D9%8A%20%D9%85%D8%AC%D9%85%D8%B9%20%D8%A7%D9%84%D9%86%D9%88%D8%B1%20%D8%A7%D9%84%D8%B7%D8%A8%D9%8A.',
       telegramUrl: 'https://t.me/SoliMedicalproBot',
       address: {
-        ar: 'شارع التحرير الرئيسي، بجوار محطة المترو، القاهرة، مصر',
-        en: 'Main Tahrir Street, Next to Metro Station, Cairo, Egypt',
+        ar: 'شارع التحرير الرئيسي، بجوار محطة المترو، الدقي، القاهرة، مصر',
+        en: 'Main Tahrir Street, Next to Dokki Metro Station, Cairo, Egypt',
       },
       city: {
         ar: 'القاهرة',
         en: 'Cairo',
       },
+      mapEmbedUrl: 'https://www.google.com/maps?q=30.0385,31.2122&z=15&output=embed',
       workingHours: [
         {
           days: { ar: 'السبت – الأربعاء', en: 'Saturday – Wednesday' },
@@ -643,7 +1277,10 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         },
         {
           days: { ar: 'الجمعة', en: 'Friday' },
-          hours: { ar: 'طوارئ وعيادات مسائية (04:00 م – 09:00 م)', en: 'Evening Clinics Only (04:00 PM – 09:00 PM)' },
+          hours: {
+            ar: 'طوارئ وعيادات مسائية (04:00 م – 09:00 م)',
+            en: 'Evening Clinics Only (04:00 PM – 09:00 PM)',
+          },
           isOpen: true,
         },
       ],
@@ -673,7 +1310,7 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
           ar: 'احجز موعدك في مجمع النور الطبي التخصصي: تعرف على جدول الأطباء، أسعار الكشف والخدمات الطبية، ومواعيد العمل اليومية.',
           en: 'Book your appointment at Al-Noor Specialized Medical Complex: view consultant doctors, transparent service pricing, and working hours.',
         },
-        ogImage: '/assets/aistudio/logo_ae3842b8.png',
+        ogImage: '/src/assets/images/clinic_interior_reception_1794472515936.jpg',
         canonicalSlug: '/clinics/al-noor-medical-complex',
         structuredDataType: 'MedicalClinic',
       },
@@ -696,22 +1333,29 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
         en: 'Precision diagnostics, structured clinical follow-up, and instant online appointment booking.',
       },
       description: {
-        ar: 'تمثل عيادة دار الشفاء نموذجاً عملياً لصفحات الهبوط الطبية المستقلة (Standalone Medical Landing Page) التي يصممها ويربطها المهندس أحمد سليمان للعيادات الفردية والمراكز الطبية لعرض الأطباء والخدمات والأسعار واستقبال الحجوزات مباشرة بدون أي تشتيت.',
-        en: 'Dar Al-Shifa Clinic exemplifies a high-conversion Standalone Medical Landing Page engineered by Ahmed Soliman for individual clinics—displaying physician credentials, transparent service fees, working hours, and direct booking.',
+        ar: 'تمثل عيادة دار الشفاء نموذجاً عملياً لصفحات الهبوط الطبية المستقلة (Standalone Medical Landing Page) التي يصممها ويربطها أحمد سليمان للعيادات الفردية والمراكز الطبية لعرض الأطباء والخدمات والأسعار واستقبال الحجوزات مباشرة بهوية لونية مخصصة للعيادة بدون أي تشتيت.',
+        en: 'Dar Al-Shifa Clinic exemplifies a high-conversion Standalone Medical Landing Page engineered by Ahmed Soliman for individual clinics—displaying physician credentials, transparent service fees, working hours, map location, and direct booking with a custom clinic color identity.',
       },
-      coverImage: '/assets/aistudio/logo_ae3842b8.png',
+      coverImage: '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
       logoUrl: '/assets/aistudio/logo_ae3842b8.png',
-      phone: '+201000000000',
-      whatsapp: 'https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A7%D9%84%D8%AD%D8%AC%D8%B2%20%D9%81%D9%8A%20%D8%B9%D9%8A%D8%A7%D8%AF%D8%A9%20%D8%AF%D8%A7%D8%B1%20%D8%A7%D9%84%D8%B4%D9%81%D8%A7%D8%A1.',
+      themeColor: '#2563EB',
+      galleryImages: [
+        '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
+        '/src/assets/images/clinic_interior_reception_1794472515936.jpg',
+      ],
+      phone: '',
+      whatsapp:
+        'https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A7%D9%84%D8%AD%D8%AC%D8%B2%20%D9%81%D9%8A%20%D8%B9%D9%8A%D8%A7%D8%AF%D8%A9%20%D8%AF%D8%A7%D8%B1%20%D8%A7%D9%84%D8%B4%D9%81%D8%A7%D8%A1.',
       telegramUrl: 'https://t.me/SoliMedicalproBot',
       address: {
-        ar: 'المهندسين، الجيزة، مصر',
-        en: 'Mohandessin, Giza, Egypt',
+        ar: 'شارع جامعة الدول العربية، المهندسين، الجيزة، مصر',
+        en: 'Gameat El-Dewal El-Arabia St., Mohandessin, Giza, Egypt',
       },
       city: {
         ar: 'الجيزة',
         en: 'Giza',
       },
+      mapEmbedUrl: 'https://www.google.com/maps?q=30.0511,31.2001&z=15&output=embed',
       workingHours: [
         {
           days: { ar: 'السبت – الخميس', en: 'Saturday – Thursday' },
@@ -726,14 +1370,14 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
       ],
       highlights: {
         ar: [
-          'إمكانية مشاركة الرابط كصفحة هبوط مستقلة تماماً للعيادة',
-          'عرض واضح لتخصص الطبيب ومؤهلاته ومواعيد تواجده',
-          'قائمة خدمات وأسعار محدثة لحظياً من لوحة التحكم',
+          'إمكانية مشاركة الرابط كصفحة هبوط مستقلة تماماً للعيادة بدون أي روابط خارجية',
+          'هوية لونية مخصصة للعيادة مع عرض واضح لتخصص الطبيب ومؤهلاته ومواعيد تواجده',
+          'قائمة خدمات وأسعار محدثة لحظياً من لوحة التحكم مع حجز مباشر عبر واتساب',
         ],
         en: [
-          'Shareable as a 100% standalone clinic campaign landing page',
-          'Clear presentation of physician qualifications and clinic hours',
-          'Real-time service and fee catalog managed via the Admin CMS',
+          'Shareable as a 100% isolated standalone clinic landing page',
+          'Custom clinic accent color with clear physician qualifications and clinic hours',
+          'Real-time service and fee catalog managed via the Admin CMS with instant booking',
         ],
       },
       standaloneByDefault: false,
@@ -748,7 +1392,7 @@ export const INITIAL_PLATFORM_DATA: PlatformDatabase = {
           ar: 'صفحة الهبوط الرسمية لعيادة دار الشفاء التخصصية: استعرض الأطباء، الخدمات الطبية، الأسعار، واحجز موعدك مباشرة.',
           en: 'Official landing page for Dar Al-Shifa Specialized Clinic: view doctors, medical services, pricing, and book online.',
         },
-        ogImage: '/assets/aistudio/logo_ae3842b8.png',
+        ogImage: '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
         canonicalSlug: '/clinics/soli-specialized-clinic',
         structuredDataType: 'MedicalClinic',
       },
@@ -1044,7 +1688,7 @@ Great Arabic healthcare software is measured not by how many menus it hides behi
         en: 'Healthcare Systems Engineering',
       },
       tags: ['Soli Medical', 'RTL Software', 'Clinic Management', 'Medical Complex'],
-      coverImage: '/assets/aistudio/logo_ae3842b8.png',
+      coverImage: 'https://solimedical.vercel.app/assets/images/dashboard.webp',
       readingTimeMinutes: 4,
       authorName: {
         ar: 'أحمد سليمان',
@@ -1105,7 +1749,7 @@ Instead of sending patients to a cluttered directory or social feed, a dedicated
         en: 'Clinic Digital Growth',
       },
       tags: ['Medical Landing Pages', 'Telegram Bot', 'Patient Conversion', 'Healthcare UX'],
-      coverImage: '/assets/aistudio/1770146906397_16665dd0.png',
+      coverImage: '/src/assets/images/clinic_interior_reception_1794472515936.jpg',
       readingTimeMinutes: 3,
       authorName: {
         ar: 'أحمد سليمان',
@@ -1123,8 +1767,69 @@ Instead of sending patients to a cluttered directory or social feed, a dedicated
           ar: 'كيف تساعد صفحات الهبوط المستقلة وبوتات الحجز عبر تليجرام وواتساب في زيادة حجوزات العيادات والمراكز الطبية.',
           en: 'How standalone clinic landing pages and automated Telegram/WhatsApp flows increase patient bookings.',
         },
-        ogImage: '/assets/aistudio/1770146906397_16665dd0.png',
+        ogImage: '/src/assets/images/clinic_interior_reception_1794472515936.jpg',
         canonicalSlug: '/blog/why-clinics-need-standalone-landing-pages',
+        structuredDataType: 'BlogPosting',
+      },
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    {
+      id: 'article-icu-quality-and-handoffs',
+      slug: 'digital-shift-handoffs-and-icu-patient-safety',
+      title: {
+        ar: 'دور الأنظمة الرقمية في تقليل الأخطاء السريرية أثناء تسليم الورديات في الرعاية المركزة (ICU)',
+        en: 'How Digital Shift Handoffs & ICU Telemetry Reduce Clinical Errors in Critical Care',
+      },
+      excerpt: {
+        ar: 'من واقع الممارسة في التمريض وجودة الرعاية الصحية: كيف يحول نظام مثل ICU-Sync تسليم الورديات إلى عملية قياسية آمنة تحمي المريض.',
+        en: 'From critical care nursing and healthcare quality practice: how structured SBAR digital handoffs prevent information loss during ICU shift changes.',
+      },
+      content: {
+        ar: `## لحظة تسليم الوردية: النقطة الأكثر حساسية في سلامة المريض
+
+تشير دراسات جودة الرعاية الصحية وسلامة المرضى عالمياً إلى أن نسبة كبيرة من الأحداث العارضة (Sentinel Events) في المستشفيات ترتبط بضعف التواصل أثناء تسليم الحالات بين الورديات الطبية والتمريضية.
+
+### لماذا لا تكفي الملاحظات الشفهية أو الورقية في الرعاية المركزة؟
+في وحدة العناية المركزة، تتغير المؤشرات الحيوية وجرعات الأدوية وإعدادات جهاز التنفس الصناعي على مدار الساعة. الاعتماد على الذاكرة أو أوراق متفرقة يعرض الفريق الطبي لخطر نسيان تفصيلة حرجة.
+
+### الحل الرقمي عبر نموذج SBAR القياسي
+عندما صممت نظام **ICU-Sync**، كان الهدف الأساسي هو دمج منهجية **SBAR** (Situation, Background, Assessment, Recommendation) مباشرة في شاشة كل سرير، بحيث يرى الطبيب والممرض المسلم والمستلم نفس البيانات اللحظية والتنبيهات السريرية بوضوح تام.`,
+        en: `## Shift Handover: The Most Critical Moment in Patient Safety
+
+Global healthcare quality research consistently shows that a majority of preventable clinical adverse events trace back to communication breakdowns during shift handoffs.
+
+### Why Paper Flowcharts Fall Short in the ICU
+In an Intensive Care Unit, ventilator settings, vasopressor titrations, and fluid balances shift hour by hour. Relying on verbal summaries or scattered paper sheets introduces dangerous cognitive load.
+
+### Embedding SBAR Governance into Software
+When architecting **ICU-Sync**, the primary goal was embedding the clinical **SBAR** framework (Situation, Background, Assessment, Recommendation) directly into the live bed telemetry screen—ensuring incoming and outgoing teams share a single, unambiguous source of truth.`,
+      },
+      category: {
+        ar: 'جودة الرعاية الصحية والتمريض',
+        en: 'Clinical Quality & ICU Care',
+      },
+      tags: ['ICU-Sync', 'Patient Safety', 'Healthcare Quality', 'SBAR Handoff'],
+      coverImage: '/src/assets/images/project_icu_sync_dashboard_1794472511322.jpg',
+      readingTimeMinutes: 5,
+      authorName: {
+        ar: 'أحمد سليمان',
+        en: 'Ahmed Soliman',
+      },
+      featured: false,
+      published: true,
+      order: 3,
+      seo: {
+        title: {
+          ar: 'تقليل الأخطاء السريرية في الرعاية المركزة عبر التسليم الرقمي للورديات | أحمد سليمان',
+          en: 'Digital ICU Shift Handoffs & Patient Safety | Ahmed Soliman',
+        },
+        description: {
+          ar: 'مقال متخصص بقلم أحمد سليمان حول دور الأنظمة الرقمية ومنهجية SBAR في رفع جودة الرعاية وسلامة المرضى داخل وحدات العناية المركزة.',
+          en: 'How structured digital SBAR handoffs and ICU telemetry improve patient safety and healthcare quality.',
+        },
+        ogImage: '/src/assets/images/project_icu_sync_dashboard_1794472511322.jpg',
+        canonicalSlug: '/blog/digital-shift-handoffs-and-icu-patient-safety',
         structuredDataType: 'BlogPosting',
       },
       createdAt: NOW,
@@ -1140,8 +1845,8 @@ Instead of sending patients to a cluttered directory or social feed, a dedicated
       width: 900,
       height: 1200,
       alt: {
-        ar: 'المهندس أحمد سليمان — مطوّر أنظمة العيادات والبرمجيات الصحية',
-        en: 'Ahmed Soliman — Healthcare Systems Architect & Full-Stack Developer',
+        ar: 'أحمد سليمان — أخصائي جودة الرعاية الصحية ومطوّر الأنظمة الطبية',
+        en: 'Ahmed Soliman — Healthcare Quality Specialist & Medical Systems Developer',
       },
       category: 'profile',
       createdAt: NOW,
@@ -1158,6 +1863,62 @@ Instead of sending patients to a cluttered directory or social feed, a dedicated
         en: 'Soli Medical Clinic & Healthcare Complex System Logo',
       },
       category: 'project',
+      createdAt: NOW,
+    },
+    {
+      id: 'media-icu-sync-cover',
+      publicId: 'local/project-icu-sync-dashboard',
+      secureUrl: '/src/assets/images/project_icu_sync_dashboard_1794472511322.jpg',
+      format: 'jpg',
+      width: 1600,
+      height: 900,
+      alt: {
+        ar: 'واجهة نظام ICU-Sync لمتابعة الرعاية المركزة',
+        en: 'ICU-Sync Critical Care Command Dashboard',
+      },
+      category: 'project',
+      createdAt: NOW,
+    },
+    {
+      id: 'media-mitali-hospital-cover',
+      publicId: 'local/project-mitali-hospital-erp',
+      secureUrl: '/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
+      format: 'jpg',
+      width: 1600,
+      height: 900,
+      alt: {
+        ar: 'منظومة Mitali Hospital لإدارة المستشفيات والمجمعات الطبية',
+        en: 'Mitali Hospital Multi-Specialty ERP Interface',
+      },
+      category: 'project',
+      createdAt: NOW,
+    },
+    {
+      id: 'media-warehouse-quality-cover',
+      publicId: 'local/project-warehouse-quality-sys',
+      secureUrl: '/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+      format: 'jpg',
+      width: 1600,
+      height: 900,
+      alt: {
+        ar: 'نظام إدارة المخازن الطبية والجودة الصحية',
+        en: 'Medical Inventory & Healthcare Quality Management Dashboard',
+      },
+      category: 'project',
+      createdAt: NOW,
+    },
+    {
+      id: 'media-clinic-interior-cover',
+      publicId: 'local/clinic-interior-reception',
+      secureUrl: '/src/assets/images/clinic_interior_reception_1794472515936.jpg',
+      format: 'jpg',
+      width: 1600,
+      height: 900,
+      alt: {
+        ar: 'استقبال مجمع النور الطبي التخصصي',
+        en: 'Al-Noor Specialized Medical Complex Reception',
+      },
+      category: 'clinic',
       createdAt: NOW,
     },
   ],

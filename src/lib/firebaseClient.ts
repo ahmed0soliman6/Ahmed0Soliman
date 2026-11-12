@@ -146,13 +146,13 @@ let cachedApp: FirebaseApp | null = null;
 let cachedDb: Firestore | null = null;
 let cachedAuth: Auth | null = null;
 
-export function getFirebaseInstances(): {
+export function getFirebaseInstances(requireFirestoreReachable = false): {
   app: FirebaseApp;
   db: Firestore;
   auth: Auth;
   config: ExternalFirebaseConfig;
 } | null {
-  if (!firestoreBackendReachable) return null;
+  if (requireFirestoreReachable && !firestoreBackendReachable) return null;
   const config = getSavedFirebaseConfig();
   if (!config) return null;
 
@@ -196,17 +196,44 @@ export function getFirebaseInstances(): {
 
 /**
  * Verifies that a signed-in Firebase User is an approved Admin by checking:
- * 1) Document existence at /admins/{user.uid} in Firestore (manual console setup per PROMPT 4.2)
- * 2) Or matching VITE_ADMIN_OWNER_UID if explicitly configured
+ * 1) Matching the verified Owner Admin email (ahmed0soliman6@gmail.com) or OWNER_ADMIN_UID
+ * 2) Document existence at /admins/{user.uid} in Firestore
  */
 export async function verifyFirebaseUserIsAdmin(user: User): Promise<boolean> {
-  const instances = getFirebaseInstances();
+  if (
+    user.email &&
+    user.email.trim().toLowerCase() === OWNER_ADMIN_EMAIL.trim().toLowerCase()
+  ) {
+    // Best-effort auto-registration of owner UID in /admins/{uid}
+    const instances = getFirebaseInstances(false);
+    if (instances) {
+      withTimeout(
+        setDoc(
+          doc(instances.db, 'admins', user.uid),
+          {
+            id: user.uid,
+            uid: user.uid,
+            email: user.email.trim().toLowerCase(),
+            name: user.displayName || 'Ahmed Soliman',
+            role: 'owner',
+            createdAt: new Date().toISOString(),
+          },
+          { merge: true }
+        ),
+        2000
+      ).catch(() => {});
+    }
+    return true;
+  }
+
+  if (OWNER_ADMIN_UID && user.uid === OWNER_ADMIN_UID) {
+    return true;
+  }
+
+  const instances = getFirebaseInstances(false);
   if (!instances) return false;
 
   try {
-    if (OWNER_ADMIN_UID && user.uid === OWNER_ADMIN_UID) {
-      return true;
-    }
     const adminDocRef = doc(instances.db, 'admins', user.uid);
     const adminSnap = await withTimeout(getDoc(adminDocRef), 2500);
     return adminSnap.exists();
@@ -222,9 +249,9 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
   photoURL: string;
   idToken: string;
 }> {
-  const instances = getFirebaseInstances();
+  const instances = getFirebaseInstances(false);
   if (!instances) {
-    throw new Error('Firebase project configuration is not set or reachable yet.');
+    throw new Error('FIREBASE_NOT_CONFIGURED');
   }
 
   const provider = new GoogleAuthProvider();
@@ -236,7 +263,7 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
   if (!isAuthorizedAdmin) {
     await fbSignOut(instances.auth);
     throw new Error(
-      `Access Denied: UID (${user.uid}) is not registered in /admins/${user.uid}. Add this UID in Firebase Console -> Firestore -> admins collection.`
+      `Access Denied: Account (${user.email || user.uid}) is not authorized as Admin.`
     );
   }
 
@@ -263,7 +290,7 @@ export async function fetchFromExistingFirestore(
   isAdminUser: boolean,
   forceRefresh = false
 ): Promise<Partial<PlatformDatabase> | null> {
-  const instances = getFirebaseInstances();
+  const instances = getFirebaseInstances(true);
   if (!instances) return null;
 
   if (
@@ -331,7 +358,7 @@ export async function saveDocumentToExistingFirestore(
   docId: string,
   payload: Record<string, any>
 ): Promise<boolean> {
-  const instances = getFirebaseInstances();
+  const instances = getFirebaseInstances(true);
   if (!instances) return false;
   try {
     await withTimeout(
@@ -351,7 +378,7 @@ export async function deleteDocumentFromExistingFirestore(
   collectionName: string,
   docId: string
 ): Promise<boolean> {
-  const instances = getFirebaseInstances();
+  const instances = getFirebaseInstances(true);
   if (!instances) return false;
   try {
     await withTimeout(deleteDoc(doc(instances.db, collectionName, docId)), 2500);

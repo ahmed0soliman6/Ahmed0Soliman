@@ -76,6 +76,21 @@ export interface PageConfig {
     category: BilingualText;
     items: string[];
   }[];
+  qualifications?: {
+    degree: BilingualText;
+    institution: BilingualText;
+    year: string;
+    details: BilingualText;
+  }[];
+  achievements?: {
+    title: BilingualText;
+    metric: string;
+    description: BilingualText;
+  }[];
+  interests?: {
+    ar: string[];
+    en: string[];
+  };
   heroImage: string;
   standaloneByDefault: boolean;
   published: boolean;
@@ -105,13 +120,22 @@ export interface ProjectItem {
   kicker: BilingualText;
   summary: BilingualText;
   description: BilingualText;
-  category: 'medical-systems' | 'charitable-healthcare' | 'automation-bots' | 'web-platforms';
+  problem?: BilingualText;
+  solution?: BilingualText;
+  category:
+    | 'medical-systems'
+    | 'charitable-healthcare'
+    | 'automation-bots'
+    | 'web-platforms'
+    | 'quality-systems'
+    | 'inventory-erp';
   categoryLabel: BilingualText;
   coverImage: string;
   logoImage?: string;
   videoUrl?: string;
   youtubeId?: string;
   liveUrl?: string;
+  showcaseRoute?: string;
   whatsappInquireText: BilingualText;
   features: {
     ar: string[];
@@ -143,6 +167,8 @@ export interface ClinicItem {
   description: BilingualText;
   coverImage: string;
   logoUrl?: string;
+  themeColor?: string;
+  galleryImages?: string[];
   phone: string;
   whatsapp: string;
   telegramUrl?: string;
