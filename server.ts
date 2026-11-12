@@ -4,6 +4,13 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
+import {
+  initializeApp as initializeAdminApp,
+  getApps as getAdminApps,
+  cert,
+} from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { INITIAL_PLATFORM_DATA } from './src/data/initialSeedData';
 import { PlatformDatabase } from './src/types/cms';
 import {
@@ -23,11 +30,114 @@ const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'cms-db.json');
 const FIRESTORE_RULES_FILE = path.resolve(process.cwd(), 'firestore.rules');
 
-const OWNER_EMAIL = (process.env.ADMIN_OWNER_EMAIL || 'ahmed0soliman6@gmail.com').toLowerCase();
-const OWNER_UID = process.env.ADMIN_OWNER_UID || 'owner-ahmed-soliman';
+const OWNER_EMAIL = (process.env.ADMIN_OWNER_EMAIL || '').trim().toLowerCase();
+
+export interface DecodedAdminToken {
+  uid: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  picture?: string;
+}
+
+export interface FirebaseAdminVerificationDeps {
+  ownerUid: string;
+  ownerEmail?: string;
+  verifyIdToken: (idToken: string) => Promise<DecodedAdminToken>;
+  hasAdminDocument: (uid: string) => Promise<{ exists: boolean; disabled?: boolean }>;
+}
+
+function parseServiceAccountFromEnv(): Record<string, any> | null {
+  const raw = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
+  if (!raw) return null;
+  try {
+    const jsonStr = raw.startsWith('{')
+      ? raw
+      : Buffer.from(raw, 'base64').toString('utf-8');
+    const parsed = JSON.parse(jsonStr);
+    if (
+      !parsed ||
+      typeof parsed.project_id !== 'string' ||
+      typeof parsed.client_email !== 'string' ||
+      typeof parsed.private_key !== 'string'
+    ) {
+      return null;
+    }
+    parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function getFirebaseAdminVerificationServices():
+  | { ready: true; deps: FirebaseAdminVerificationDeps }
+  | { ready: false; code: string; error: string } {
+  const ownerUid = (process.env.ADMIN_OWNER_UID || '').trim();
+  if (!ownerUid) {
+    return {
+      ready: false,
+      code: 'ADMIN_OWNER_UID_NOT_CONFIGURED',
+      error:
+        'Server secret ADMIN_OWNER_UID is not configured. Please add ADMIN_OWNER_UID in Vercel / server environment variables.',
+    };
+  }
+
+  const serviceAccount = parseServiceAccountFromEnv();
+  if (!serviceAccount) {
+    return {
+      ready: false,
+      code: 'FIREBASE_SERVICE_ACCOUNT_NOT_CONFIGURED',
+      error:
+        'Server secret FIREBASE_SERVICE_ACCOUNT_JSON is not configured or invalid. Please add FIREBASE_SERVICE_ACCOUNT_JSON in Vercel / server environment variables.',
+    };
+  }
+
+  const existingApps = getAdminApps();
+  const adminApp =
+    existingApps.length > 0
+      ? existingApps[0]
+      : initializeAdminApp({ credential: cert(serviceAccount as any) });
+
+  const adminAuth = getAdminAuth(adminApp);
+  const databaseId = (
+    process.env.FIREBASE_DATABASE_ID ||
+    process.env.VITE_FIREBASE_DATABASE_ID ||
+    '(default)'
+  ).trim();
+  const adminDb =
+    databaseId && databaseId !== '(default)'
+      ? getAdminFirestore(adminApp, databaseId)
+      : getAdminFirestore(adminApp);
+
+  return {
+    ready: true,
+    deps: {
+      ownerUid,
+      ownerEmail: OWNER_EMAIL || undefined,
+      verifyIdToken: async (idToken: string) => {
+        const decoded = await adminAuth.verifyIdToken(idToken, true);
+        return {
+          uid: decoded.uid,
+          email: decoded.email,
+          email_verified: decoded.email_verified,
+          name: typeof decoded.name === 'string' ? decoded.name : undefined,
+        };
+      },
+      hasAdminDocument: async (uid: string) => {
+        const snap = await adminDb.collection('admins').doc(uid).get();
+        const data = snap.data();
+        return {
+          exists: snap.exists,
+          disabled: Boolean(data?.disabled === true),
+        };
+      },
+    },
+  };
+}
 
 // Active verified Admin sessions (token -> session record with expiration)
-interface AdminSession {
+export interface AdminSession {
   token: string;
   uid: string;
   email: string;
@@ -35,7 +145,7 @@ interface AdminSession {
   expiresAt: number;
 }
 
-const activeSessions = new Map<string, AdminSession>();
+export const activeSessions = new Map<string, AdminSession>();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 // Sliding-window IP rate limiter for Auth & Contact endpoints (PROMPT 5.2)
@@ -250,7 +360,7 @@ function getAuthenticatedAdmin(req: Request): AdminSession | null {
   return session;
 }
 
-function requireAdminMiddleware(req: Request, res: Response, next: NextFunction): void {
+export function requireAdminMiddleware(req: Request, res: Response, next: NextFunction): void {
   const session = getAuthenticatedAdmin(req);
   if (!session) {
     res.status(401).json({
@@ -262,24 +372,12 @@ function requireAdminMiddleware(req: Request, res: Response, next: NextFunction)
   next();
 }
 
-async function startServer() {
-  const app = express();
-  app.use(express.json({ limit: '6mb' }));
-
-  // ---------------------------------------------------------------------------
-  // 0. SECURITY HEADERS MIDDLEWARE (PROMPT 5.2)
-  // ---------------------------------------------------------------------------
-  app.use((_req: Request, res: Response, next: NextFunction) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    next();
-  });
-
-  // ---------------------------------------------------------------------------
-  // 1. ADMIN AUTHENTICATION & UID VERIFICATION ROUTES (PROMPT 4.2 & 5.2)
-  // ---------------------------------------------------------------------------
-  app.post('/api/auth/admin-login', (req: Request, res: Response) => {
+export function createAdminLoginHandler(
+  resolveDeps: () =>
+    | { ready: true; deps: FirebaseAdminVerificationDeps }
+    | { ready: false; code: string; error: string } = getFirebaseAdminVerificationServices
+) {
+  return async (req: Request, res: Response): Promise<void> => {
     const clientIp = req.ip || 'local';
     if (!checkRateLimit(`login:${clientIp}`, 20, 15 * 60 * 1000)) {
       res.status(429).json({
@@ -289,41 +387,99 @@ async function startServer() {
       return;
     }
 
-    const { uid, email, name } = req.body || {};
-    const db = loadDatabase();
+    // Extract Firebase ID Token strictly from Authorization Bearer header or body.idToken.
+    // Never trust client-supplied uid, email, or name.
+    const authHeader = req.headers.authorization;
+    const headerToken =
+      authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    const bodyToken = typeof req.body?.idToken === 'string' ? req.body.idToken.trim() : '';
+    const idToken = headerToken || bodyToken;
 
-    const normalizedEmail = sanitizeText(String(email || ''), 120)
-      .trim()
-      .toLowerCase();
-    const candidateUid = sanitizeText(String(uid || ''), 128).trim();
+    if (!idToken) {
+      res.status(401).json({
+        error: 'Unauthorized: Signed Firebase ID Token is required.',
+        code: 'MISSING_ID_TOKEN',
+      });
+      return;
+    }
 
-    // Check against admins/{uid} collection or configured owner UID/Email
-    const matchedAdmin = db.admins.find(
-      (a) =>
-        (candidateUid && a.uid === candidateUid) ||
-        (normalizedEmail && a.email.toLowerCase() === normalizedEmail)
-    );
+    const serviceResolution = resolveDeps();
+    if (!serviceResolution.ready) {
+      res.status(503).json({
+        error: serviceResolution.error,
+        code: serviceResolution.code,
+      });
+      return;
+    }
 
-    const isOwner =
-      (candidateUid && candidateUid === OWNER_UID) ||
-      (normalizedEmail && normalizedEmail === OWNER_EMAIL);
+    const { deps } = serviceResolution;
 
-    if (!matchedAdmin && !isOwner) {
+    let decoded: DecodedAdminToken;
+    try {
+      decoded = await deps.verifyIdToken(idToken);
+    } catch {
+      res.status(401).json({
+        error: 'Unauthorized: Invalid, tampered, revoked, or expired Firebase ID Token.',
+        code: 'INVALID_ID_TOKEN',
+      });
+      return;
+    }
+
+    if (!decoded?.uid || decoded.email_verified !== true) {
       res.status(403).json({
-        error: `Access Denied: Account (${normalizedEmail || candidateUid || 'unknown'}) is not an authorized Admin in /admins/{uid}.`,
-        code: 'FORBIDDEN_NOT_ADMIN_UID',
+        error: 'Access Denied: Verified Google account email is required.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+      return;
+    }
+
+    // Dual Verification Check A: Verified token UID must strictly match ADMIN_OWNER_UID
+    if (decoded.uid !== deps.ownerUid) {
+      res.status(403).json({
+        error: 'Access Denied: Authenticated UID is not the authorized platform owner.',
+        code: 'FORBIDDEN_NOT_OWNER_UID',
+      });
+      return;
+    }
+
+    // Optional strict email match when ADMIN_OWNER_EMAIL is configured
+    if (
+      deps.ownerEmail &&
+      (!decoded.email || decoded.email.trim().toLowerCase() !== deps.ownerEmail)
+    ) {
+      res.status(403).json({
+        error: 'Access Denied: Authenticated account email does not match ADMIN_OWNER_EMAIL.',
+        code: 'FORBIDDEN_EMAIL_MISMATCH',
+      });
+      return;
+    }
+
+    // Dual Verification Check B: Firestore /admins/{uid} document must exist (created manually in Firebase Console)
+    try {
+      const adminDoc = await deps.hasAdminDocument(decoded.uid);
+      if (!adminDoc.exists || adminDoc.disabled) {
+        res.status(403).json({
+          error:
+            'Access Denied: UID is not registered in Firestore /admins/{uid}. Add the owner UID manually in Firebase Console.',
+          code: 'FORBIDDEN_NOT_ADMIN_UID',
+        });
+        return;
+      }
+    } catch {
+      res.status(503).json({
+        error: 'Failed to verify /admins/{uid} authorization record in Firestore.',
+        code: 'FIRESTORE_ADMIN_CHECK_FAILED',
       });
       return;
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const finalUid = matchedAdmin?.uid || candidateUid || OWNER_UID;
-    const finalEmail = matchedAdmin?.email || normalizedEmail || OWNER_EMAIL;
-    const finalName = sanitizeText(name || matchedAdmin?.name || 'Ahmed Soliman', 120);
+    const finalEmail = sanitizeText(decoded.email || '', 120).trim().toLowerCase();
+    const finalName = sanitizeText(decoded.name || 'Ahmed Soliman', 120) || 'Ahmed Soliman';
 
     const session: AdminSession = {
       token,
-      uid: finalUid,
+      uid: decoded.uid,
       email: finalEmail,
       name: finalName,
       expiresAt: Date.now() + SESSION_TTL_MS,
@@ -337,7 +493,16 @@ async function startServer() {
       name: session.name,
       expiresAt: session.expiresAt,
     });
-  });
+  };
+}
+
+export function registerAuthRoutes(
+  app: express.Express,
+  resolveDeps: () =>
+    | { ready: true; deps: FirebaseAdminVerificationDeps }
+    | { ready: false; code: string; error: string } = getFirebaseAdminVerificationServices
+): void {
+  app.post('/api/auth/admin-login', createAdminLoginHandler(resolveDeps));
 
   app.get('/api/auth/session', (req: Request, res: Response) => {
     const session = getAuthenticatedAdmin(req);
@@ -362,6 +527,26 @@ async function startServer() {
     }
     res.json({ success: true });
   });
+}
+
+async function startServer() {
+  const app = express();
+  app.use(express.json({ limit: '6mb' }));
+
+  // ---------------------------------------------------------------------------
+  // 0. SECURITY HEADERS MIDDLEWARE (PROMPT 5.2)
+  // ---------------------------------------------------------------------------
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    next();
+  });
+
+  // ---------------------------------------------------------------------------
+  // 1. ADMIN AUTHENTICATION & FIREBASE ID TOKEN VERIFICATION ROUTES
+  // ---------------------------------------------------------------------------
+  registerAuthRoutes(app);
 
   // ---------------------------------------------------------------------------
   // 2. PUBLIC CONTACT / CONSULTATION FORM VALIDATION (PROMPT 5.2)
@@ -884,15 +1069,18 @@ async function startServer() {
         id: 'FT-06',
         category: 'Admin Auth & Session Lifecycle',
         title: {
-          ar: 'تسجيل دخول المدير، التحقق من UID، حماية الصلاحيات، وتسجيل الخروج',
-          en: 'Admin Login, UID Verification, Role Enforcement & Logout Invalidation',
+          ar: 'تسجيل دخول المدير، التحقق من Firebase ID Token، حماية الصلاحيات، وتسجيل الخروج',
+          en: 'Admin Login, Firebase ID Token Verification, Role Enforcement & Logout Invalidation',
         },
         passed:
-          db.admins.some((a) => a.email.toLowerCase() === OWNER_EMAIL) &&
-          activeSessions.size >= 1,
+          getFirebaseAdminVerificationServices().ready && activeSessions.size >= 1,
         details: {
-          ar: `حساب المدير المعتمد (${OWNER_EMAIL}) مفعل، ويتم رفض أي UID غير مدرج في /admins/{uid} برمز 403 Forbidden وإبطال الجلسة فور الخروج.`,
-          en: `Authorized Admin (${OWNER_EMAIL}) verified; non-admin UIDs receive 403 Forbidden and logout immediately revokes the Bearer token.`,
+          ar: getFirebaseAdminVerificationServices().ready
+            ? 'حزمة Firebase Admin SDK وADMIN_OWNER_UID مفعّلة على الخادم مع مطابقة /admins/{uid} وإبطال الجلسة فور الخروج.'
+            : 'يرجى ضبط متغيرات FIREBASE_SERVICE_ACCOUNT_JSON وADMIN_OWNER_UID على الخادم لتفعيل التحقق التشفيري من Firebase ID Token.',
+          en: getFirebaseAdminVerificationServices().ready
+            ? 'Firebase Admin SDK & ADMIN_OWNER_UID are active with Firestore /admins/{uid} verification and instant logout revocation.'
+            : 'Configure FIREBASE_SERVICE_ACCOUNT_JSON and ADMIN_OWNER_UID server secrets to enable cryptographic Firebase ID Token verification.',
         },
       },
       {
@@ -971,12 +1159,12 @@ async function startServer() {
       },
       {
         id: 'SEC-03',
-        area: 'Admin UID Verification & Rate Limiting',
-        severity: 'High',
-        status: 'SECURE',
+        area: 'Firebase ID Token & Admin UID Verification',
+        severity: 'Critical',
+        status: getFirebaseAdminVerificationServices().ready ? 'SECURE' : 'ATTENTION_REQUIRED',
         finding: {
-          ar: 'يتم التحقق الصارم من UID والبريد المعتمد في /admins/{uid} مع حماية Rate Limiting ضد محاولات التخمين (Brute-Force) على /api/auth/admin-login.',
-          en: 'Strict UID verification against /admins/{uid} combined with IP sliding-window rate limiting on /api/auth/admin-login.',
+          ar: 'يتحقق الخادم من Firebase ID Token عبر Firebase Admin SDK، ويطابق UID مع ADMIN_OWNER_UID ووثيقة /admins/{uid} دون الاعتماد على أي UID أو Email من المتصفح.',
+          en: 'Server cryptographically verifies Firebase ID Token via Firebase Admin SDK and checks both ADMIN_OWNER_UID and Firestore /admins/{uid}.',
         },
       },
       {
@@ -1155,4 +1343,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.SKIP_SERVER_LISTEN !== '1') {
+  startServer();
+}

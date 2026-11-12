@@ -16,7 +16,6 @@ import {
 import {
   getSavedFirebaseConfig,
   saveExternalFirebaseConfig,
-  OWNER_ADMIN_EMAIL,
 } from '../lib/firebaseClient';
 import {
   ProjectItem,
@@ -85,8 +84,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   } = usePlatform();
 
   // Login Gate State
-  const [loginEmail, setLoginEmail] = useState(OWNER_ADMIN_EMAIL);
-  const [loginUid, setLoginUid] = useState('owner-ahmed-soliman');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -216,19 +213,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   }, [adminSession]);
 
   // ---------------------------------------------------------------------------
-  // RENDER ADMIN AUTHENTICATION GATE IF NOT LOGGED IN (PROMPT 4.2)
+  // RENDER ADMIN AUTHENTICATION GATE IF NOT LOGGED IN (Google + Firebase ID Token)
   // ---------------------------------------------------------------------------
   if (!adminSession) {
-    const handleOwnerLogin = async (e: React.FormEvent, useFirebasePopup = false) => {
-      e.preventDefault();
+    const handleGoogleOwnerLogin = async () => {
       setLoginError(null);
       setLoginLoading(true);
       try {
-        await loginAsOwnerAdmin({
-          email: loginEmail,
-          uid: loginUid,
-          useFirebasePopup,
-        });
+        await loginAsOwnerAdmin();
       } catch (err: any) {
         setLoginError(err?.message || 'Access denied');
       } finally {
@@ -258,15 +250,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
             <div className="space-y-2">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                 {locale === 'ar'
-                  ? 'تسجيل دخول المدير المعتمد (UID)'
+                  ? 'تسجيل دخول المدير عبر Google'
                   : 'Authorized Admin Sign-In'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                 {locale === 'ar'
-                  ? 'تُمنح صلاحية الإدارة حصرياً لحساب المدير المعتمد في وثيقة admins/{uid}. أي حساب آخر يتم رفضه تلقائياً.'
-                  : 'Admin privileges are restricted strictly to the verified UID registered in /admins/{uid}. Unauthorized accounts are rejected.'}
+                  ? 'الدخول مقصور على حساب Google المعتمد، مع التحقق التشفيري من Firebase ID Token على الخادم ومطابقة UID في وثيقة admins.'
+                  : 'Access is restricted exclusively to the authorized Google account, verified server-side via Firebase ID Token and /admins/{uid}.'}
               </p>
             </div>
+
+            {!isFirebaseConnected && (
+              <div className="p-3.5 rounded-xl bg-amber-950/50 border border-amber-700/70 text-xs text-amber-200 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  {locale === 'ar'
+                    ? 'إعدادات Firebase غير مكتملة (VITE_FIREBASE_*). يرجى ضبط متغيرات البيئة أولاً لتفعيل المصادقة.'
+                    : 'Firebase client configuration (VITE_FIREBASE_*) is not configured yet.'}
+                </span>
+              </div>
+            )}
 
             {loginError && (
               <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-700/80 text-xs text-red-200 flex items-start gap-2.5">
@@ -275,80 +278,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
               </div>
             )}
 
-            {isFirebaseConnected && (
-              <button
-                type="button"
-                disabled={loginLoading}
-                onClick={(e) => handleOwnerLogin(e, true)}
-                className="w-full py-3 px-4 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] transition-colors flex items-center justify-center gap-2"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>
-                  {locale === 'ar'
-                    ? 'الدخول باستخدام Google (مشروع Firebase المربوط)'
-                    : 'Sign In with Google (Connected Firebase Project)'}
-                </span>
-              </button>
-            )}
-
-            <form onSubmit={(e) => handleOwnerLogin(e, false)} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  {locale === 'ar' ? 'البريد الإلكتروني للمدير المعتمد' : 'Verified Admin Email'}
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 focus:border-[#00C2CB] focus:outline-none font-mono-tabular"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  {locale === 'ar' ? 'معرّف المدير (Admin UID)' : 'Approved Admin UID'}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={loginUid}
-                  onChange={(e) => setLoginUid(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 focus:border-[#00C2CB] focus:outline-none font-mono-tabular"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loginLoading}
-                className="w-full py-3 px-4 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] transition-colors"
-              >
+            <button
+              type="button"
+              disabled={loginLoading || !isFirebaseConnected}
+              onClick={handleGoogleOwnerLogin}
+              className="w-full py-3.5 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>
                 {loginLoading
                   ? locale === 'ar'
-                    ? 'جاري التحقق من UID...'
-                    : 'Verifying Admin UID...'
+                    ? 'جاري التحقق من توقيع Firebase ID Token...'
+                    : 'Verifying Firebase ID Token...'
                   : locale === 'ar'
-                  ? 'دخول كمدير معتمد (Ahmed Soliman)'
-                  : 'Sign In as Verified Owner Admin'}
-              </button>
-            </form>
-
-            {/* Security Test Helper to verify unauthorized rejection */}
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-              <span>{locale === 'ar' ? 'اختبار الحماية:' : 'Security Audit Test:'}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginEmail('intruder@example.com');
-                  setLoginUid('unauthorized-uid-999');
-                }}
-                className="text-amber-500 hover:underline"
-              >
-                {locale === 'ar'
-                  ? 'تجربة دخول بحساب غير مصرح له'
-                  : 'Test Unauthorized UID Rejection'}
-              </button>
-            </div>
+                  ? 'الدخول باستخدام Google (Firebase Auth)'
+                  : 'Sign In with Google (Firebase Auth)'}
+              </span>
+            </button>
           </div>
         </div>
       </LayoutResolver>

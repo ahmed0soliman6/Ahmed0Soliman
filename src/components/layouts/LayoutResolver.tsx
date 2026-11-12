@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { usePlatform } from '../../context/PlatformContext';
-import { OWNER_ADMIN_EMAIL } from '../../lib/firebaseClient';
 import {
   Sun,
   Moon,
@@ -71,8 +70,6 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAdminModalOpen, setQuickAdminModalOpen] = useState(false);
-  const [loginEmail, setLoginEmail] = useState(OWNER_ADMIN_EMAIL);
-  const [loginUid, setLoginUid] = useState('owner-ahmed-soliman');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -170,16 +167,11 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
     return () => window.removeEventListener('open-quick-admin-modal', onOpenAdminModal);
   }, [adminSession, navigate]);
 
-  const handleQuickAdminSubmit = async (e: React.FormEvent, useFirebasePopup = false) => {
-    e.preventDefault();
+  const handleQuickAdminGoogleSubmit = async () => {
     setLoginError(null);
     setLoginLoading(true);
     try {
-      await loginAsOwnerAdmin({
-        email: loginEmail,
-        uid: loginUid,
-        useFirebasePopup,
-      });
+      await loginAsOwnerAdmin();
       setQuickAdminModalOpen(false);
       navigate('/admin');
     } catch (err: any) {
@@ -828,6 +820,23 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </button>
             </div>
 
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {locale === 'ar'
+                ? 'الدخول للوحة الإدارة محصور على حساب Google المعتمد، ويتم التحقق من Firebase ID Token وصلاحية UID على الخادم.'
+                : 'Admin access is restricted to the authorized Google account with server-side Firebase ID Token & /admins/{uid} verification.'}
+            </p>
+
+            {!isFirebaseConnected && (
+              <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-700/70 text-xs text-amber-200 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  {locale === 'ar'
+                    ? 'إعدادات Firebase غير مكتملة في المتصفح (VITE_FIREBASE_*).'
+                    : 'Firebase client configuration (VITE_FIREBASE_*) is not configured yet.'}
+                </span>
+              </div>
+            )}
+
             {loginError && (
               <div className="p-3 rounded-xl bg-red-950/70 border border-red-700 text-xs text-red-200 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
@@ -835,93 +844,36 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </div>
             )}
 
-            {/* Instant 1-Click Verified Owner Login */}
-            <div className="p-4 rounded-xl bg-slate-900/90 border border-[#00C2CB]/30 space-y-3">
-              <div className="text-xs text-slate-300 leading-relaxed">
-                {locale === 'ar'
-                  ? 'يمكنك الدخول مباشرة بحساب المالك المعتمد (Ahmed Soliman) لإدارة المشروعات والعيادات والمقالات والصور:'
-                  : 'Sign in directly with the verified Owner account (Ahmed Soliman) to manage all platform sections:'}
-              </div>
+            <button
+              type="button"
+              disabled={loginLoading || !isFirebaseConnected}
+              onClick={handleQuickAdminGoogleSubmit}
+              className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#00E5FF] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>
+                {loginLoading
+                  ? locale === 'ar'
+                    ? 'جاري التحقق من الهوية عبر الخادم...'
+                    : 'Verifying Firebase ID Token...'
+                  : locale === 'ar'
+                  ? 'الدخول عبر Google (Firebase Auth)'
+                  : 'Sign In with Google (Firebase Auth)'}
+              </span>
+            </button>
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-800 text-xs">
               <button
                 type="button"
-                disabled={loginLoading}
-                onClick={(e) => handleQuickAdminSubmit(e, false)}
-                className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#00E5FF] transition-colors flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                onClick={() => {
+                  setQuickAdminModalOpen(false);
+                  navigate('/admin');
+                }}
+                className="text-xs text-slate-400 hover:text-white underline"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>
-                  {loginLoading
-                    ? locale === 'ar'
-                      ? 'جاري فتح لوحة الإدارة...'
-                      : 'Opening Admin Dashboard...'
-                    : locale === 'ar'
-                    ? 'دخول فوري كمدير المنصة (Ahmed Soliman)'
-                    : '1-Click Sign In as Owner (Ahmed Soliman)'}
-                </span>
+                {locale === 'ar' ? 'الانتقال لصفحة /admin الكاملة' : 'Open full /admin page'}
               </button>
             </div>
-
-            {isFirebaseConnected && (
-              <button
-                type="button"
-                disabled={loginLoading}
-                onClick={(e) => handleQuickAdminSubmit(e, true)}
-                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0066FF] text-white hover:bg-[#0052CC] transition-colors flex items-center justify-center gap-2"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>
-                  {locale === 'ar'
-                    ? 'الدخول عبر Google (Firebase Auth)'
-                    : 'Sign In with Google (Firebase Auth)'}
-                </span>
-              </button>
-            )}
-
-            <form onSubmit={(e) => handleQuickAdminSubmit(e, false)} className="space-y-3 pt-2 border-t border-slate-800 text-xs">
-              <div>
-                <label className="block text-slate-400 mb-1">
-                  {locale === 'ar' ? 'البريد الإلكتروني للمدير' : 'Admin Email'}
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono-tabular"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1">
-                  {locale === 'ar' ? 'معرّف المدير (Admin UID)' : 'Approved Admin UID'}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={loginUid}
-                  onChange={(e) => setLoginUid(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono-tabular"
-                />
-              </div>
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuickAdminModalOpen(false);
-                    navigate('/admin');
-                  }}
-                  className="text-xs text-slate-400 hover:text-white underline"
-                >
-                  {locale === 'ar' ? 'الانتقال لصفحة /admin الكاملة' : 'Open full /admin page'}
-                </button>
-                <button
-                  type="submit"
-                  disabled={loginLoading}
-                  className="px-4 py-2 rounded-lg font-bold bg-slate-800 hover:bg-slate-700 text-white"
-                >
-                  {locale === 'ar' ? 'تحقق ودخول' : 'Verify & Enter'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

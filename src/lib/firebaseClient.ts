@@ -195,39 +195,13 @@ export function getFirebaseInstances(requireFirestoreReachable = false): {
 }
 
 /**
- * Verifies that a signed-in Firebase User is an approved Admin by checking:
- * 1) Matching the verified Owner Admin email (ahmed0soliman6@gmail.com) or OWNER_ADMIN_UID
- * 2) Document existence at /admins/{user.uid} in Firestore
+ * Read-only check against Firestore /admins/{user.uid}.
+ * Never writes or auto-creates /admins/{uid} documents from the client,
+ * and never grants access based on email string matching alone.
  */
 export async function verifyFirebaseUserIsAdmin(user: User): Promise<boolean> {
-  if (
-    user.email &&
-    user.email.trim().toLowerCase() === OWNER_ADMIN_EMAIL.trim().toLowerCase()
-  ) {
-    // Best-effort auto-registration of owner UID in /admins/{uid}
-    const instances = getFirebaseInstances(false);
-    if (instances) {
-      withTimeout(
-        setDoc(
-          doc(instances.db, 'admins', user.uid),
-          {
-            id: user.uid,
-            uid: user.uid,
-            email: user.email.trim().toLowerCase(),
-            name: user.displayName || 'Ahmed Soliman',
-            role: 'owner',
-            createdAt: new Date().toISOString(),
-          },
-          { merge: true }
-        ),
-        2000
-      ).catch(() => {});
-    }
-    return true;
-  }
-
-  if (OWNER_ADMIN_UID && user.uid === OWNER_ADMIN_UID) {
-    return true;
+  if (!user || !user.uid || !user.emailVerified) {
+    return false;
   }
 
   const instances = getFirebaseInstances(false);
@@ -259,20 +233,22 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
   const result = await signInWithPopup(instances.auth, provider);
   const user = result.user;
 
-  const isAuthorizedAdmin = await verifyFirebaseUserIsAdmin(user);
-  if (!isAuthorizedAdmin) {
+  if (!user || !user.emailVerified) {
     await fbSignOut(instances.auth);
-    throw new Error(
-      `Access Denied: Account (${user.email || user.uid}) is not authorized as Admin.`
-    );
+    throw new Error('Access Denied: A verified Google account is required.');
+  }
+
+  const idToken = await user.getIdToken(true);
+  if (!idToken) {
+    await fbSignOut(instances.auth);
+    throw new Error('Authentication Failed: Could not obtain Firebase ID Token.');
   }
 
   invalidateFirestoreCache();
-  const idToken = await user.getIdToken();
   return {
     uid: user.uid,
-    email: user.email || OWNER_ADMIN_EMAIL,
-    displayName: user.displayName || 'Ahmed Soliman',
+    email: user.email || '',
+    displayName: user.displayName || 'Admin',
     photoURL: user.photoURL || '/assets/aistudio/1770146906397_16665dd0.png',
     idToken,
   };

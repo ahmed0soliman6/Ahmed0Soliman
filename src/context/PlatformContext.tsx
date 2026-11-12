@@ -13,7 +13,6 @@ import {
   signInWithExistingFirebaseGoogle,
   signOutFromExistingFirebase,
   getSavedFirebaseConfig,
-  OWNER_ADMIN_EMAIL,
   invalidateFirestoreCache,
 } from '../lib/firebaseClient';
 
@@ -44,7 +43,7 @@ interface PlatformContextValue {
   loading: boolean;
   error: string | null;
   adminSession: AdminUserSession | null;
-  loginAsOwnerAdmin: (credentials?: { email: string; uid?: string; useFirebasePopup?: boolean }) => Promise<void>;
+  loginAsOwnerAdmin: () => Promise<void>;
   logoutAdmin: () => Promise<void>;
   refreshData: () => Promise<void>;
   saveSiteSettings: (settings: SiteSettings) => Promise<void>;
@@ -142,7 +141,13 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const raw = localStorage.getItem(STORAGE_ADMIN_SESSION_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as AdminUserSession;
-      if (parsed && parsed.token && parsed.expiresAt > Date.now()) {
+      if (
+        parsed &&
+        parsed.token &&
+        !parsed.token.startsWith('local-owner-token-') &&
+        parsed.viaFirebase === true &&
+        parsed.expiresAt > Date.now()
+      ) {
         return parsed;
       }
       localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
@@ -238,7 +243,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
-  // Verify Admin session on mount & handle session expiration
+  // Verify Admin session on mount & handle session expiration / revocation
   useEffect(() => {
     if (!adminSession) return;
     let cancelled = false;
@@ -246,14 +251,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const apiSession = await safeFetchJson('/api/auth/session', {
         headers: { Authorization: `Bearer ${adminSession.token}` },
       });
-      // Only invalidate if backend explicitly responded with 401 JSON (and token isn't local static fallback)
-      if (
-        apiSession &&
-        !apiSession.ok &&
-        apiSession.status === 401 &&
-        !adminSession.token.startsWith('local-owner-token-') &&
-        !cancelled
-      ) {
+      if ((!apiSession || !apiSession.ok) && !cancelled) {
         setAdminSession(null);
         localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
       }
@@ -327,89 +325,60 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     refreshData();
   }, [refreshData]);
 
-  const loginAsOwnerAdmin = useCallback(
-    async (credentials?: { email: string; uid?: string; useFirebasePopup?: boolean }) => {
-      let uidToVerify = credentials?.uid || 'owner-ahmed-soliman';
-      let emailToVerify = credentials?.email || OWNER_ADMIN_EMAIL;
-      let nameToVerify = 'Ahmed Soliman';
-      let viaFirebase = false;
-
-      if (credentials?.useFirebasePopup && getSavedFirebaseConfig()) {
-        try {
-          const fbUser = await signInWithExistingFirebaseGoogle();
-          uidToVerify = fbUser.uid;
-          emailToVerify = fbUser.email;
-          nameToVerify = fbUser.displayName;
-          viaFirebase = true;
-        } catch (fbErr: any) {
-          const msg = String(fbErr?.message || '');
-          if (msg.includes('Access Denied')) {
-            throw fbErr;
-          }
-          uidToVerify = credentials?.uid || 'owner-ahmed-soliman';
-          emailToVerify = credentials?.email || OWNER_ADMIN_EMAIL;
-        }
-      }
-
-      const apiRes = await safeFetchJson('/api/auth/admin-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid: uidToVerify,
-          email: emailToVerify,
-          name: nameToVerify,
-        }),
-      });
-
-      let newSession: AdminUserSession;
-
-      if (apiRes) {
-        if (!apiRes.ok) {
-          throw new Error(apiRes.data?.error || 'Admin authentication failed');
-        }
-        newSession = {
-          uid: apiRes.data.uid,
-          email: apiRes.data.email,
-          name: apiRes.data.name,
-          token: apiRes.data.token,
-          expiresAt: apiRes.data.expiresAt,
-          viaFirebase,
-        };
-      } else {
-        // Static Vercel Hosting Fallback: verify against Owner Email / UID client-side
-        const normalizedEmail = emailToVerify.trim().toLowerCase();
-        const candidateUid = uidToVerify.trim();
-        const isOwner =
-          candidateUid === 'owner-ahmed-soliman' ||
-          normalizedEmail === OWNER_ADMIN_EMAIL.trim().toLowerCase();
-
-        if (!isOwner) {
-          throw new Error(
-            `Access Denied: Account (${normalizedEmail || candidateUid}) is not an authorized Admin.`
-          );
-        }
-
-        newSession = {
-          uid: candidateUid || 'owner-ahmed-soliman',
-          email: normalizedEmail || OWNER_ADMIN_EMAIL,
-          name: nameToVerify || 'Ahmed Soliman',
-          token: `local-owner-token-${Date.now()}`,
-          expiresAt: Date.now() + 12 * 60 * 60 * 1000,
-          viaFirebase,
-        };
-      }
-
-      setAdminSession(newSession);
-      localStorage.setItem(STORAGE_ADMIN_SESSION_KEY, JSON.stringify(newSession));
-      showToast(
+  const loginAsOwnerAdmin = useCallback(async () => {
+    if (!getSavedFirebaseConfig()) {
+      throw new Error(
         locale === 'ar'
-          ? `مرحباً بك يا ${newSession.name} — تم تفعيل صلاحيات الإدارة`
-          : `Welcome ${newSession.name} — Admin access verified`,
-        'success'
+          ? 'إعدادات Firebase Auth غير متوفرة. يجب ضبط متغيرات VITE_FIREBASE_* قبل تسجيل الدخول.'
+          : 'Firebase Auth is not configured. Please set VITE_FIREBASE_* configuration first.'
       );
-    },
-    [locale, showToast]
-  );
+    }
+
+    const fbUser = await signInWithExistingFirebaseGoogle();
+
+    const apiRes = await safeFetchJson('/api/auth/admin-login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${fbUser.idToken}`,
+      },
+      body: JSON.stringify({
+        idToken: fbUser.idToken,
+      }),
+    });
+
+    if (!apiRes) {
+      await signOutFromExistingFirebase().catch(() => {});
+      throw new Error(
+        locale === 'ar'
+          ? 'تعذر الوصول إلى خادم التحقق (/api/auth/admin-login). لا يمكن إصدار جلسة إدارة بدون تحقق الخادم.'
+          : 'Could not reach server verification endpoint (/api/auth/admin-login).'
+      );
+    }
+
+    if (!apiRes.ok || !apiRes.data?.token) {
+      await signOutFromExistingFirebase().catch(() => {});
+      throw new Error(apiRes.data?.error || 'Admin authentication failed');
+    }
+
+    const newSession: AdminUserSession = {
+      uid: apiRes.data.uid,
+      email: apiRes.data.email,
+      name: apiRes.data.name,
+      token: apiRes.data.token,
+      expiresAt: apiRes.data.expiresAt,
+      viaFirebase: true,
+    };
+
+    setAdminSession(newSession);
+    localStorage.setItem(STORAGE_ADMIN_SESSION_KEY, JSON.stringify(newSession));
+    showToast(
+      locale === 'ar'
+        ? `مرحباً بك يا ${newSession.name} — تم التحقق من الهوية عبر Firebase`
+        : `Welcome ${newSession.name} — Firebase Admin session verified`,
+      'success'
+    );
+  }, [locale, showToast]);
 
   const logoutAdmin = useCallback(async () => {
     if (adminSession?.token) {

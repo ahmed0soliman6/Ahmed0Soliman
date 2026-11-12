@@ -12,10 +12,11 @@ service cloud.firestore {
     }
 
     // Helper: Is the authenticated user a verified Admin?
-    // Checks strictly that a document exists at /admins/{request.auth.uid}
+    // Checks strictly that email is verified AND a document exists at /admins/{request.auth.uid}
     // (First admin document /admins/{uid} is provisioned manually via Firebase Console)
     function isAdmin() {
       return isSignedIn() &&
+        request.auth.token.email_verified == true &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
