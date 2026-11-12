@@ -13,6 +13,7 @@ import {
   signInWithExistingFirebaseGoogle,
   signOutFromExistingFirebase,
   getSavedFirebaseConfig,
+  hydrateFirebaseConfigFromServer,
   invalidateFirestoreCache,
 } from '../lib/firebaseClient';
 
@@ -327,10 +328,13 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loginAsOwnerAdmin = useCallback(async () => {
     if (!getSavedFirebaseConfig()) {
+      await hydrateFirebaseConfigFromServer();
+    }
+    if (!getSavedFirebaseConfig()) {
       throw new Error(
         locale === 'ar'
-          ? 'إعدادات Firebase Auth غير متوفرة. يجب ضبط متغيرات VITE_FIREBASE_* قبل تسجيل الدخول.'
-          : 'Firebase Auth is not configured. Please set VITE_FIREBASE_* configuration first.'
+          ? 'إعدادات Firebase Auth غير متوفرة. يرجى إدخال API Key ومعرّف المشروع (Project ID) أدناه أو في متغيرات VITE_FIREBASE_*.'
+          : 'Firebase Auth is not configured. Please provide API Key & Project ID below or in VITE_FIREBASE_*.'
       );
     }
 
@@ -593,8 +597,24 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   }, [adminSession, locale, refreshData, showToast]);
 
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(() =>
+    Boolean(getSavedFirebaseConfig())
+  );
+
+  useEffect(() => {
+    const syncFbState = () => {
+      setIsFirebaseConnected(Boolean(getSavedFirebaseConfig()));
+    };
+    window.addEventListener('firebase-config-updated', syncFbState);
+    if (!getSavedFirebaseConfig()) {
+      hydrateFirebaseConfigFromServer().then((cfg) => {
+        if (cfg) setIsFirebaseConnected(true);
+      });
+    }
+    return () => window.removeEventListener('firebase-config-updated', syncFbState);
+  }, []);
+
   const searchParams = new URLSearchParams(search);
-  const isFirebaseConnected = Boolean(getSavedFirebaseConfig());
 
   return (
     <PlatformContext.Provider

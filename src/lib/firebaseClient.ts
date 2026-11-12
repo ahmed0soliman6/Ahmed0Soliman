@@ -72,26 +72,52 @@ function withTimeout<T>(promise: Promise<T>, ms = 2500): Promise<T> {
   });
 }
 
+function cleanConfigString(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  let val = raw.trim();
+  if (
+    (val.startsWith('"') && val.endsWith('"')) ||
+    (val.startsWith("'") && val.endsWith("'"))
+  ) {
+    val = val.slice(1, -1).trim();
+  }
+  return val;
+}
+
 export function isValidExternalFirebaseConfig(
   cfg: Partial<ExternalFirebaseConfig> | null | undefined
 ): cfg is ExternalFirebaseConfig {
-  if (!cfg || typeof cfg.apiKey !== 'string' || typeof cfg.projectId !== 'string') {
+  if (!cfg || typeof cfg !== 'object') {
     return false;
   }
-  const apiKey = cfg.apiKey.trim();
-  const projectId = cfg.projectId.trim();
-  if (!apiKey.startsWith('AIza') || apiKey.length < 30) {
+  const apiKey = cleanConfigString(cfg.apiKey);
+  const projectId = cleanConfigString(cfg.projectId);
+  if (!apiKey.startsWith('AIza') || apiKey.length < 25) {
     return false;
   }
   if (
-    projectId.length < 4 ||
+    projectId.length < 3 ||
     projectId === 'my-existing-firebase-project' ||
     projectId === 'my-project' ||
-    !/^[a-z0-9-]+$/.test(projectId)
+    !/^[a-zA-Z0-9_-]+$/.test(projectId)
   ) {
     return false;
   }
   return true;
+}
+
+function normalizeFirebaseConfig(cfg: Partial<ExternalFirebaseConfig>): ExternalFirebaseConfig {
+  const projectId = cleanConfigString(cfg.projectId);
+  const authDomain =
+    cleanConfigString(cfg.authDomain) || (projectId ? `${projectId}.firebaseapp.com` : '');
+  return {
+    apiKey: cleanConfigString(cfg.apiKey),
+    authDomain,
+    projectId,
+    appId: cleanConfigString(cfg.appId),
+    messagingSenderId: cleanConfigString(cfg.messagingSenderId),
+    databaseId: cleanConfigString(cfg.databaseId) || '(default)',
+  };
 }
 
 export function invalidateFirestoreCache(): void {
@@ -99,16 +125,17 @@ export function invalidateFirestoreCache(): void {
 }
 
 export function getSavedFirebaseConfig(): ExternalFirebaseConfig | null {
-  const envCfg = {
+  const rawProjectId = cleanConfigString(import.meta.env.VITE_FIREBASE_PROJECT_ID);
+  const envCfg = normalizeFirebaseConfig({
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
     authDomain:
       import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
-      `${import.meta.env.VITE_FIREBASE_PROJECT_ID || ''}.firebaseapp.com`,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+      (rawProjectId ? `${rawProjectId}.firebaseapp.com` : ''),
+    projectId: rawProjectId,
     appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
     databaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)',
-  };
+  });
 
   if (isValidExternalFirebaseConfig(envCfg)) {
     return envCfg;
@@ -117,11 +144,10 @@ export function getSavedFirebaseConfig(): ExternalFirebaseConfig | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_FB_CONFIG);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as ExternalFirebaseConfig;
+    const parsed = normalizeFirebaseConfig(JSON.parse(raw) as ExternalFirebaseConfig);
     if (isValidExternalFirebaseConfig(parsed)) {
       return parsed;
     }
-    // Remove invalid/incomplete config so Firestore SDK does not attempt broken connections
     localStorage.removeItem(STORAGE_KEY_FB_CONFIG);
   } catch {
     // ignore storage errors
@@ -135,11 +161,37 @@ export function saveExternalFirebaseConfig(config: ExternalFirebaseConfig | null
   cachedAuth = null;
   firestoreBackendReachable = true;
   invalidateFirestoreCache();
-  if (!isValidExternalFirebaseConfig(config)) {
+  if (!config || !isValidExternalFirebaseConfig(config)) {
     localStorage.removeItem(STORAGE_KEY_FB_CONFIG);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('firebase-config-updated'));
+    }
     return;
   }
-  localStorage.setItem(STORAGE_KEY_FB_CONFIG, JSON.stringify(config));
+  const normalized = normalizeFirebaseConfig(config);
+  localStorage.setItem(STORAGE_KEY_FB_CONFIG, JSON.stringify(normalized));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('firebase-config-updated'));
+  }
+}
+
+export async function hydrateFirebaseConfigFromServer(): Promise<ExternalFirebaseConfig | null> {
+  const existing = getSavedFirebaseConfig();
+  if (existing) return existing;
+
+  try {
+    const res = await fetch('/api/auth/firebase-config');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && isValidExternalFirebaseConfig(data)) {
+      const normalized = normalizeFirebaseConfig(data);
+      saveExternalFirebaseConfig(normalized);
+      return normalized;
+    }
+  } catch {
+    // ignore network errors on static hosts
+  }
+  return null;
 }
 
 let cachedApp: FirebaseApp | null = null;
@@ -223,14 +275,32 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
   photoURL: string;
   idToken: string;
 }> {
-  const instances = getFirebaseInstances(false);
+  let instances = getFirebaseInstances(false);
+  if (!instances) {
+    await hydrateFirebaseConfigFromServer();
+    instances = getFirebaseInstances(false);
+  }
   if (!instances) {
     throw new Error('FIREBASE_NOT_CONFIGURED');
   }
 
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  const result = await signInWithPopup(instances.auth, provider);
+
+  let result;
+  try {
+    result = await signInWithPopup(instances.auth, provider);
+  } catch (popupErr: any) {
+    const code = String(popupErr?.code || popupErr?.message || '');
+    if (code.includes('auth/unauthorized-domain')) {
+      const domain = typeof window !== 'undefined' ? window.location.hostname : '';
+      throw new Error(
+        `Nطاق الموقع الحالي (${domain}) غير مضاف في Authorized domains داخل Firebase Console. أضفه من: Authentication -> Settings -> Authorized domains -> Add domain`
+      );
+    }
+    throw popupErr;
+  }
+
   const user = result.user;
 
   if (!user || !user.emailVerified) {

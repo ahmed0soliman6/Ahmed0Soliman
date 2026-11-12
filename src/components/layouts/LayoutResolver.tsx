@@ -827,20 +827,24 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
             </p>
 
             {!isFirebaseConnected && (
-              <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-700/70 text-xs text-amber-200 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>
-                  {locale === 'ar'
-                    ? 'إعدادات Firebase غير مكتملة في المتصفح (VITE_FIREBASE_*).'
-                    : 'Firebase client configuration (VITE_FIREBASE_*) is not configured yet.'}
-                </span>
+              <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-700/70 text-xs text-amber-200 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>
+                    {locale === 'ar'
+                      ? 'إعدادات Firebase غير مكتملة في المتصفح. افتح صفحة /admin الكاملة لإدخال API Key ومعرّف المشروع.'
+                      : 'Firebase client config not found. Open full /admin page to enter API Key & Project ID.'}
+                  </span>
+                </div>
               </div>
             )}
 
             {loginError && (
-              <div className="p-3 rounded-xl bg-red-950/70 border border-red-700 text-xs text-red-200 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <span>{loginError}</span>
+              <div className="p-3 rounded-xl bg-red-950/70 border border-red-700 text-xs text-red-200 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{loginError}</span>
+                </div>
               </div>
             )}
 
@@ -848,7 +852,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               type="button"
               disabled={loginLoading || !isFirebaseConnected}
               onClick={handleQuickAdminGoogleSubmit}
-              className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#00E5FF] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg"
+              className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#00E5FF] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg cursor-pointer"
             >
               <ShieldCheck className="w-4 h-4" />
               <span>
@@ -862,6 +866,30 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </span>
             </button>
 
+            {typeof window !== 'undefined' && window.location.hostname && (
+              <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-400 space-y-1.5">
+                <div>
+                  {locale === 'ar'
+                    ? 'النطاق الحالي لإضافته في Firebase (Authorized domains):'
+                    : 'Current domain for Firebase (Authorized domains):'}
+                </div>
+                <div className="flex items-center justify-between gap-2 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                  <code className="text-[11px] text-[#00C2CB] truncate font-mono">
+                    {window.location.hostname}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(window.location.hostname);
+                    }}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-[#00C2CB] hover:text-slate-950 text-slate-200 font-semibold shrink-0 transition-colors"
+                  >
+                    {locale === 'ar' ? 'نسخ النطاق' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-end pt-2 border-t border-slate-800 text-xs">
               <button
                 type="button"
@@ -869,9 +897,9 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                   setQuickAdminModalOpen(false);
                   navigate('/admin');
                 }}
-                className="text-xs text-slate-400 hover:text-white underline"
+                className="text-xs text-[#00C2CB] hover:underline font-semibold"
               >
-                {locale === 'ar' ? 'الانتقال لصفحة /admin الكاملة' : 'Open full /admin page'}
+                {locale === 'ar' ? 'الانتقال لصفحة /admin الكاملة ←' : 'Open full /admin page →'}
               </button>
             </div>
           </div>

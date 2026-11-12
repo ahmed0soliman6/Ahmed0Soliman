@@ -216,6 +216,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   // RENDER ADMIN AUTHENTICATION GATE IF NOT LOGGED IN (Google + Firebase ID Token)
   // ---------------------------------------------------------------------------
   if (!adminSession) {
+    const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
+
     const handleGoogleOwnerLogin = async () => {
       setLoginError(null);
       setLoginLoading(true);
@@ -228,10 +230,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       }
     };
 
+    const handleSavePublicClientConfig = (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoginError(null);
+      const pid = fbConfigForm.projectId.trim();
+      const candidate = {
+        apiKey: fbConfigForm.apiKey.trim(),
+        projectId: pid,
+        authDomain: fbConfigForm.authDomain.trim() || (pid ? `${pid}.firebaseapp.com` : ''),
+        appId: fbConfigForm.appId.trim(),
+        messagingSenderId: fbConfigForm.messagingSenderId.trim(),
+        databaseId: fbConfigForm.databaseId.trim() || '(default)',
+      };
+      saveExternalFirebaseConfig(candidate);
+      if (!getSavedFirebaseConfig()) {
+        setLoginError(
+          locale === 'ar'
+            ? 'يرجى التأكد من صحة مفتاح Web API Key (يبدأ بـ AIza) ومعرّف المشروع (Project ID).'
+            : 'Please enter a valid Firebase Web API Key (starts with AIza) and Project ID.'
+        );
+      } else {
+        showToast(
+          locale === 'ar'
+            ? 'تم حفظ إعدادات Firebase العامة وتفعيل زر الدخول عبر Google'
+            : 'Public Firebase config saved — Google Sign-In enabled',
+          'success'
+        );
+      }
+    };
+
     return (
       <LayoutResolver>
         <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#070E1A]">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-7 sm:p-8 space-y-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-7 sm:p-8 space-y-5 shadow-xl">
             <div className="flex items-center justify-between">
               <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#00C2CB]">
                 <ShieldCheck className="w-4 h-4" />
@@ -260,21 +291,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
               </p>
             </div>
 
-            {!isFirebaseConnected && (
-              <div className="p-3.5 rounded-xl bg-amber-950/50 border border-amber-700/70 text-xs text-amber-200 flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>
-                  {locale === 'ar'
-                    ? 'إعدادات Firebase غير مكتملة (VITE_FIREBASE_*). يرجى ضبط متغيرات البيئة أولاً لتفعيل المصادقة.'
-                    : 'Firebase client configuration (VITE_FIREBASE_*) is not configured yet.'}
-                </span>
-              </div>
-            )}
-
             {loginError && (
-              <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-700/80 text-xs text-red-200 flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <span>{loginError}</span>
+              <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-700/80 text-xs text-red-200 space-y-2">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{loginError}</span>
+                </div>
               </div>
             )}
 
@@ -282,7 +304,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
               type="button"
               disabled={loginLoading || !isFirebaseConnected}
               onClick={handleGoogleOwnerLogin}
-              className="w-full py-3.5 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg"
+              className="w-full py-3.5 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg cursor-pointer"
             >
               <ShieldCheck className="w-4 h-4" />
               <span>
@@ -295,6 +317,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                   : 'Sign In with Google (Firebase Auth)'}
               </span>
             </button>
+
+            {/* Current Domain Copy Helper for Firebase Authorized Domains */}
+            {currentDomain && (
+              <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-2">
+                <div className="font-semibold text-slate-800 dark:text-slate-200">
+                  {locale === 'ar'
+                    ? 'لتجنب خطأ (auth/unauthorized-domain) أضف هذا النطاق في Firebase:'
+                    : 'To prevent (auth/unauthorized-domain), add this domain in Firebase:'}
+                </div>
+                <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                  <code className="text-[11px] text-[#00C2CB] truncate font-mono">
+                    {currentDomain}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(currentDomain);
+                      showToast(
+                        locale === 'ar'
+                          ? 'تم نسخ النطاق! أضفه في Authentication -> Settings -> Authorized domains'
+                          : 'Domain copied! Add it in Authentication -> Settings -> Authorized domains',
+                        'info'
+                      );
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-[#00C2CB] hover:text-slate-950 text-slate-700 dark:text-slate-200 font-semibold shrink-0 transition-colors"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{locale === 'ar' ? 'نسخ النطاق' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!isFirebaseConnected && (
+              <form
+                onSubmit={handleSavePublicClientConfig}
+                className="p-4 rounded-xl bg-amber-950/30 border border-amber-700/60 space-y-3 text-xs"
+              >
+                <div className="flex items-start gap-2 text-amber-200">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>
+                    {locale === 'ar'
+                      ? 'لم يتم العثور على VITE_FIREBASE_API_KEY وقت البناء. يمكنك لصق مفتاح الويب العام ومعرّف المشروع لتفعيل زر Google فوراً:'
+                      : 'VITE_FIREBASE_API_KEY was not baked at build time. Paste your public Web API Key and Project ID to enable Google Sign-In:'}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">
+                    {locale === 'ar' ? 'مفتاح الويب العام (VITE_FIREBASE_API_KEY)' : 'Public Web API Key'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="AIzaSy..."
+                    value={fbConfigForm.apiKey}
+                    onChange={(e) =>
+                      setFbConfigForm((prev) => ({ ...prev, apiKey: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">
+                    {locale === 'ar' ? 'معرّف المشروع (VITE_FIREBASE_PROJECT_ID)' : 'Firebase Project ID'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ahmed0soliman"
+                    value={fbConfigForm.projectId}
+                    onChange={(e) =>
+                      setFbConfigForm((prev) => ({ ...prev, projectId: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-xs"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-2.5 px-3 rounded-lg font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors"
+                >
+                  {locale === 'ar'
+                    ? 'حفظ إعدادات Firebase العامة وتفعيل زر Google'
+                    : 'Save Public Config & Enable Google Sign-In'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </LayoutResolver>

@@ -30,7 +30,22 @@ const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'cms-db.json');
 const FIRESTORE_RULES_FILE = path.resolve(process.cwd(), 'firestore.rules');
 
-const OWNER_EMAIL = (process.env.ADMIN_OWNER_EMAIL || '').trim().toLowerCase();
+export function cleanEnvValue(raw?: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+  let val = raw.trim();
+  if (
+    (val.startsWith('"') && val.endsWith('"')) ||
+    (val.startsWith("'") && val.endsWith("'"))
+  ) {
+    val = val.slice(1, -1).trim();
+  }
+  return val;
+}
+
+const OWNER_EMAIL = (
+  cleanEnvValue(process.env.ADMIN_OWNER_EMAIL) ||
+  cleanEnvValue(process.env.VITE_ADMIN_OWNER_EMAIL)
+).toLowerCase();
 
 export interface DecodedAdminToken {
   uid: string;
@@ -48,7 +63,7 @@ export interface FirebaseAdminVerificationDeps {
 }
 
 function parseServiceAccountFromEnv(): Record<string, any> | null {
-  const raw = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
+  const raw = cleanEnvValue(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   if (!raw) return null;
   try {
     const jsonStr = raw.startsWith('{')
@@ -70,16 +85,53 @@ function parseServiceAccountFromEnv(): Record<string, any> | null {
   }
 }
 
+export function getPublicFirebaseClientConfigFromEnv() {
+  const serviceAccount = parseServiceAccountFromEnv();
+  const apiKey =
+    cleanEnvValue(process.env.VITE_FIREBASE_API_KEY) ||
+    cleanEnvValue(process.env.FIREBASE_API_KEY);
+  const projectId =
+    cleanEnvValue(process.env.VITE_FIREBASE_PROJECT_ID) ||
+    cleanEnvValue(process.env.FIREBASE_PROJECT_ID) ||
+    cleanEnvValue(serviceAccount?.project_id);
+  const authDomain =
+    cleanEnvValue(process.env.VITE_FIREBASE_AUTH_DOMAIN) ||
+    cleanEnvValue(process.env.FIREBASE_AUTH_DOMAIN) ||
+    (projectId ? `${projectId}.firebaseapp.com` : '');
+  const appId =
+    cleanEnvValue(process.env.VITE_FIREBASE_APP_ID) ||
+    cleanEnvValue(process.env.FIREBASE_APP_ID);
+  const messagingSenderId =
+    cleanEnvValue(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID) ||
+    cleanEnvValue(process.env.FIREBASE_MESSAGING_SENDER_ID);
+  const databaseId =
+    cleanEnvValue(process.env.VITE_FIREBASE_DATABASE_ID) ||
+    cleanEnvValue(process.env.FIREBASE_DATABASE_ID) ||
+    '(default)';
+
+  return {
+    configured: Boolean(apiKey && projectId),
+    apiKey,
+    authDomain,
+    projectId,
+    appId,
+    messagingSenderId,
+    databaseId,
+  };
+}
+
 export function getFirebaseAdminVerificationServices():
   | { ready: true; deps: FirebaseAdminVerificationDeps }
   | { ready: false; code: string; error: string } {
-  const ownerUid = (process.env.ADMIN_OWNER_UID || '').trim();
+  const ownerUid =
+    cleanEnvValue(process.env.ADMIN_OWNER_UID) ||
+    cleanEnvValue(process.env.VITE_ADMIN_OWNER_UID);
   if (!ownerUid) {
     return {
       ready: false,
       code: 'ADMIN_OWNER_UID_NOT_CONFIGURED',
       error:
-        'Server secret ADMIN_OWNER_UID is not configured. Please add ADMIN_OWNER_UID in Vercel / server environment variables.',
+        'Server secret ADMIN_OWNER_UID (or VITE_ADMIN_OWNER_UID) is not configured. Please add it in Vercel / server environment variables.',
     };
   }
 
@@ -100,11 +152,10 @@ export function getFirebaseAdminVerificationServices():
       : initializeAdminApp({ credential: cert(serviceAccount as any) });
 
   const adminAuth = getAdminAuth(adminApp);
-  const databaseId = (
-    process.env.FIREBASE_DATABASE_ID ||
-    process.env.VITE_FIREBASE_DATABASE_ID ||
-    '(default)'
-  ).trim();
+  const databaseId =
+    cleanEnvValue(process.env.FIREBASE_DATABASE_ID) ||
+    cleanEnvValue(process.env.VITE_FIREBASE_DATABASE_ID) ||
+    '(default)';
   const adminDb =
     databaseId && databaseId !== '(default)'
       ? getAdminFirestore(adminApp, databaseId)
@@ -502,6 +553,17 @@ export function registerAuthRoutes(
     | { ready: true; deps: FirebaseAdminVerificationDeps }
     | { ready: false; code: string; error: string } = getFirebaseAdminVerificationServices
 ): void {
+  // Public endpoint returning ONLY non-secret Firebase Web SDK config at runtime
+  app.get('/api/auth/firebase-config', (_req: Request, res: Response) => {
+    const pubConfig = getPublicFirebaseClientConfigFromEnv();
+    const adminSdkStatus = resolveDeps();
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.json({
+      ...pubConfig,
+      serverAdminSdkReady: adminSdkStatus.ready,
+    });
+  });
+
   app.post('/api/auth/admin-login', createAdminLoginHandler(resolveDeps));
 
   app.get('/api/auth/session', (req: Request, res: Response) => {
