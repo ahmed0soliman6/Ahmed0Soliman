@@ -295,7 +295,25 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
     if (code.includes('auth/unauthorized-domain')) {
       const domain = typeof window !== 'undefined' ? window.location.hostname : '';
       throw new Error(
-        `Nطاق الموقع الحالي (${domain}) غير مضاف في Authorized domains داخل Firebase Console. أضفه من: Authentication -> Settings -> Authorized domains -> Add domain`
+        `نطاق الموقع الحالي (${domain}) غير مضاف في Authorized domains داخل Firebase Console. أضفه من: Authentication -> Settings -> Authorized domains -> Add domain`
+      );
+    }
+    if (code.includes('auth/popup-closed-by-user')) {
+      const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+      throw new Error(
+        inIframe
+          ? 'تم إغلاق نافذة تسجيل دخول Google (auth/popup-closed-by-user). لأن المعاينة تعمل داخل إطار iframe، افتح الموقع في نافذة/تبويب مستقل أو أعد المحاولة وأكمل اختيار حسابك دون إغلاق النافذة.'
+          : 'تم إغلاق نافذة تسجيل دخول Google قبل إتمام المصادقة (auth/popup-closed-by-user). يرجى إعادة الضغط واختيار حسابك دون إغلاق النافذة.'
+      );
+    }
+    if (code.includes('auth/popup-blocked')) {
+      throw new Error(
+        'قام المتصفح بحظر نافذة تسجيل دخول Google المنبثقة (auth/popup-blocked). يرجى السماح للنوافذ المنبثقة (Pop-ups) لهذا الموقع ثم المحاولة مجدداً.'
+      );
+    }
+    if (code.includes('auth/cancelled-popup-request')) {
+      throw new Error(
+        'تم إلغاء طلب تسجيل الدخول السابق بسبب نقرة متكررة (auth/cancelled-popup-request). انتظر لحظة ثم اضغط مرة واحدة.'
       );
     }
     throw popupErr;

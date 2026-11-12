@@ -232,8 +232,13 @@ function getServerHmacSecret(): string {
   const uid =
     cleanEnvValue(process.env.ADMIN_OWNER_UID) ||
     cleanEnvValue(process.env.VITE_ADMIN_OWNER_UID);
-  if (sa && uid) {
-    return crypto.createHash('sha256').update(`${sa}:${uid}`).digest('hex');
+  const email = (
+    cleanEnvValue(process.env.ADMIN_OWNER_EMAIL) ||
+    cleanEnvValue(process.env.VITE_ADMIN_OWNER_EMAIL)
+  ).toLowerCase();
+  const ownerIdentifier = uid || email;
+  if (sa && ownerIdentifier) {
+    return crypto.createHash('sha256').update(`${sa}:${ownerIdentifier}`).digest('hex');
   }
   return '';
 }

@@ -340,37 +340,56 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const fbUser = await signInWithExistingFirebaseGoogle();
 
-    const apiRes = await safeFetchJson('/api/auth/admin-login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${fbUser.idToken}`,
-      },
-      body: JSON.stringify({
-        idToken: fbUser.idToken,
-      }),
-    });
-
-    if (!apiRes) {
-      await signOutFromExistingFirebase().catch(() => {});
-      throw new Error(
-        locale === 'ar'
-          ? 'تعذر الوصول إلى خادم التحقق (/api/auth/admin-login). لا يمكن إصدار جلسة إدارة بدون تحقق الخادم.'
-          : 'Could not reach server verification endpoint (/api/auth/admin-login).'
-      );
-    }
-
-    if (!apiRes.ok || !apiRes.data?.token) {
-      await signOutFromExistingFirebase().catch(() => {});
-      throw new Error(apiRes.data?.error || 'Admin authentication failed');
+    let resStatus = 0;
+    let resText = '';
+    let apiData: any = null;
+    try {
+      const res = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${fbUser.idToken}`,
+        },
+        body: JSON.stringify({
+          idToken: fbUser.idToken,
+        }),
+      });
+      resStatus = res.status;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        apiData = await res.json();
+      } else {
+        resText = (await res.text()).slice(0, 140);
+      }
+      if (!res.ok || !apiData?.token) {
+        await signOutFromExistingFirebase().catch(() => {});
+        if (apiData?.error) {
+          throw new Error(apiData.error);
+        }
+        throw new Error(
+          locale === 'ar'
+            ? `تعذر الوصول إلى خادم التحقق (/api/auth/admin-login) — استجابة الخادم (HTTP ${resStatus}${resText ? `: ${resText}` : ''}). تأكد من نشر آخر تحديثات الخادم على Vercel.`
+            : `Server verification failed (/api/auth/admin-login, HTTP ${resStatus}). Ensure latest server bundle is deployed.`
+        );
+      }
+    } catch (err: any) {
+      if (resStatus === 0) {
+        await signOutFromExistingFirebase().catch(() => {});
+        throw new Error(
+          locale === 'ar'
+            ? 'تعذر الوصول إلى خادم التحقق (/api/auth/admin-login). لا يمكن إصدار جلسة إدارة بدون تحقق الخادم.'
+            : 'Could not reach server verification endpoint (/api/auth/admin-login).'
+        );
+      }
+      throw err;
     }
 
     const newSession: AdminUserSession = {
-      uid: apiRes.data.uid,
-      email: apiRes.data.email,
-      name: apiRes.data.name,
-      token: apiRes.data.token,
-      expiresAt: apiRes.data.expiresAt,
+      uid: apiData.uid,
+      email: apiData.email,
+      name: apiData.name,
+      token: apiData.token,
+      expiresAt: apiData.expiresAt,
       viaFirebase: true,
     };
 
