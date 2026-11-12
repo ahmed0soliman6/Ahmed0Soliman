@@ -1,5 +1,4 @@
 import express, { Request, Response, NextFunction } from 'express';
-import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -197,7 +196,75 @@ export interface AdminSession {
 }
 
 export const activeSessions = new Map<string, AdminSession>();
+export const revokedSessionTokens = new Set<string>();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function getServerHmacSecret(): string {
+  const sa = cleanEnvValue(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const uid =
+    cleanEnvValue(process.env.ADMIN_OWNER_UID) ||
+    cleanEnvValue(process.env.VITE_ADMIN_OWNER_UID);
+  if (sa && uid) {
+    return crypto.createHash('sha256').update(`${sa}:${uid}`).digest('hex');
+  }
+  return '';
+}
+
+function createSignedAdminSessionToken(payload: Omit<AdminSession, 'token'>): string {
+  const secret = getServerHmacSecret();
+  if (!secret) {
+    return crypto.randomBytes(32).toString('hex');
+  }
+  const encoded = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
+  return `v1.${encoded}.${sig}`;
+}
+
+function verifySignedAdminSessionToken(token: string): AdminSession | null {
+  if (revokedSessionTokens.has(token)) return null;
+  const secret = getServerHmacSecret();
+  if (!secret || !token.startsWith('v1.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [, encoded, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
+  if (sig !== expectedSig) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
+    if (!parsed || typeof parsed.uid !== 'string' || typeof parsed.expiresAt !== 'number') {
+      return null;
+    }
+    if (Date.now() > parsed.expiresAt) return null;
+    return {
+      token,
+      uid: parsed.uid,
+      email: parsed.email || '',
+      name: parsed.name || 'Ahmed Soliman',
+      expiresAt: parsed.expiresAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function cleanTemporaryChatAttachments(): void {
+  try {
+    const aistudioDir = path.resolve(process.cwd(), 'public', 'assets', 'aistudio');
+    if (!fs.existsSync(aistudioDir)) return;
+    const allowedFiles = new Set(['1770146906397_16665dd0.png', 'logo_ae3842b8.png']);
+    for (const file of fs.readdirSync(aistudioDir)) {
+      if (!allowedFiles.has(file)) {
+        try {
+          fs.unlinkSync(path.join(aistudioDir, file));
+        } catch {
+          // ignore on read-only fs
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
 
 // Sliding-window IP rate limiter for Auth & Contact endpoints (PROMPT 5.2)
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -225,16 +292,32 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;');
 }
 
+function getWritableDbFile(): string {
+  if (process.env.VERCEL) {
+    return path.join('/tmp', 'cms-db.json');
+  }
+  return DB_FILE;
+}
+
 function loadDatabase(): PlatformDatabase {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(INITIAL_PLATFORM_DATA, null, 2), 'utf-8');
+    const targetDbFile = getWritableDbFile();
+    const sourceDbFile = fs.existsSync(targetDbFile)
+      ? targetDbFile
+      : fs.existsSync(DB_FILE)
+      ? DB_FILE
+      : null;
+
+    if (!sourceDbFile) {
+      if (!process.env.VERCEL) {
+        if (!fs.existsSync(DATA_DIR)) {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(DB_FILE, JSON.stringify(INITIAL_PLATFORM_DATA, null, 2), 'utf-8');
+      }
       return JSON.parse(JSON.stringify(INITIAL_PLATFORM_DATA));
     }
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
+    const raw = fs.readFileSync(sourceDbFile, 'utf-8');
     const parsed = JSON.parse(raw) as PlatformDatabase;
 
     let mutated = false;
@@ -375,7 +458,11 @@ function loadDatabase(): PlatformDatabase {
     }
 
     if (mutated) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
+      try {
+        fs.writeFileSync(getWritableDbFile(), JSON.stringify(parsed, null, 2), 'utf-8');
+      } catch {
+        // ignore read-only fs errors in serverless
+      }
     }
 
     return parsed;
@@ -387,10 +474,12 @@ function loadDatabase(): PlatformDatabase {
 
 function saveDatabase(db: PlatformDatabase): void {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const targetFile = getWritableDbFile();
+    const dir = path.dirname(targetFile);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+    fs.writeFileSync(targetFile, JSON.stringify(db, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error saving CMS database:', err);
   }
@@ -402,13 +491,18 @@ function getAuthenticatedAdmin(req: Request): AdminSession | null {
     return null;
   }
   const token = authHeader.slice(7).trim();
-  const session = activeSessions.get(token);
-  if (!session) return null;
-  if (Date.now() > session.expiresAt) {
-    activeSessions.delete(token);
+  if (!token || revokedSessionTokens.has(token)) {
     return null;
   }
-  return session;
+  const session = activeSessions.get(token);
+  if (session) {
+    if (Date.now() > session.expiresAt) {
+      activeSessions.delete(token);
+      return null;
+    }
+    return session;
+  }
+  return verifySignedAdminSessionToken(token);
 }
 
 export function requireAdminMiddleware(req: Request, res: Response, next: NextFunction): void {
@@ -524,16 +618,22 @@ export function createAdminLoginHandler(
       return;
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
     const finalEmail = sanitizeText(decoded.email || '', 120).trim().toLowerCase();
     const finalName = sanitizeText(decoded.name || 'Ahmed Soliman', 120) || 'Ahmed Soliman';
+    const expiresAt = Date.now() + SESSION_TTL_MS;
+    const token = createSignedAdminSessionToken({
+      uid: decoded.uid,
+      email: finalEmail,
+      name: finalName,
+      expiresAt,
+    });
 
     const session: AdminSession = {
       token,
       uid: decoded.uid,
       email: finalEmail,
       name: finalName,
-      expiresAt: Date.now() + SESSION_TTL_MS,
+      expiresAt,
     };
     activeSessions.set(token, session);
 
@@ -586,12 +686,14 @@ export function registerAuthRoutes(
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7).trim();
       activeSessions.delete(token);
+      revokedSessionTokens.add(token);
     }
     res.json({ success: true });
   });
 }
 
-async function startServer() {
+export function createExpressApp(): express.Express {
+  cleanTemporaryChatAttachments();
   const app = express();
   app.use(express.json({ limit: '6mb' }));
 
@@ -1383,10 +1485,17 @@ async function startServer() {
   // Serve generated /src/assets images in both dev and production
   app.use('/src/assets', express.static(path.resolve(process.cwd(), 'src/assets')));
 
+  return app;
+}
+
+async function startServer() {
+  const app = createExpressApp();
+
   // ---------------------------------------------------------------------------
   // 7. VITE MIDDLEWARE (DEV) OR STATIC ASSETS (PROD)
   // ---------------------------------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -1405,6 +1514,7 @@ async function startServer() {
   });
 }
 
-if (process.env.SKIP_SERVER_LISTEN !== '1') {
+if (process.env.SKIP_SERVER_LISTEN !== '1' && !process.env.VERCEL) {
   startServer();
 }
+

@@ -1,0 +1,11 @@
+node_modules/
+.env*
+!.env.example
+
+# Ignore temporary chat screenshots & attachments on Vercel deployments
+public/assets/aistudio/image_*
+public/assets/aistudio/*Screenshot*
+public/assets/aistudio/index_*
+**/*Screenshot*
+**/image_*.png
+**/index_*.html

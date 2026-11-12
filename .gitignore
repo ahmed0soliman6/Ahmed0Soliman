@@ -6,3 +6,12 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Ignore temporary chat screenshots & attachments (keep only official portrait & logo)
+public/assets/aistudio/*
+!public/assets/aistudio/1770146906397_16665dd0.png
+!public/assets/aistudio/logo_ae3842b8.png
+**/*Screenshot*
+**/image_*.png
+**/index_*.html
+
