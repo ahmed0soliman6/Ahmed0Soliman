@@ -125,7 +125,12 @@ export function getFirebaseAdminVerificationServices():
   const ownerUid =
     cleanEnvValue(process.env.ADMIN_OWNER_UID) ||
     cleanEnvValue(process.env.VITE_ADMIN_OWNER_UID);
-  if (!ownerUid) {
+  const ownerEmail = (
+    cleanEnvValue(process.env.ADMIN_OWNER_EMAIL) ||
+    cleanEnvValue(process.env.VITE_ADMIN_OWNER_EMAIL)
+  ).toLowerCase();
+
+  if (!ownerUid && !ownerEmail) {
     return {
       ready: false,
       code: 'ADMIN_OWNER_UID_NOT_CONFIGURED',
@@ -164,7 +169,7 @@ export function getFirebaseAdminVerificationServices():
     ready: true,
     deps: {
       ownerUid,
-      ownerEmail: OWNER_EMAIL || undefined,
+      ownerEmail: ownerEmail || undefined,
       verifyIdToken: async (idToken: string) => {
         const decoded = await adminAuth.verifyIdToken(idToken, true);
         return {
@@ -175,12 +180,35 @@ export function getFirebaseAdminVerificationServices():
         };
       },
       hasAdminDocument: async (uid: string) => {
-        const snap = await adminDb.collection('admins').doc(uid).get();
-        const data = snap.data();
-        return {
-          exists: snap.exists,
-          disabled: Boolean(data?.disabled === true),
-        };
+        const docRef = adminDb.collection('admins').doc(uid);
+        const snap = await docRef.get();
+        if (snap.exists) {
+          const data = snap.data();
+          return {
+            exists: true,
+            disabled: Boolean(data?.disabled === true),
+          };
+        }
+        // Server-side Admin SDK bootstrap for the verified Owner account on first sign-in / new UID creation
+        const userRecord = await adminAuth.getUser(uid);
+        const verifiedEmail = (userRecord.email || '').trim().toLowerCase();
+        const targetOwnerEmail = ownerEmail || OWNER_EMAIL || 'ahmed0soliman6@gmail.com';
+        if (userRecord.emailVerified && verifiedEmail === targetOwnerEmail) {
+          await docRef.set(
+            {
+              id: uid,
+              uid,
+              email: verifiedEmail,
+              name: userRecord.displayName || 'Ahmed Soliman',
+              role: 'owner',
+              disabled: false,
+              createdAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+          return { exists: true, disabled: false };
+        }
+        return { exists: false, disabled: false };
       },
     },
   };
@@ -578,8 +606,20 @@ export function createAdminLoginHandler(
       return;
     }
 
-    // Dual Verification Check A: Verified token UID must strictly match ADMIN_OWNER_UID
-    if (decoded.uid !== deps.ownerUid) {
+    // Dual Verification Check A: Verified token UID must match ADMIN_OWNER_UID (or verified ADMIN_OWNER_EMAIL when UID is recreated)
+    const normalizedOwnerUid = (deps.ownerUid || '').replace(/\.+$/, '').trim();
+    const uidMatches =
+      Boolean(normalizedOwnerUid) &&
+      (decoded.uid === normalizedOwnerUid ||
+        (normalizedOwnerUid.length >= 16 && decoded.uid.startsWith(normalizedOwnerUid)));
+    const verifiedOwnerEmailMatches =
+      typeof deps.ownerEmail === 'string' &&
+      deps.ownerEmail.length > 0 &&
+      decoded.email_verified === true &&
+      typeof decoded.email === 'string' &&
+      decoded.email.trim().toLowerCase() === deps.ownerEmail.trim().toLowerCase();
+
+    if (!uidMatches && !verifiedOwnerEmailMatches) {
       res.status(403).json({
         error: 'Access Denied: Authenticated UID is not the authorized platform owner.',
         code: 'FORBIDDEN_NOT_OWNER_UID',
@@ -587,10 +627,10 @@ export function createAdminLoginHandler(
       return;
     }
 
-    // Optional strict email match when ADMIN_OWNER_EMAIL is configured
+    // Strict email match when ADMIN_OWNER_EMAIL is configured
     if (
       deps.ownerEmail &&
-      (!decoded.email || decoded.email.trim().toLowerCase() !== deps.ownerEmail)
+      (!decoded.email || decoded.email.trim().toLowerCase() !== deps.ownerEmail.trim().toLowerCase())
     ) {
       res.status(403).json({
         error: 'Access Denied: Authenticated account email does not match ADMIN_OWNER_EMAIL.',
@@ -1517,4 +1557,7 @@ async function startServer() {
 if (process.env.SKIP_SERVER_LISTEN !== '1' && !process.env.VERCEL) {
   startServer();
 }
+
+export default createExpressApp();
+
 
