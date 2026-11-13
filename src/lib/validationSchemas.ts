@@ -21,7 +21,7 @@ const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB limit for free-tier friend
 const SAFE_FOLDER_REGEX = /^[a-zA-Z0-9/_-]{1,64}$/;
 
 /**
- * Strips XSS vectors (<script>, <iframe>, <object>, inline event handlers, javascript:/data:text/html URIs)
+ * Strips XSS vectors (<script>, <iframe>, <object>, inline event handlers, javascript:/data: URIs & base64 blobs)
  * from any user-provided or admin-provided string.
  */
 export function sanitizeText(input: string, maxLength = 25000): string {
@@ -32,17 +32,19 @@ export function sanitizeText(input: string, maxLength = 25000): string {
     .replace(/<\s*(iframe|object|embed|applet|meta|link|style)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
     .replace(/<\s*(script|iframe|object|embed|applet|meta|link)[^>]*\/?>/gi, '')
     .replace(/\bon[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/gi, '');
+    .replace(/(?:javascript|vbscript)\s*:/gi, '')
+    .replace(/data\s*:\s*(?:text\/html|image\/svg\+xml|image\/[a-z0-9.+-]+\s*;\s*base64)[^\s"')>]*/gi, '');
 }
 
 /**
  * Ensures URLs only use safe protocols (https://, http://, mailto:, tel:, or relative paths /).
+ * Blocks javascript:, vbscript:, and all data: URIs (including Base64 data:image/).
  */
 export function sanitizeUrl(url: string): string {
   if (typeof url !== 'string') return '';
   const rawTrimmed = url.trim();
   if (!rawTrimmed) return '';
-  if (/^(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/i.test(rawTrimmed)) {
+  if (/^(?:javascript|vbscript|data)\s*:/i.test(rawTrimmed)) {
     return '';
   }
   return sanitizeText(rawTrimmed, 2048);
@@ -70,6 +72,7 @@ export function sanitizePayload<T>(input: T): T {
         (key.toLowerCase().includes('url') ||
           key.toLowerCase().includes('href') ||
           key.toLowerCase().includes('image') ||
+          key.toLowerCase() === 'src' ||
           key === 'whatsapp')
       ) {
         out[key] = sanitizeUrl(val);
@@ -185,15 +188,161 @@ export function validateServicePayload(service: Partial<ServiceItem>): Validatio
   return { valid: errors.length === 0, errors };
 }
 
-export function validateArticlePayload(article: Partial<ArticleItem>): ValidationResult {
+export function extractArticlePlainText(rawOrJson: unknown): string {
+  if (!rawOrJson) return '';
+  if (typeof rawOrJson === 'object') {
+    const chunks: string[] = [];
+    const walk = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      if (typeof node.text === 'string') {
+        chunks.push(node.text);
+      }
+      if (Array.isArray(node.content)) {
+        node.content.forEach(walk);
+        chunks.push(' ');
+      }
+    };
+    walk(rawOrJson);
+    return chunks.join(' ').replace(/\s+/g, ' ').trim();
+  }
+  if (typeof rawOrJson !== 'string') return '';
+  const trimmed = rawOrJson.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object' && (parsed.type === 'doc' || Array.isArray(parsed.content))) {
+        return extractArticlePlainText(parsed);
+      }
+    } catch {
+      // treat as regular string
+    }
+  }
+  return trimmed
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*_`~-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function countArticleWords(rawContent?: string, jsonDoc?: Record<string, any>): number {
+  const plain = jsonDoc
+    ? extractArticlePlainText(jsonDoc) || extractArticlePlainText(rawContent)
+    : extractArticlePlainText(rawContent);
+  if (!plain) return 0;
+  return plain.split(/\s+/).filter(Boolean).length;
+}
+
+export function estimateArticleReadingTime(arWords: number, enWords: number): number {
+  const maxWords = Math.max(arWords || 0, enWords || 0);
+  if (maxWords <= 0) return 1;
+  return Math.max(1, Math.ceil(maxWords / 180));
+}
+
+export function validateArticleSlug(
+  rawSlug: string,
+  options?: {
+    editingId?: string;
+    existingArticles?: ArticleItem[];
+  }
+): ValidationResult {
+  const errors: string[] = [];
+  const slug = String(rawSlug || '').trim().toLowerCase();
+
+  if (!slug || !validateSlug(slug)) {
+    errors.push(
+      'Article slug must be 2–120 lowercase alphanumeric characters with hyphens (e.g. icu-telemetry-guide).'
+    );
+    return { valid: false, errors };
+  }
+
+  if (options?.existingArticles && Array.isArray(options.existingArticles)) {
+    const duplicate = options.existingArticles.find(
+      (a) => a.slug?.toLowerCase() === slug && a.id !== options.editingId
+    );
+    if (duplicate) {
+      errors.push(
+        `Article slug "${slug}" is already used by another article ("${duplicate.title?.en || duplicate.title?.ar || duplicate.id}").`
+      );
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+export function checkArticleInSiteReferences(
+  article: Partial<ArticleItem>,
+  db: PlatformDatabase
+): { inUse: boolean; usedIn: string[] } {
+  const usedIn: string[] = [];
+  const slug = String(article.slug || '').trim().toLowerCase();
+  if (!slug) return { inUse: false, usedIn };
+
+  const pattern = `/blog/${slug}`;
+  const containsRef = (text?: string) => {
+    if (!text || typeof text !== 'string') return false;
+    return text.toLowerCase().includes(pattern);
+  };
+
+  for (const page of db.pages || []) {
+    if (page.archived) continue;
+    const inBlocks = (page.blocks || []).some(
+      (b) => containsRef(b.ctaHref) || containsRef(b.body?.ar) || containsRef(b.body?.en)
+    );
+    if (
+      containsRef(page.ctaHref) ||
+      containsRef(page.biography?.ar) ||
+      containsRef(page.biography?.en) ||
+      inBlocks
+    ) {
+      usedIn.push(`Page: ${page.title?.en || page.title?.ar || page.slug}`);
+    }
+  }
+
+  for (const proj of db.projects || []) {
+    if (
+      containsRef(proj.liveUrl) ||
+      containsRef(proj.showcaseRoute) ||
+      containsRef(proj.description?.ar) ||
+      containsRef(proj.description?.en)
+    ) {
+      usedIn.push(`Project: ${proj.title?.en || proj.title?.ar || proj.slug}`);
+    }
+  }
+
+  for (const other of db.articles || []) {
+    if (other.id === article.id || other.archived) continue;
+    if (containsRef(other.content?.ar) || containsRef(other.content?.en)) {
+      usedIn.push(`Article: ${other.title?.en || other.title?.ar || other.slug}`);
+    }
+  }
+
+  return { inUse: usedIn.length > 0, usedIn };
+}
+
+export function validateArticlePayload(
+  article: Partial<ArticleItem>,
+  options?: { existingArticles?: ArticleItem[] }
+): ValidationResult {
   const errors: string[] = [];
   if (!article.title?.ar?.trim() || !article.title?.en?.trim()) {
     errors.push('Article title is required in both Arabic and English.');
   }
-  if (!article.slug || !validateSlug(article.slug)) {
-    errors.push('Article slug must be lowercase alphanumeric with hyphens.');
+  const slugCheck = validateArticleSlug(article.slug || '', {
+    editingId: article.id,
+    existingArticles: options?.existingArticles,
+  });
+  if (!slugCheck.valid) {
+    errors.push(...slugCheck.errors);
   }
-  if (!article.content?.ar?.trim() || !article.content?.en?.trim()) {
+  const arText =
+    extractArticlePlainText(article.contentJson?.ar) ||
+    extractArticlePlainText(article.content?.ar);
+  const enText =
+    extractArticlePlainText(article.contentJson?.en) ||
+    extractArticlePlainText(article.content?.en);
+  if (!arText || !enText) {
     errors.push('Article content is required in both Arabic and English.');
   }
   return { valid: errors.length === 0, errors };

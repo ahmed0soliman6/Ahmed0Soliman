@@ -343,10 +343,11 @@
         },
         "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
         "canonicalSlug": "/about",
+        "noindex": false,
         "structuredDataType": "Person"
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-11T12:00:00.000Z",
+      "updatedAt": "2026-11-13T08:26:02.176Z",
       "qualifications": [
         {
           "degree": {
@@ -444,6 +445,27 @@
           "Conversational Patient Automation & Smart Bots",
           "Technical Writing & Health-Tech Knowledge Sharing"
         ]
+      },
+      "pageType": "core",
+      "isCore": true,
+      "layoutVariant": "editorial",
+      "blocks": [],
+      "additionalImages": [],
+      "ctaLabel": {
+        "ar": "",
+        "en": ""
+      },
+      "ctaHref": "",
+      "accentColor": "#F59E0B",
+      "archived": false,
+      "sectionVisibility": {
+        "heroImage": true,
+        "body": true,
+        "highlights": true,
+        "metrics": true,
+        "timeline": true,
+        "blocks": true,
+        "cta": true
       }
     },
     {

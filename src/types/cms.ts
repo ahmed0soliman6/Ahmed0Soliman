@@ -276,6 +276,14 @@ export interface ArticleItem {
   seo: SEOConfig;
   createdAt: string;
   updatedAt: string;
+  // Phase 8 Task D & E: Soft-delete archive state & structured Tiptap JSON storage
+  archived?: boolean;
+  archivedAt?: string;
+  contentFormat?: 'markdown' | 'tiptap-json';
+  contentJson?: {
+    ar?: Record<string, any>;
+    en?: Record<string, any>;
+  };
 }
 
 export interface MediaAsset {

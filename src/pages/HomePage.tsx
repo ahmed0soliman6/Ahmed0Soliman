@@ -186,6 +186,15 @@ export const HomePage: React.FC = () => {
     },
   }[activeTab];
 
+  const legacyDefaultAvatar = '/assets/aistudio/1770146906397_16665dd0.png';
+  const homeHeroPortrait =
+    homePage?.heroImage && homePage.heroImage !== legacyDefaultAvatar
+      ? homePage.heroImage
+      : settings.avatarUrl && settings.avatarUrl !== legacyDefaultAvatar
+      ? settings.avatarUrl
+      : homePage?.heroImage || settings.avatarUrl;
+  const showHeroPortrait = homePage?.sectionVisibility?.heroImage !== false;
+
   const heroMetrics = (homePage?.metrics || []).slice(0, 3);
   const heroHeadline = homePage?.headline?.[locale] || settings.ownerName[locale];
   const heroLead =
@@ -208,7 +217,7 @@ export const HomePage: React.FC = () => {
           name: settings.ownerName[locale],
           jobTitle: settings.ownerRole[locale],
           url: window.location.origin,
-          image: settings.avatarUrl,
+          image: homeHeroPortrait,
         }}
       />
 
@@ -342,7 +351,11 @@ export const HomePage: React.FC = () => {
             >
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 lg:gap-10 items-center">
                 {/* Hero Narrative & Primary Actions (7 cols on Desktop) */}
-                <div className="lg:col-span-7 flex flex-col gap-5 text-start order-2 lg:order-1">
+                <div
+                  className={`${
+                    showHeroPortrait ? 'lg:col-span-7' : 'lg:col-span-12'
+                  } flex flex-col gap-5 text-start order-2 lg:order-1`}
+                >
                   <div className="space-y-3">
                     <div className={`text-xs sm:text-sm font-semibold ${neu.mutedText}`}>
                       <span>{settings.ownerRole[locale]}</span>
@@ -411,25 +424,28 @@ export const HomePage: React.FC = () => {
                 </div>
 
                 {/* Prominent Portrait Showcase (5 cols on Desktop) */}
-                <div className="lg:col-span-5 flex justify-center lg:justify-end order-1 lg:order-2">
-                  <div
-                    className={`w-full max-w-[290px] sm:max-w-[330px] lg:max-w-[360px] rounded-[28px] p-3 transition-all ${neu.raisedCard}`}
-                  >
+                {showHeroPortrait && (
+                  <div className="lg:col-span-5 flex justify-center lg:justify-end order-1 lg:order-2">
                     <div
-                      className={`rounded-[20px] p-1.5 border border-[#00C2CB]/30 ${neu.recessedWell}`}
+                      className={`w-full max-w-[290px] sm:max-w-[330px] lg:max-w-[360px] rounded-[28px] p-3 transition-all ${neu.raisedCard}`}
                     >
-                      <div className="aspect-[4/5] w-full rounded-[16px] overflow-hidden">
-                        <OptimizedImage
-                          src={settings.avatarUrl}
-                          alt={settings.ownerName[locale]}
-                          priority
-                          containerClassName="w-full h-full"
-                          className="w-full h-full object-cover object-top"
-                        />
+                      <div
+                        className={`rounded-[20px] p-1.5 border border-[#00C2CB]/30 ${neu.recessedWell}`}
+                      >
+                        <div className="aspect-[4/5] w-full rounded-[16px] overflow-hidden">
+                          <OptimizedImage
+                            key={homeHeroPortrait}
+                            src={homeHeroPortrait}
+                            alt={settings.ownerName[locale]}
+                            priority
+                            containerClassName="w-full h-full"
+                            className="w-full h-full object-cover object-top"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </section>
 

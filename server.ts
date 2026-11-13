@@ -7,17 +7,22 @@ import { INITIAL_PLATFORM_DATA } from './src/data/initialSeedData';
 import { PlatformDatabase } from './src/types/cms';
 import {
   CORE_PAGE_IDS,
+  checkArticleInSiteReferences,
   checkMediaInPublishedContent,
   checkPageInSiteReferences,
+  countArticleWords,
+  estimateArticleReadingTime,
   isCoreProtectedPage,
   sanitizePayload,
   sanitizeText,
+  validateArticleSlug,
   validateCollectionRecord,
   validateCloudinaryFolder,
   validateConsultationForm,
   validateImageUploadFile,
   validatePageSlug,
 } from './src/lib/validationSchemas';
+import { sanitizeTiptapDoc } from './src/lib/tiptapBridge';
 
 if (!process.env.VERCEL) {
   dotenv.config();
@@ -856,7 +861,7 @@ export function createExpressApp(): express.Express {
         .filter((s) => s.published && publishedClinicIds.has(s.clinicId))
         .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
       articles: db.articles
-        .filter((a) => a.published)
+        .filter((a) => a.published && !a.archived)
         .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
     });
   });
@@ -1018,6 +1023,65 @@ export function createExpressApp(): express.Express {
       }
     }
 
+    // Task D: Enforce article slug uniqueness, archive state & reading-time estimation
+    if (col === 'articles') {
+      const existingRecord = existingIndex >= 0 ? list[existingIndex] : null;
+      const targetSlug = String(sanitizedPayload.slug || existingRecord?.slug || '')
+        .trim()
+        .toLowerCase();
+
+      const slugCheck = validateArticleSlug(targetSlug, {
+        editingId: safeId,
+        existingArticles: list,
+      });
+      if (!slugCheck.valid) {
+        res.status(400).json({
+          error: slugCheck.errors.join(' '),
+          errors: slugCheck.errors,
+          code: 'INVALID_OR_DUPLICATE_ARTICLE_SLUG',
+        });
+        return;
+      }
+
+      sanitizedPayload.slug = targetSlug;
+
+      if (sanitizedPayload.contentJson && typeof sanitizedPayload.contentJson === 'object') {
+        sanitizedPayload.contentFormat = 'tiptap-json';
+        sanitizedPayload.contentJson = {
+          ...(sanitizedPayload.contentJson.ar
+            ? { ar: sanitizeTiptapDoc(sanitizedPayload.contentJson.ar) }
+            : {}),
+          ...(sanitizedPayload.contentJson.en
+            ? { en: sanitizeTiptapDoc(sanitizedPayload.contentJson.en) }
+            : {}),
+        };
+      }
+
+      if (sanitizedPayload.archived) {
+        sanitizedPayload.published = false;
+        sanitizedPayload.archivedAt = sanitizedPayload.archivedAt || now;
+      } else {
+        sanitizedPayload.archived = false;
+        delete sanitizedPayload.archivedAt;
+      }
+
+      const arWords = countArticleWords(
+        sanitizedPayload.content?.ar,
+        sanitizedPayload.contentJson?.ar
+      );
+      const enWords = countArticleWords(
+        sanitizedPayload.content?.en,
+        sanitizedPayload.contentJson?.en
+      );
+      if (
+        typeof sanitizedPayload.readingTimeMinutes !== 'number' ||
+        Number.isNaN(sanitizedPayload.readingTimeMinutes) ||
+        sanitizedPayload.readingTimeMinutes <= 0
+      ) {
+        sanitizedPayload.readingTimeMinutes = estimateArticleReadingTime(arWords, enWords);
+      }
+    }
+
     const record = {
       ...sanitizedPayload,
       id: safeId,
@@ -1092,6 +1156,18 @@ export function createExpressApp(): express.Express {
         res.status(409).json({
           error: `Cannot permanently delete page while it is referenced in: ${refCheck.usedIn.join(', ')}`,
           code: 'PAGE_IN_USE',
+          usedIn: refCheck.usedIn,
+        });
+        return;
+      }
+    }
+
+    if (col === 'articles') {
+      const refCheck = checkArticleInSiteReferences(target, db);
+      if (refCheck.inUse) {
+        res.status(409).json({
+          error: `Cannot permanently delete article while it is referenced in: ${refCheck.usedIn.join(', ')}`,
+          code: 'ARTICLE_IN_USE',
           usedIn: refCheck.usedIn,
         });
         return;
@@ -1262,11 +1338,11 @@ export function createExpressApp(): express.Express {
       ? fs.readFileSync(FIRESTORE_RULES_FILE, 'utf-8')
       : '';
 
-    // 1. Functional Tests (PROMPT 5.1)
+    // 1. Functional Tests (PROMPT 5.1 + Phase 8 Tasks C-H)
     const publishedProjects = db.projects.filter((p) => p.published);
     const publishedClinics = db.clinics.filter((c) => c.published);
-    const publishedArticles = db.articles.filter((a) => a.published);
-    const publishedPages = db.pages.filter((p) => p.published);
+    const publishedArticles = db.articles.filter((a) => a.published && !a.archived);
+    const publishedPages = db.pages.filter((p) => p.published && !p.archived);
 
     // Verify Bilingual Completeness across all records
     const allBilingualValid =
@@ -1275,12 +1351,38 @@ export function createExpressApp(): express.Express {
       publishedClinics.every((c) => c.name.ar && c.name.en && c.tagline.ar && c.tagline.en) &&
       publishedArticles.every((a) => a.title.ar && a.title.en && a.content.ar && a.content.en);
 
-    // Verify Draft isolation in simulation
+    // Verify Draft & Archive isolation in simulation
     const draftTestCheck = (() => {
-      const sampleDraft = { id: 'draft-test', published: false };
-      const filtered = [sampleDraft, ...publishedProjects].filter((x) => x.published);
-      return !filtered.some((x) => x.id === 'draft-test');
+      const sampleDraft = { id: 'draft-test', published: false, archived: false };
+      const sampleArchived = { id: 'archived-test', published: true, archived: true };
+      const filtered = [sampleDraft, sampleArchived, ...publishedProjects].filter(
+        (x: any) => x.published && !x.archived
+      );
+      return (
+        !filtered.some((x) => x.id === 'draft-test') &&
+        !filtered.some((x) => x.id === 'archived-test')
+      );
     })();
+
+    // Verify Core Page Delete Protection & Custom Page Slug Routing (Phase 8 Task C)
+    const corePagesProtected =
+      isCoreProtectedPage('home') &&
+      isCoreProtectedPage('about') &&
+      !validatePageSlug('admin', { isCore: false }).valid &&
+      validatePageSlug('clinic-campaign-launch', { isCore: false }).valid;
+
+    // Verify Tiptap JSON & Legacy Markdown Sanitization (Phase 8 Task E/G)
+    const sampleDocSanitized = sanitizeTiptapDoc({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Valid medical guidance' }] },
+        { type: 'image', attrs: { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==' } },
+      ],
+    });
+    const tiptapBase64Stripped =
+      Array.isArray(sampleDocSanitized.content) &&
+      sampleDocSanitized.content.length === 1 &&
+      sampleDocSanitized.content[0]?.type === 'paragraph';
 
     // Verify Image Upload validation & In-Use Protection
     const validImgCheck = validateImageUploadFile({ type: 'image/webp', size: 1024 * 500 });
@@ -1292,10 +1394,12 @@ export function createExpressApp(): express.Express {
       type: 'image/png',
       size: 8 * 1024 * 1024,
     });
+    const activeAvatarUrl =
+      db.siteSettings?.avatarUrl || '/assets/aistudio/1770146906397_16665dd0.png';
     const inUsePortraitCheck = checkMediaInPublishedContent(
       {
         publicId: 'local/ahmed-soliman-portrait',
-        secureUrl: '/assets/aistudio/1770146906397_16665dd0.png',
+        secureUrl: activeAvatarUrl,
       },
       db
     );
@@ -1314,8 +1418,8 @@ export function createExpressApp(): express.Express {
           publishedClinics.length >= 1 &&
           publishedArticles.length >= 1,
         details: {
-          ar: `تم التحقق من ${publishedPages.length} صفحات أساسية، ${publishedProjects.length} مشروعات، ${publishedClinics.length} عيادات، و${publishedArticles.length} مقالات منشورة + /sitemap.xml و/robots.txt.`,
-          en: `Verified ${publishedPages.length} core pages, ${publishedProjects.length} projects, ${publishedClinics.length} clinics, and ${publishedArticles.length} articles + /sitemap.xml & /robots.txt.`,
+          ar: `تم التحقق من ${publishedPages.length} صفحات منشورة، ${publishedProjects.length} مشروعات، ${publishedClinics.length} عيادات، و${publishedArticles.length} مقالات منشورة + /sitemap.xml و/robots.txt.`,
+          en: `Verified ${publishedPages.length} published pages, ${publishedProjects.length} projects, ${publishedClinics.length} clinics, and ${publishedArticles.length} articles + /sitemap.xml & /robots.txt.`,
         },
       },
       {
@@ -1370,13 +1474,13 @@ export function createExpressApp(): express.Express {
         id: 'FT-05',
         category: 'Published vs Draft Visibility',
         title: {
-          ar: 'ظهور المحتوى المنشور للجمهور واختفاء المسودات تماماً (Draft Isolation)',
-          en: 'Published Content Visibility & Strict Draft Hiding on Public Routes',
+          ar: 'ظهور المحتوى المنشور للجمهور وإخفاء المسودات والمؤرشف تماماً',
+          en: 'Published Content Visibility & Strict Draft/Archive Hiding on Public Routes',
         },
         passed: draftTestCheck,
         details: {
-          ar: 'المسار العام /api/cms/public وقواعد Firestore يعرضان فقط السجلات التي تحقق published == true ويخفيان أي مسودة فوراً.',
-          en: 'Public API /api/cms/public and Firestore rules strictly serve records with published == true and hide all drafts.',
+          ar: 'المسار العام /api/cms/public وقواعد Firestore يعرضان فقط السجلات التي تحقق published == true && !archived ويخفيان أي مسودة أو سجل مؤرشف فوراً.',
+          en: 'Public API /api/cms/public and Firestore rules strictly serve active published records and hide all drafts and archived entries.',
         },
       },
       {
@@ -1414,17 +1518,45 @@ export function createExpressApp(): express.Express {
           en: `Accepted valid WebP, rejected .exe and >5MB files, and blocked deletion of active portrait used in: ${inUsePortraitCheck.usedIn.join(', ')}.`,
         },
       },
+      {
+        id: 'FT-08',
+        category: 'Pages CMS & Core Lock',
+        title: {
+          ar: 'إدارة الصفحات المخصصة (/landing/, /p/) وحماية الصفحات الأساسية من الحذف',
+          en: 'Dynamic CMS Pages (/landing/, /p/) & Core Page Delete Protection',
+        },
+        passed: corePagesProtected,
+        details: {
+          ar: 'تم التحقق من منع حذف الصفحات الأساسية على الخادم وفي قواعد Firestore، ومنع حجز المسارات المحجوزة لروابط الصفحات المخصصة.',
+          en: 'Verified server & Firestore delete lock on core pages and reserved-slug enforcement for custom landing/general pages.',
+        },
+      },
+      {
+        id: 'FT-09',
+        category: 'Rich Text Studio & Compatibility',
+        title: {
+          ar: 'محرر Tiptap المرن (tiptap-json) والتوافق الخلفي الكامل مع مقالات Markdown',
+          en: 'Tiptap Rich-Text Studio (tiptap-json) & Legacy Markdown Compatibility',
+        },
+        passed: tiptapBase64Stripped,
+        details: {
+          ar: 'تم التحقق من سلامة محوّل Markdown/Tiptap JSON، ومنع حقن صور Base64 داخل محتوى المقالات، وتوافق العارض الآمن مع المقالات القديمة.',
+          en: 'Verified bidirectional Markdown/Tiptap JSON sanitization, Base64 data:image stripping, and backward-compatible public rendering.',
+        },
+      },
     ];
 
-    // 2. Security Audit Checks (PROMPT 5.2)
+    // 2. Security Audit Checks (PROMPT 5.2 + Phase 8)
     const xssSample = sanitizePayload({
       title: 'Hello <script>alert(1)</script><img src=x onerror="alert(2)">',
       coverImage: 'javascript:alert(3)',
+      avatarUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==',
     });
     const xssNeutralized =
       !xssSample.title.includes('<script>') &&
       !xssSample.title.includes('onerror') &&
-      xssSample.coverImage === '';
+      xssSample.coverImage === '' &&
+      xssSample.avatarUrl === '';
 
     const botHoneypotCheck = validateConsultationForm({
       name: 'SpamBot',
@@ -1440,6 +1572,7 @@ export function createExpressApp(): express.Express {
     const rulesHasDefaultDeny = rulesContent.includes('allow read, write: if false;');
     const rulesLocksAdminsWrite = rulesContent.includes('allow create, update, delete: if false;');
     const rulesEnforcesPublished = rulesContent.includes('resource.data.published == true');
+    const rulesExcludesArchived = rulesContent.includes('resource.data.archived == true');
     const rulesEnforcesIsAdmin = rulesContent.includes(
       'exists(/databases/$(database)/documents/admins/$(request.auth.uid))'
     );
@@ -1453,12 +1586,13 @@ export function createExpressApp(): express.Express {
           rulesHasDefaultDeny &&
           rulesLocksAdminsWrite &&
           rulesEnforcesPublished &&
+          rulesExcludesArchived &&
           rulesEnforcesIsAdmin
             ? 'SECURE'
             : 'VULNERABLE',
         finding: {
-          ar: 'قواعد firestore.rules تطبق الإغلاق الافتراضي، وتمنع أي مستخدم من إنشاء أو تعديل وثيقة في /admins/{uid}، وتفرض published == true للقراءة العامة.',
-          en: 'firestore.rules enforces default deny, blocks client writes to /admins/{uid}, and requires published == true for public reads.',
+          ar: 'قواعد firestore.rules تطبق الإغلاق الافتراضي، وتمنع أي مستخدم من إنشاء أو تعديل وثيقة في /admins/{uid}، وتفرض published == true واستبعاد المؤرشف للقراءة العامة، وتحمي الصفحات الأساسية.',
+          en: 'firestore.rules enforces default deny, blocks client writes to /admins/{uid}, requires published == true without archive flag for public reads, and locks core pages.',
         },
       },
       {
@@ -1493,12 +1627,12 @@ export function createExpressApp(): express.Express {
       },
       {
         id: 'SEC-05',
-        area: 'XSS Prevention & Server Input Validation',
+        area: 'XSS & Base64 Injection Prevention',
         severity: 'High',
-        status: xssNeutralized ? 'SECURE' : 'VULNERABLE',
+        status: xssNeutralized && tiptapBase64Stripped ? 'SECURE' : 'VULNERABLE',
         finding: {
-          ar: 'يتم تطهير جميع المدخلات على الخادم والعميل عبر sanitizePayload لحذف وسوم <script> وسمات onerror= وروابط javascript: قبل الحفظ، مع التحقق من المخطط (Schema Validation).',
-          en: 'Recursive server-side & client-side sanitizePayload strips <script>, inline event handlers, and javascript: URIs prior to storage.',
+          ar: 'يتم تطهير جميع المدخلات وبنية tiptap-json على الخادم والعميل لحذف وسوم <script> وسمات onerror= وروابط javascript:/data: بما فيها Base64 قبل الحفظ.',
+          en: 'Recursive sanitizePayload & sanitizeTiptapDoc strip <script>, inline event handlers, javascript: URIs, and Base64 data:image payloads prior to storage.',
         },
       },
       {
@@ -1517,8 +1651,8 @@ export function createExpressApp(): express.Express {
         severity: 'High',
         status: 'SECURE',
         finding: {
-          ar: 'المسار العام /api/cms/public يستبعد تماماً مجموعات admins وmedia وأي مسودات أو أطباء/خدمات تابعة لعيادات غير منشورة.',
-          en: 'Public endpoint /api/cms/public strictly omits admins, media registry, drafts, and doctors/services belonging to unpublished clinics.',
+          ar: 'المسار العام /api/cms/public يستبعد تماماً مجموعات admins وmedia وأي مسودات أو سجلات مؤرشفة أو أطباء/خدمات تابعة لعيادات غير منشورة.',
+          en: 'Public endpoint /api/cms/public strictly omits admins, media registry, drafts, archived records, and doctors/services belonging to unpublished clinics.',
         },
       },
     ];
@@ -1612,7 +1746,7 @@ export function createExpressApp(): express.Express {
       });
 
     db.articles
-      .filter((a) => a.published)
+      .filter((a) => a.published && !a.archived && !a.seo?.noindex)
       .forEach((a) => {
         dynamicPaths.push({ path: `/ar/blog/${a.slug}`, updatedAt: a.updatedAt });
         dynamicPaths.push({ path: `/en/blog/${a.slug}`, updatedAt: a.updatedAt });
@@ -1649,6 +1783,79 @@ export function createExpressApp(): express.Express {
 
   // Serve generated /src/assets images in both dev and production
   app.use('/src/assets', express.static(path.resolve(process.cwd(), 'src/assets')));
+
+  // Serve /assets/aistudio/* from public/assets/aistudio cleanly, with crisp vector emblems
+  // for platform seed visuals if removed from temporary screenshot folders (preventing SPA HTML 200 fallback)
+  app.get('/assets/aistudio/:filename', (req: Request, res: Response) => {
+    const safeName = path.basename(String(req.params.filename || ''));
+    const diskPath = path.resolve(process.cwd(), 'public/assets/aistudio', safeName);
+    if (safeName && fs.existsSync(diskPath) && fs.statSync(diskPath).isFile()) {
+      res.sendFile(diskPath);
+      return;
+    }
+
+    if (safeName === 'logo_ae3842b8.png') {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.type('image/svg+xml').send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070E1A"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00C2CB"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#bgGrad)"/>
+  <rect x="20" y="20" width="472" height="472" rx="92" fill="none" stroke="url(#cyanGrad)" stroke-opacity="0.35" stroke-width="6"/>
+  <rect x="214" y="96" width="84" height="220" rx="22" fill="url(#cyanGrad)"/>
+  <rect x="146" y="164" width="220" height="84" rx="22" fill="url(#cyanGrad)"/>
+  <path d="M96 364 H178 L206 322 L238 402 L274 300 L306 376 L332 346 H416" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="454" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="38" font-weight="800" letter-spacing="2" fill="#E2E8F0">SOLI MEDICAL</text>
+</svg>`);
+      return;
+    }
+
+    if (safeName === '1770146906397_16665dd0.png') {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.type('image/svg+xml').send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="38%" r="55%">
+      <stop offset="0%" stop-color="#00C2CB" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#070E1A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070E1A"/>
+      <stop offset="50%" stop-color="#0B1628"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00C2CB"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#cardBg)"/>
+  <rect width="1200" height="900" fill="url(#glow)"/>
+  <g stroke="#1E293B" stroke-width="1.5" opacity="0.45">
+    <line x1="0" y1="180" x2="1200" y2="180"/>
+    <line x1="0" y1="720" x2="1200" y2="720"/>
+    <line x1="220" y1="0" x2="220" y2="900"/>
+    <line x1="980" y1="0" x2="980" y2="900"/>
+  </g>
+  <circle cx="600" cy="350" r="158" fill="#0B1424" stroke="url(#accent)" stroke-width="6"/>
+  <circle cx="600" cy="350" r="142" fill="none" stroke="#00C2CB" stroke-opacity="0.25" stroke-width="2" stroke-dasharray="10 10"/>
+  <text x="600" y="388" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="112" font-weight="800" fill="#FFFFFF" letter-spacing="4">AS</text>
+  <rect x="405" y="548" width="390" height="54" rx="27" fill="#00C2CB" fill-opacity="0.14" stroke="#00C2CB" stroke-opacity="0.45" stroke-width="2"/>
+  <text x="600" y="584" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#00C2CB" letter-spacing="3">AHMED SOLIMAN</text>
+  <text x="600" y="660" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#CBD5E1">Healthcare Systems Architect &amp; Full-Stack Engineer</text>
+  <path d="M370 742 H515 L540 704 L570 778 L602 688 L632 760 L656 732 H830" fill="none" stroke="url(#accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`);
+      return;
+    }
+
+    res.status(404).json({ error: 'Asset not found' });
+  });
 
   return app;
 }

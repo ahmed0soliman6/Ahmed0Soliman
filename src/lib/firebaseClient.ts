@@ -425,8 +425,9 @@ export async function saveDocumentToExistingFirestore(
   const instances = getFirebaseInstances(true);
   if (!instances) return false;
   try {
+    const cleanPayload = JSON.parse(JSON.stringify(payload || {}));
     await withTimeout(
-      setDoc(doc(instances.db, collectionName, docId), payload, { merge: true }),
+      setDoc(doc(instances.db, collectionName, docId), cleanPayload, { merge: true }),
       2500
     );
     invalidateFirestoreCache();

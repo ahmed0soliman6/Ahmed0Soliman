@@ -26,7 +26,7 @@ export const BlogPage: React.FC = () => {
 
   const publishedArticles = useMemo(() => {
     return db.articles
-      .filter((a) => a.published)
+      .filter((a) => a.published && !a.archived)
       .sort((a, b) => a.order - b.order);
   }, [db.articles]);
 

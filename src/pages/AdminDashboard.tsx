@@ -5,16 +5,27 @@ import { OptimizedImage } from '../components/common/OptimizedImage';
 import { AdminSidebar, AdminSubRoute } from '../components/admin/AdminSidebar';
 import { AdminPagination } from '../components/admin/AdminPagination';
 import { PageEditor } from '../components/admin/PageEditor';
+import { ArticleEditor } from '../components/admin/ArticleEditor';
+import { ImageUploadPreviewModal } from '../components/admin/ImageUploadPreviewModal';
+import {
+  CompressedImageResult,
+  formatBytes,
+  uploadCompressedMediaToCloudinary,
+  validateRawImageForCompression,
+} from '../lib/imageCompression';
 import {
   validateProjectPayload,
   validateClinicPayload,
   validateDoctorPayload,
   validateServicePayload,
   validateArticlePayload,
+  validateArticleSlug,
   validatePagePayload,
-  validateImageUploadFile,
+  checkArticleInSiteReferences,
   checkMediaInPublishedContent,
   checkPageInSiteReferences,
+  countArticleWords,
+  estimateArticleReadingTime,
   getPageCanonicalPath,
   isCoreProtectedPage,
   slugifyText,
@@ -65,6 +76,8 @@ import {
   FileImage,
   Lock,
   RotateCcw,
+  Star,
+  Tag,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -189,6 +202,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   const [sortBy, setSortBy] = useState<AdminSortOption>('order');
   const [currentPage, setCurrentPage] = useState(1);
   const [mediaCategoryFilter, setMediaCategoryFilter] = useState<'all' | MediaAsset['category']>('all');
+  const [blogCategoryFilter, setBlogCategoryFilter] = useState<string>('all');
   const PAGE_SIZE = 6;
 
   // Clinic Sub-tab: 'clinics' | 'doctors' | 'services'
@@ -200,9 +214,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   const [editingDoctor, setEditingDoctor] = useState<Partial<DoctorItem> | null>(null);
   const [editingService, setEditingService] = useState<Partial<ServiceItem> | null>(null);
   const [editingArticle, setEditingArticle] = useState<Partial<ArticleItem> | null>(null);
+  const [editingArticleIsNew, setEditingArticleIsNew] = useState(false);
   const [editingPage, setEditingPage] = useState<Partial<PageConfig> | null>(null);
   const [editingPageIsNew, setEditingPageIsNew] = useState(false);
   const [pageTrashConfirm, setPageTrashConfirm] = useState<PageConfig | null>(null);
+  const [articleTrashConfirm, setArticleTrashConfirm] = useState<ArticleItem | null>(null);
   const [deleteConfirmLiteralInput, setDeleteConfirmLiteralInput] = useState('');
   const [previewItem, setPreviewItem] = useState<{
     type: string;
@@ -228,7 +244,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     ((selectedUrl: string) => void) | null
   >(null);
 
-  // Cloudinary Upload State
+  // Cloudinary Upload & Compression State
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [mediaAltAr, setMediaAltAr] = useState('');
   const [mediaAltEn, setMediaAltEn] = useState('');
@@ -239,6 +255,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     folder: string;
   } | null>(null);
   const [replacingMediaItem, setReplacingMediaItem] = useState<MediaAsset | null>(null);
+  const [pendingUploadPayload, setPendingUploadPayload] = useState<{
+    file: File;
+    onAfterUploaded?: (url: string) => void;
+  } | null>(null);
+  const [mediaDragActive, setMediaDragActive] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerCategory, setPickerCategory] = useState<'all' | MediaAsset['category']>('all');
+  const [editingMediaAlt, setEditingMediaAlt] = useState<MediaAsset | null>(null);
 
   // Settings & External Firebase State
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(db.siteSettings);
@@ -322,6 +346,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     setCurrentPage(1);
     setSearchFilter('');
     setStatusFilter('all');
+    setBlogCategoryFilter('all');
     setGlobalQuery('');
     const viewParam = searchParams.get('view');
     const hash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : '';
@@ -351,7 +376,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchFilter, statusFilter, sortBy, clinicSubTab, mediaCategoryFilter]);
+  }, [searchFilter, statusFilter, sortBy, clinicSubTab, mediaCategoryFilter, blogCategoryFilter]);
 
   const mediaView = useMemo<'gallery' | 'upload' | 'article-images'>(() => {
     const view = searchParams.get('view');
@@ -372,7 +397,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     const clinics = db.clinics || [];
     const doctors = db.doctors || [];
     const services = db.services || [];
-    const articles = db.articles || [];
+    const articles = (db.articles || []).filter((a) => !a.archived);
     const media = db.media || [];
 
     const publishedPages = pages.filter((p) => p.published).length;
@@ -483,6 +508,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
           route: '/admin/blog',
           onOpen: () => {
             navigate('/admin/blog');
+            setEditingArticleIsNew(false);
             setEditingArticle({ ...a });
             setGlobalQuery('');
           },
@@ -763,101 +789,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     });
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const openCompressionPreviewForFile = (
+    file: File | undefined,
+    onAfterUploaded?: (url: string) => void
+  ) => {
     if (!file) return;
-
-    const validation = validateImageUploadFile(file);
-    if (!validation.valid) {
-      showToast(validation.errors.join(' '), 'error');
-      e.target.value = '';
+    const check = validateRawImageForCompression(file);
+    if (!check.valid) {
+      showToast(check.errors.join(' '), 'error');
       return;
     }
+    setPendingUploadPayload({ file, onAfterUploaded });
+  };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    openCompressionPreviewForFile(file);
+    e.target.value = '';
+  };
+
+  const handleConfirmCompressedUpload = async ({
+    result,
+    altAr,
+    altEn,
+    category,
+  }: {
+    result: CompressedImageResult;
+    altAr: string;
+    altEn: string;
+    category: MediaAsset['category'];
+  }) => {
+    if (!pendingUploadPayload) return;
     setUploadingMedia(true);
     try {
-      // 1. Request Server-Side Signed Upload Signature
-      const signRes = await fetch('/api/cloudinary/sign', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${adminSession.token}`,
-        },
-        body: JSON.stringify({
-          fileType: file.type,
-          fileSize: file.size,
-        }),
-      });
-      const signData = await signRes.json();
-      if (!signRes.ok) {
-        throw new Error(signData.error || 'Failed to sign upload');
-      }
-
-      let finalSecureUrl = '';
-      let finalPublicId = '';
-      let width = 1200;
-      let height = 800;
-
-      if (signData.configured) {
-        // Upload directly to Cloudinary using the server-generated signature
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('api_key', signData.apiKey);
-        formData.append('timestamp', String(signData.timestamp));
-        formData.append('signature', signData.signature);
-        formData.append('folder', signData.folder);
-
-        const uploadRes = await fetch(
-          `https://api.cloudinary.com/v1_1/${signData.cloudName}/image/upload`,
-          {
-            method: 'POST',
-            body: formData,
-          }
-        );
-        const uploadJson = await uploadRes.json();
-        if (!uploadRes.ok) {
-          throw new Error(uploadJson?.error?.message || 'Cloudinary upload failed');
-        }
-        finalSecureUrl = uploadJson.secure_url;
-        finalPublicId = uploadJson.public_id;
-        width = uploadJson.width || 1200;
-        height = uploadJson.height || 800;
-      } else {
-        // Fallback data-URL optimization when Cloudinary env vars are not yet added on server
-        finalSecureUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(new Error('Failed to read image file'));
-          reader.readAsDataURL(file);
+      const { mediaRecord, uploadedToCloudinary } =
+        await uploadCompressedMediaToCloudinary({
+          result,
+          adminToken: adminSession.token || '',
+          altAr,
+          altEn,
+          category,
+          replacingAsset: replacingMediaItem,
         });
-        finalPublicId = `local/${Date.now()}-${slugifyText(file.name.replace(/\.[^.]+$/, ''))}`;
-      }
-
-      const mediaRecord: MediaAsset = {
-        id: replacingMediaItem ? replacingMediaItem.id : `media-${Date.now()}`,
-        publicId: finalPublicId,
-        secureUrl: finalSecureUrl,
-        format: file.type.split('/')[1] || 'webp',
-        width,
-        height,
-        bytes: file.size,
-        alt: {
-          ar: mediaAltAr.trim() || file.name,
-          en: mediaAltEn.trim() || file.name,
-        },
-        category: mediaCategory,
-        createdAt: replacingMediaItem?.createdAt || new Date().toISOString(),
-      };
 
       await upsertRecord('media', mediaRecord);
       setMediaAltAr('');
       setMediaAltEn('');
       setReplacingMediaItem(null);
+
+      const savingsBadge =
+        result.savingsPercent > 0 ? ` (-${result.savingsPercent}%)` : '';
+      showToast(
+        locale === 'ar'
+          ? `تم ضغط ورفع الصورة${savingsBadge} · ${formatBytes(mediaRecord.bytes)}${
+              uploadedToCloudinary ? ' على Cloudinary' : ''
+            }`
+          : `Compressed & uploaded${savingsBadge} · ${formatBytes(mediaRecord.bytes)}${
+              uploadedToCloudinary ? ' to Cloudinary' : ''
+            }`,
+        'success'
+      );
+
+      const cb = pendingUploadPayload.onAfterUploaded;
+      setPendingUploadPayload(null);
+      if (cb) {
+        cb(mediaRecord.secureUrl);
+      }
     } catch (err: any) {
       showToast(err?.message || 'Upload failed', 'error');
     } finally {
       setUploadingMedia(false);
-      e.target.value = '';
     }
   };
 
@@ -920,6 +921,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
 
   const openNewArticleEditor = () => {
     navigate('/admin/blog');
+    const defaultCover =
+      db.media?.find((m) => m.category === 'blog')?.secureUrl ||
+      db.media?.[0]?.secureUrl ||
+      '';
+    setEditingArticleIsNew(true);
     setEditingArticle({
       id: `art-${Date.now()}`,
       slug: '',
@@ -928,11 +934,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       content: { ar: '', en: '' },
       category: { ar: 'هندسة الأنظمة الطبية', en: 'Healthcare Engineering' },
       tags: ['Soli Medical', 'Healthcare Software'],
-      coverImage: '/assets/aistudio/logo_ae3842b8.png',
-      readingTimeMinutes: 4,
+      coverImage: defaultCover,
       authorName: { ar: 'أحمد سليمان', en: 'Ahmed Soliman' },
       featured: false,
       published: false,
+      archived: false,
       order: db.articles.length + 1,
       seo: { title: { ar: '', en: '' }, description: { ar: '', en: '' } },
     });
@@ -1645,6 +1651,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                                 type="button"
                                 onClick={() => {
                                   navigate('/admin/blog');
+                                  setEditingArticleIsNew(false);
                                   setEditingArticle({ ...art });
                                 }}
                                 className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-[#00C2CB] hover:text-slate-950 transition-colors cursor-pointer"
@@ -3048,18 +3055,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
             {/* TAB 5: BLOG ARTICLES MANAGEMENT (/admin/blog) */}
             {/* =============================================================== */}
             {subRoute === 'blog' && (() => {
-              const filteredArticles = [...(db.articles || [])]
+              const allArticles = db.articles || [];
+              const activeArticles = allArticles.filter((a) => !a.archived);
+              const archivedArticlesCount = allArticles.filter((a) => Boolean(a.archived)).length;
+              const publishedArticlesCount = activeArticles.filter((a) => a.published).length;
+              const draftArticlesCount = activeArticles.filter((a) => !a.published).length;
+              const featuredArticlesCount = activeArticles.filter((a) => a.featured).length;
+
+              const availableCategories = Array.from(
+                new Map(
+                  activeArticles.map((a) => {
+                    const key = (a.category?.en || a.category?.ar || 'General').trim();
+                    return [
+                      key,
+                      {
+                        key,
+                        ar: a.category?.ar || key,
+                        en: a.category?.en || key,
+                      },
+                    ];
+                  })
+                ).values()
+              );
+
+              const filteredArticles = [...allArticles]
                 .filter((art) => {
-                  if (statusFilter === 'published' && !art.published) return false;
-                  if (statusFilter === 'draft' && art.published) return false;
+                  const isArchived = Boolean(art.archived);
+                  if (statusFilter === 'trash') {
+                    if (!isArchived) return false;
+                  } else {
+                    if (isArchived) return false;
+                    if (statusFilter === 'published' && !art.published) return false;
+                    if (statusFilter === 'draft' && art.published) return false;
+                  }
+
+                  if (blogCategoryFilter === '__featured__') {
+                    if (!art.featured) return false;
+                  } else if (blogCategoryFilter !== 'all') {
+                    const catKey = (art.category?.en || art.category?.ar || '').trim();
+                    if (catKey !== blogCategoryFilter) return false;
+                  }
+
                   if (!searchFilter.trim()) return true;
                   const q = searchFilter.toLowerCase();
                   return (
-                    art.title.ar.toLowerCase().includes(q) ||
-                    art.title.en.toLowerCase().includes(q) ||
-                    art.slug.toLowerCase().includes(q) ||
-                    art.category.ar.toLowerCase().includes(q) ||
-                    art.category.en.toLowerCase().includes(q)
+                    (art.title?.ar || '').toLowerCase().includes(q) ||
+                    (art.title?.en || '').toLowerCase().includes(q) ||
+                    (art.slug || '').toLowerCase().includes(q) ||
+                    (art.excerpt?.ar || '').toLowerCase().includes(q) ||
+                    (art.excerpt?.en || '').toLowerCase().includes(q) ||
+                    (art.category?.ar || '').toLowerCase().includes(q) ||
+                    (art.category?.en || '').toLowerCase().includes(q) ||
+                    (art.tags || []).some((t) => t.toLowerCase().includes(q))
                   );
                 })
                 .sort((a, b) => {
@@ -3080,8 +3127,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                 currentPage * PAGE_SIZE
               );
 
+              const handleCloneArticle = async (source: ArticleItem) => {
+                const baseSlug = slugifyText(`${source.slug || 'article'}-copy`);
+                let candidateSlug = baseSlug;
+                let counter = 2;
+                while (
+                  allArticles.some((a) => a.slug?.toLowerCase() === candidateSlug.toLowerCase())
+                ) {
+                  candidateSlug = `${baseSlug}-${counter}`;
+                  counter += 1;
+                }
+
+                const nowIso = new Date().toISOString();
+                const cloned: ArticleItem = {
+                  ...source,
+                  id: `art-${Date.now()}`,
+                  slug: candidateSlug,
+                  title: {
+                    ar: `${source.title.ar} (نسخة)`,
+                    en: `${source.title.en} (Copy)`,
+                  },
+                  featured: false,
+                  published: false,
+                  archived: false,
+                  archivedAt: undefined,
+                  order: allArticles.length + 1,
+                  createdAt: nowIso,
+                  updatedAt: nowIso,
+                };
+
+                await upsertRecord('articles', cloned);
+                showToast(
+                  locale === 'ar'
+                    ? `تم استنساخ المقال كمسودة جديدة (/blog/${candidateSlug})`
+                    : `Article cloned as a new draft (/blog/${candidateSlug})`,
+                  'success'
+                );
+              };
+
+              const handleRequestPermanentArticleDelete = (art: ArticleItem) => {
+                const refs = checkArticleInSiteReferences(art, db);
+                if (refs.inUse) {
+                  showToast(
+                    locale === 'ar'
+                      ? `لا يمكن الحذف النهائي: رابط المقال مستخدم في (${refs.usedIn.join('، ')}).`
+                      : `Cannot permanently delete: article is referenced in (${refs.usedIn.join(', ')}).`,
+                    'error'
+                  );
+                  return;
+                }
+                const expectedName = art.title[locale] || art.title.en || art.title.ar || art.slug;
+                setDeleteConfirmLiteralInput('');
+                setDeleteConfirm({
+                  collection: 'articles',
+                  id: art.id,
+                  title: `${art.title.ar} — ${art.title.en}`,
+                  requireLiteralConfirm: true,
+                  expectedLiteralName: expectedName,
+                });
+              };
+
               return (
                 <div className="space-y-6">
+                  {/* Top Header & Quick Stats Strip */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h1 className="text-xl font-bold text-slate-900 dark:text-white">
@@ -3089,22 +3197,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                       </h1>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         {locale === 'ar'
-                          ? 'كتابة، تحرير، معاينة، ونشر المقالات باللغتين العربية والإنجليزية.'
-                          : 'Write, preview, and publish bilingual articles with custom SEO.'}
+                          ? 'إنشاء، تحرير، استنساخ، معاينة، ونشر المقالات باللغتين مع إحصاء الكلمات ووقت القراءة وسلة المحذوفات.'
+                          : 'Create, edit, clone, preview, and publish bilingual articles with live word counts, reading time, and safe archive/trash.'}
                       </p>
                     </div>
 
                     <button
                       type="button"
                       onClick={openNewArticleEditor}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] whitespace-nowrap shrink-0 cursor-pointer"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] whitespace-nowrap shrink-0 cursor-pointer shadow-sm"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>{locale === 'ar' ? 'مقال جديد' : 'New Article'}</span>
+                      <span>{locale === 'ar' ? '+ مقال جديد' : '+ New Article'}</span>
                     </button>
                   </div>
 
-                  {/* Unified Search, Status Filter & Sort Bar */}
+                  {/* Quick Editorial KPI Strip */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {locale === 'ar' ? 'إجمالي النشطة' : 'Active Articles'}
+                        </div>
+                        <div className="text-lg font-black font-mono-tabular text-slate-900 dark:text-white">
+                          {activeArticles.length}
+                        </div>
+                      </div>
+                      <BookOpen className="w-4 h-4 text-[#00C2CB]" />
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {locale === 'ar' ? 'المنشورة للجمهور' : 'Published Live'}
+                        </div>
+                        <div className="text-lg font-black font-mono-tabular text-emerald-500">
+                          {publishedArticlesCount}
+                        </div>
+                      </div>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {locale === 'ar' ? 'المسودات قيد التحرير' : 'Drafts'}
+                        </div>
+                        <div className="text-lg font-black font-mono-tabular text-amber-500">
+                          {draftArticlesCount}
+                        </div>
+                      </div>
+                      <Clock className="w-4 h-4 text-amber-500" />
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {locale === 'ar' ? 'المميزة / الأرشيف' : 'Featured / Trash'}
+                        </div>
+                        <div className="text-lg font-black font-mono-tabular text-slate-900 dark:text-white">
+                          {featuredArticlesCount} /{' '}
+                          <span className="text-red-400">{archivedArticlesCount}</span>
+                        </div>
+                      </div>
+                      <Star className="w-4 h-4 text-[#00C2CB]" />
+                    </div>
+                  </div>
+
+                  {/* Unified Search, Status Tabs (All/Published/Draft/Trash), Category Filter & Sort Bar */}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="relative flex-1 min-w-[220px]">
                       <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5" />
@@ -3112,17 +3272,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                         type="text"
                         value={searchFilter}
                         onChange={(e) => setSearchFilter(e.target.value)}
-                        placeholder={locale === 'ar' ? 'بحث في المقالات...' : 'Search articles...'}
+                        placeholder={
+                          locale === 'ar'
+                            ? 'بحث في العنوان، الرابط (Slug)، الملخص، التصنيف، أو الوسوم...'
+                            : 'Search title, slug, excerpt, category, or tags...'
+                        }
                         className="w-full ps-9 pe-3.5 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
                       />
                     </div>
+
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800">
+                      {/* Status Filter Pills */}
+                      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800 overflow-x-auto">
                         {(
                           [
-                            { id: 'all', label: { ar: 'الكل', en: 'All' } },
-                            { id: 'published', label: { ar: 'المنشورة', en: 'Published' } },
-                            { id: 'draft', label: { ar: 'المسودات', en: 'Draft' } },
+                            {
+                              id: 'all',
+                              label: {
+                                ar: `الكل (${activeArticles.length})`,
+                                en: `All (${activeArticles.length})`,
+                              },
+                            },
+                            {
+                              id: 'published',
+                              label: {
+                                ar: `المنشورة (${publishedArticlesCount})`,
+                                en: `Published (${publishedArticlesCount})`,
+                              },
+                            },
+                            {
+                              id: 'draft',
+                              label: {
+                                ar: `المسودات (${draftArticlesCount})`,
+                                en: `Draft (${draftArticlesCount})`,
+                              },
+                            },
+                            {
+                              id: 'trash',
+                              label: {
+                                ar: `الأرشيف (${archivedArticlesCount})`,
+                                en: `Trash (${archivedArticlesCount})`,
+                              },
+                            },
                           ] as const
                         ).map((st) => (
                           <button
@@ -3140,12 +3331,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                         ))}
                       </div>
 
+                      {/* Category / Featured Filter */}
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-xs">
+                        <Tag className="w-3.5 h-3.5 text-slate-400" />
+                        <select
+                          value={blogCategoryFilter}
+                          onChange={(e) => setBlogCategoryFilter(e.target.value)}
+                          className="bg-transparent text-xs font-medium focus:outline-none cursor-pointer"
+                          aria-label={locale === 'ar' ? 'تصفية حسب التصنيف' : 'Filter by category'}
+                        >
+                          <option value="all" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'جميع التصنيفات' : 'All Categories'}
+                          </option>
+                          <option value="__featured__" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? '★ المقالات المميزة فقط' : '★ Featured Only'}
+                          </option>
+                          {availableCategories.map((cat) => (
+                            <option key={cat.key} value={cat.key} className="dark:bg-[#0F172A]">
+                              {cat[locale]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Sort Selector */}
                       <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-xs">
                         <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                         <select
                           value={sortBy}
                           onChange={(e) => setSortBy(e.target.value as AdminSortOption)}
                           className="bg-transparent text-xs font-medium focus:outline-none cursor-pointer"
+                          aria-label={locale === 'ar' ? 'ترتيب المقالات' : 'Sort articles'}
                         >
                           <option value="order" className="dark:bg-[#0F172A]">
                             {locale === 'ar' ? 'ترتيب العرض' : 'Display Order'}
@@ -3167,9 +3383,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                   {filteredArticles.length === 0 ? (
                     <div className="p-10 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 text-center space-y-3">
                       <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        {locale === 'ar'
-                          ? 'لا توجد مقالات مطابقة للبحث الحالي'
-                          : 'No articles match your current filter'}
+                        {statusFilter === 'trash'
+                          ? locale === 'ar'
+                            ? 'سلة المحذوفات / أرشيف المقالات فارغة حالياً'
+                            : 'Article Archive / Trash is currently empty'
+                          : locale === 'ar'
+                          ? 'لا توجد مقالات مطابقة لمعايير البحث أو التصفية الحالية'
+                          : 'No articles match your current search or filter criteria'}
                       </p>
                       <div className="flex items-center justify-center gap-2">
                         <button
@@ -3177,142 +3397,344 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                           onClick={() => {
                             setSearchFilter('');
                             setStatusFilter('all');
+                            setBlogCategoryFilter('all');
                           }}
                           className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 cursor-pointer"
                         >
-                          {locale === 'ar' ? 'إعادة تعيين البحث' : 'Reset Filters'}
+                          {locale === 'ar' ? 'إعادة تعيين الفلاتر' : 'Reset Filters'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={openNewArticleEditor}
-                          className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
-                        >
-                          {locale === 'ar' ? '+ مقال جديد' : '+ New Article'}
-                        </button>
+                        {statusFilter !== 'trash' && (
+                          <button
+                            type="button"
+                            onClick={openNewArticleEditor}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
+                          >
+                            {locale === 'ar' ? '+ مقال جديد' : '+ New Article'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {paginatedArticles.map((art, idx, arr) => (
-                        <div
-                          key={art.id}
-                          className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                        >
-                          <div className="space-y-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                              <span className="font-mono-tabular text-[#0099A3] dark:text-[#00C2CB]">
-                                /blog/{art.slug}
-                              </span>
-                              <span>·</span>
-                              <button
-                                type="button"
-                                onClick={() => handleTogglePublished('articles', art)}
-                                className={`font-semibold underline cursor-pointer ${
-                                  art.published
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-amber-600 dark:text-amber-400'
-                                }`}
-                              >
-                                {art.published
-                                  ? locale === 'ar'
-                                    ? 'منشور'
-                                    : 'Published'
-                                  : locale === 'ar'
-                                  ? 'مسودة'
-                                  : 'Draft'}
-                              </button>
-                              <span>·</span>
-                              <span className="font-mono-tabular text-slate-400">
-                                {art.readingTimeMinutes} min
-                              </span>
-                              <span>·</span>
-                              <span className="font-mono-tabular text-slate-400">
-                                {formatAdminDate(art.updatedAt || art.createdAt, locale)}
-                              </span>
-                            </div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                              {art.title.ar}
-                            </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{art.title.en}</p>
-                          </div>
+                      {paginatedArticles.map((art, idx, arr) => {
+                        const arWords = countArticleWords(art.content?.ar, art.contentJson?.ar);
+                        const enWords = countArticleWords(art.content?.en, art.contentJson?.en);
+                        const computedReadMin =
+                          art.readingTimeMinutes && art.readingTimeMinutes > 0
+                            ? art.readingTimeMinutes
+                            : estimateArticleReadingTime(arWords, enWords);
+                        const publicArticlePath = `/${locale}/blog/${art.slug}`;
 
-                          <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleMoveItemOrder('articles', arr, idx, 'up')}
-                              disabled={idx === 0 || sortBy !== 'order'}
-                              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40 cursor-pointer"
-                            >
-                              <ArrowUp className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMoveItemOrder('articles', arr, idx, 'down')}
-                              disabled={idx === arr.length - 1 || sortBy !== 'order'}
-                              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40 cursor-pointer"
-                            >
-                              <ArrowDown className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePublished('articles', art)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-                                art.published
-                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
-                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
-                              }`}
-                            >
-                              {art.published ? (
+                        return (
+                          <div
+                            key={art.id}
+                            className={`p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0F172A] border transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                              art.archived
+                                ? 'border-red-500/30 bg-red-950/5'
+                                : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                            }`}
+                          >
+                            {/* Left: Cover Thumbnail + Editorial Details */}
+                            <div className="flex items-start gap-4 min-w-0 flex-1">
+                              {/* Cover Thumbnail */}
+                              <div className="w-24 sm:w-28 aspect-[16/10] rounded-xl overflow-hidden bg-[#070E1A] border border-slate-200 dark:border-slate-800 shrink-0 relative">
+                                {art.coverImage ? (
+                                  <OptimizedImage
+                                    src={art.coverImage}
+                                    alt={art.title[locale] || art.slug}
+                                    containerClassName="w-full h-full"
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                    <BookOpen className="w-5 h-5" />
+                                  </div>
+                                )}
+                                <span className="absolute top-1.5 start-1.5 px-1.5 py-0.5 rounded bg-slate-950/80 text-[10px] font-mono-tabular text-slate-200">
+                                  #{art.order}
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5 min-w-0 flex-1">
+                                {/* Top Meta Row: Status, Featured, Category, URL + Copy/Open */}
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                  {/* Status Badge */}
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] ${
+                                      art.archived
+                                        ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                                        : art.published
+                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                        : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                    }`}
+                                  >
+                                    {art.archived
+                                      ? locale === 'ar'
+                                        ? 'مؤرشف (مسودة)'
+                                        : 'Archived (Draft)'
+                                      : art.published
+                                      ? locale === 'ar'
+                                        ? 'منشور'
+                                        : 'Published'
+                                      : locale === 'ar'
+                                      ? 'مسودة'
+                                      : 'Draft'}
+                                  </span>
+
+                                  {/* Featured Toggle Badge */}
+                                  {!art.archived && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        upsertRecord('articles', {
+                                          ...art,
+                                          featured: !art.featured,
+                                        })
+                                      }
+                                      title={
+                                        locale === 'ar'
+                                          ? 'تعيين كمقال رئيسي مميز في أعلى المدونة'
+                                          : 'Toggle Featured Cover Story'
+                                      }
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                                        art.featured
+                                          ? 'bg-[#00C2CB]/15 text-[#0099A3] dark:text-[#00C2CB] border border-[#00C2CB]/40'
+                                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 hover:text-slate-300'
+                                      }`}
+                                    >
+                                      <Star
+                                        className={`w-3 h-3 ${
+                                          art.featured ? 'fill-current' : ''
+                                        }`}
+                                      />
+                                      <span>
+                                        {art.featured
+                                          ? locale === 'ar'
+                                            ? 'مقال مميز'
+                                            : 'Featured'
+                                          : locale === 'ar'
+                                          ? 'تمييز'
+                                          : 'Feature'}
+                                      </span>
+                                    </button>
+                                  )}
+
+                                  {/* Category Badge */}
+                                  {(art.category?.ar || art.category?.en) && (
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+                                      {art.category[locale] || art.category.ar || art.category.en}
+                                    </span>
+                                  )}
+
+                                  {/* Permalink Slug + Copy & Open */}
+                                  <span className="font-mono-tabular text-[#0099A3] dark:text-[#00C2CB] font-semibold">
+                                    /blog/{art.slug}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const fullUrl = `${window.location.origin}${publicArticlePath}`;
+                                      navigator.clipboard?.writeText(fullUrl);
+                                      showToast(
+                                        locale === 'ar'
+                                          ? 'تم نسخ رابط المقال'
+                                          : 'Article URL copied to clipboard',
+                                        'info'
+                                      );
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#00C2CB] cursor-pointer"
+                                    title={locale === 'ar' ? 'نسخ رابط المقال' : 'Copy article link'}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                    <span>{locale === 'ar' ? 'نسخ الرابط' : 'Copy Link'}</span>
+                                  </button>
+                                  <a
+                                    href={publicArticlePath}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#00C2CB]"
+                                    title={locale === 'ar' ? 'فتح المقال في صفحة جديدة' : 'Open article'}
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    <span>{locale === 'ar' ? 'فتح' : 'Open'}</span>
+                                  </a>
+                                </div>
+
+                                {/* Bilingual Titles & Excerpt */}
+                                <div>
+                                  <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug">
+                                    {art.title.ar}
+                                  </h3>
+                                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                    {art.title.en}
+                                  </p>
+                                </div>
+
+                                {art.excerpt?.[locale] && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                                    {art.excerpt[locale]}
+                                  </p>
+                                )}
+
+                                {/* Bottom Editorial Stats: Word Count, Reading Time, Created & Updated Dates */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px] font-mono-tabular text-slate-500 dark:text-slate-400">
+                                  <span>
+                                    {locale === 'ar'
+                                      ? `${arWords} كلمة (ع) · ${enWords} كلمة (EN)`
+                                      : `${arWords} words (AR) · ${enWords} words (EN)`}
+                                  </span>
+                                  <span>·</span>
+                                  <span>
+                                    {computedReadMin}{' '}
+                                    {locale === 'ar' ? 'د قراءة' : 'min read'}
+                                  </span>
+                                  <span>·</span>
+                                  <span>
+                                    {locale === 'ar' ? 'إنشاء: ' : 'Created: '}
+                                    {formatAdminDate(art.createdAt, locale)}
+                                  </span>
+                                  <span>·</span>
+                                  <span>
+                                    {locale === 'ar' ? 'تحديث: ' : 'Updated: '}
+                                    {formatAdminDate(art.updatedAt || art.createdAt, locale)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right: Action Buttons */}
+                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                              {!art.archived ? (
                                 <>
-                                  <EyeOff className="w-3.5 h-3.5" />
-                                  <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveItemOrder('articles', arr, idx, 'up')}
+                                    disabled={idx === 0 || sortBy !== 'order'}
+                                    className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-40 cursor-pointer"
+                                    title={locale === 'ar' ? 'تحريك لأعلى' : 'Move Up'}
+                                  >
+                                    <ArrowUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveItemOrder('articles', arr, idx, 'down')}
+                                    disabled={idx === arr.length - 1 || sortBy !== 'order'}
+                                    className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-40 cursor-pointer"
+                                    title={locale === 'ar' ? 'تحريك لأسفل' : 'Move Down'}
+                                  >
+                                    <ArrowDown className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTogglePublished('articles', art)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                      art.published
+                                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
+                                        : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                                    }`}
+                                  >
+                                    {art.published ? (
+                                      <>
+                                        <EyeOff className="w-3.5 h-3.5" />
+                                        <span>{locale === 'ar' ? 'إخفاء لمسودة' : 'Unpublish'}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Eye className="w-3.5 h-3.5" />
+                                        <span>{locale === 'ar' ? 'نشر المقال' : 'Publish'}</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCloneArticle(art)}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] inline-flex items-center gap-1 cursor-pointer"
+                                    title={
+                                      locale === 'ar'
+                                        ? 'استنساخ المقال كمسودة جديدة'
+                                        : 'Duplicate article as a new draft'
+                                    }
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>{locale === 'ar' ? 'استنساخ' : 'Clone'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPreviewItem({
+                                        type: 'Article',
+                                        title: art.title[locale],
+                                        subtitle: art.excerpt[locale],
+                                        body: art.content[locale],
+                                        image: art.coverImage,
+                                        published: art.published,
+                                      })
+                                    }
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+                                  >
+                                    {locale === 'ar' ? 'معاينة' : 'Preview'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingArticleIsNew(false);
+                                      setEditingArticle({ ...art });
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    <span>{locale === 'ar' ? 'تحرير' : 'Edit'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setArticleTrashConfirm(art)}
+                                    className="p-2 rounded-lg text-red-500 hover:bg-red-950/30 cursor-pointer"
+                                    title={
+                                      locale === 'ar'
+                                        ? 'نقل المقال إلى الأرشيف (مسودة)'
+                                        : 'Move article to Trash / Archive'
+                                    }
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </>
                               ) : (
                                 <>
-                                  <Eye className="w-3.5 h-3.5" />
-                                  <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      upsertRecord('articles', {
+                                        ...art,
+                                        archived: false,
+                                        archivedAt: undefined,
+                                        published: false,
+                                      })
+                                    }
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25 inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <span>{locale === 'ar' ? 'استعادة كمسودة' : 'Restore to Draft'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRequestPermanentArticleDelete(art)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>{locale === 'ar' ? 'حذف نهائي' : 'Delete Forever'}</span>
+                                  </button>
                                 </>
                               )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPreviewItem({
-                                  type: 'Article',
-                                  title: art.title[locale],
-                                  subtitle: art.excerpt[locale],
-                                  body: art.content[locale],
-                                  image: art.coverImage,
-                                  published: art.published,
-                                })
-                              }
-                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
-                            >
-                              {locale === 'ar' ? 'معاينة' : 'Preview'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingArticle({ ...art })}
-                              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
-                            >
-                              {locale === 'ar' ? 'تعديل' : 'Edit'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDeleteConfirm({
-                                  collection: 'articles',
-                                  id: art.id,
-                                  title: art.title[locale],
-                                })
-                              }
-                              className="p-2 rounded-lg text-red-500 hover:bg-red-950/30 cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -3408,24 +3830,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                     </div>
                   </div>
 
-                  {/* Upload / Replace Form Card */}
+                  {/* Media Library Summary Metrics */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div className="p-4 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
+                      <div className="text-slate-500 dark:text-slate-400">
+                        {locale === 'ar' ? 'إجمالي الملفات' : 'Total Media Assets'}
+                      </div>
+                      <div className="text-lg font-extrabold font-mono-tabular text-slate-900 dark:text-white mt-0.5">
+                        {db.media.length}
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
+                      <div className="text-slate-500 dark:text-slate-400">
+                        {locale === 'ar' ? 'الحجم المسجل' : 'Tracked Storage'}
+                      </div>
+                      <div className="text-lg font-extrabold font-mono-tabular text-[#00C2CB] mt-0.5">
+                        {formatBytes(
+                          db.media.reduce((acc, m) => acc + (Number(m.bytes) || 0), 0)
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
+                      <div className="text-slate-500 dark:text-slate-400">
+                        {locale === 'ar' ? 'صور مرتبطة بمحتوى' : 'In Active Content'}
+                      </div>
+                      <div className="text-lg font-extrabold font-mono-tabular text-emerald-500 mt-0.5">
+                        {
+                          db.media.filter((m) => checkMediaInPublishedContent(m, db).inUse)
+                            .length
+                        }
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800">
+                      <div className="text-slate-500 dark:text-slate-400">
+                        {locale === 'ar' ? 'خدمة التخزين' : 'CDN Delivery'}
+                      </div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white mt-1.5 truncate">
+                        {cloudinaryStatus?.configured
+                          ? `Cloudinary (${cloudinaryStatus.cloudName})`
+                          : locale === 'ar'
+                          ? 'وضع التطوير المحلي'
+                          : 'Local Fallback'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Upload / Replace Form Card with Drag & Drop Compression */}
                   <div
                     id="media-upload-zone"
-                    className={`p-6 rounded-2xl bg-white dark:bg-[#0F172A] border space-y-4 scroll-mt-20 ${
-                      mediaView === 'upload'
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setMediaDragActive(true);
+                    }}
+                    onDragLeave={() => setMediaDragActive(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setMediaDragActive(false);
+                      const droppedFile = e.dataTransfer?.files?.[0];
+                      openCompressionPreviewForFile(droppedFile);
+                    }}
+                    className={`p-6 rounded-2xl bg-white dark:bg-[#0F172A] border-2 border-dashed transition-colors space-y-4 scroll-mt-20 ${
+                      mediaDragActive
+                        ? 'border-[#00C2CB] bg-[#00C2CB]/5'
+                        : mediaView === 'upload'
                         ? 'border-[#00C2CB] ring-1 ring-[#00C2CB]/30'
-                        : 'border-slate-200 dark:border-slate-800'
+                        : 'border-slate-300 dark:border-slate-700'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                         {replacingMediaItem
                           ? locale === 'ar'
                             ? `استبدال الصورة: ${replacingMediaItem.alt[locale]}`
                             : `Replace Image: ${replacingMediaItem.alt[locale]}`
                           : locale === 'ar'
-                          ? 'رفع صورة جديدة (الحد الأقصى 5MB — صيغ JPG, PNG, WebP, AVIF)'
-                          : 'Upload New Image (Max 5MB — Allowed: JPG, PNG, WebP, AVIF)'}
+                          ? 'رفع وضغط صورة جديدة (اسحب الصورة هنا أو اختر ملفاً — حتى 20MB قبل الضغط)'
+                          : 'Upload & Compress Image (Drag & drop here or choose file — up to 20MB pre-compression)'}
                       </h2>
                       {replacingMediaItem && (
                         <button
@@ -3478,11 +3958,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                               : 'Signing & Uploading...'
                             : replacingMediaItem
                             ? locale === 'ar'
-                              ? 'اختر الملف البديل'
-                              : 'Select Replacement File'
+                              ? 'اختر الملف البديل للمعاينة'
+                              : 'Select Replacement for Compression'
                             : locale === 'ar'
-                            ? 'اختر صورة للرفع الآمن'
-                            : 'Choose Image for Signed Upload'}
+                            ? 'اختر صورة للمعاينة والضغط'
+                            : 'Choose Image to Compress & Upload'}
                         </span>
                         <input
                           type="file"
@@ -3494,11 +3974,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                       </label>
 
                       <span className="text-xs text-slate-500">
-                        {cloudinaryStatus?.configured
-                          ? `Connected to Cloudinary (${cloudinaryStatus.cloudName})`
-                          : locale === 'ar'
-                          ? 'ملاحظة: أضف CLOUDINARY_API_SECRET في متغيرات الخادم لتفعيل التخزين السحابي المباشر.'
-                          : 'Tip: Set CLOUDINARY_API_SECRET in server env vars for remote CDN delivery.'}
+                        {locale === 'ar'
+                          ? 'تحويل تلقائي لصيغة WebP وتقليص الحجم مع مقارنة بصرية قبل الرفع.'
+                          : 'Automatic WebP optimization & live before/after inspection prior to upload.'}
                       </span>
                     </div>
                   </div>
@@ -3616,10 +4094,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
 
                             <div className="p-4 space-y-3">
                               <div>
-                                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                  {asset.alt[locale]}
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                    {asset.alt[locale]}
+                                  </div>
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold uppercase text-slate-600 dark:text-slate-300 shrink-0">
+                                    {asset.format}
+                                  </span>
                                 </div>
-                                <div className="text-[11px] font-mono-tabular text-slate-400 truncate mt-0.5">
+                                <div className="flex items-center gap-2 text-[11px] font-mono-tabular text-slate-400 mt-1">
+                                  <span>
+                                    {asset.width}×{asset.height}
+                                  </span>
+                                  {asset.bytes ? (
+                                    <>
+                                      <span>·</span>
+                                      <span className="text-[#00C2CB] font-semibold">
+                                        {formatBytes(asset.bytes)}
+                                      </span>
+                                    </>
+                                  ) : null}
+                                  <span>·</span>
+                                  <span className="uppercase text-[10px]">{asset.category}</span>
+                                </div>
+                                <div className="text-[10px] font-mono-tabular text-slate-500 truncate mt-0.5">
                                   public_id: {asset.publicId}
                                 </div>
                               </div>
@@ -3639,7 +4137,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                                 )}
                               </div>
 
-                              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -3652,10 +4150,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                                   className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 hover:text-[#00C2CB] cursor-pointer"
                                 >
                                   <Copy className="w-3.5 h-3.5" />
-                                  <span>{locale === 'ar' ? 'نسخ الرابط' : 'Copy URL'}</span>
+                                  <span>{locale === 'ar' ? 'نسخ' : 'Copy'}</span>
                                 </button>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingMediaAlt({ ...asset })}
+                                    className="px-2 py-1 rounded-lg text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] cursor-pointer"
+                                    title={locale === 'ar' ? 'تعديل الوصف والتصنيف' : 'Edit Alt & Category'}
+                                  >
+                                    {locale === 'ar' ? 'البيانات' : 'Alt'}
+                                  </button>
+
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -3664,7 +4171,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                                       setMediaAltEn(asset.alt.en);
                                       setMediaCategory(asset.category);
                                     }}
-                                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] cursor-pointer"
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] cursor-pointer"
                                   >
                                     {locale === 'ar' ? 'استبدال' : 'Replace'}
                                   </button>
@@ -4858,175 +5365,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL: EDIT ARTICLE */}
+      {/* WIDE 4-TAB TIPTAP ARTICLE EDITOR (Content / Details / SEO / Publish)  */}
       {/* ===================================================================== */}
       {editingArticle && (
-        <div className="fixed inset-0 z-[9992] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto text-xs">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              {locale === 'ar' ? 'تحرير المقال' : 'Edit Blog Article'}
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-medium mb-1">Title (AR) *</label>
-                <input
-                  type="text"
-                  value={editingArticle.title?.ar || ''}
-                  onChange={(e) =>
-                    setEditingArticle({
-                      ...editingArticle,
-                      title: { ar: e.target.value, en: editingArticle.title?.en || '' },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-1">Title (EN) *</label>
-                <input
-                  type="text"
-                  value={editingArticle.title?.en || ''}
-                  onChange={(e) => {
-                    const enVal = e.target.value;
-                    setEditingArticle({
-                      ...editingArticle,
-                      title: { ar: editingArticle.title?.ar || '', en: enVal },
-                      slug: editingArticle.slug || slugifyText(enVal),
-                    });
-                  }}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-1">Slug *</label>
-                <input
-                  type="text"
-                  value={editingArticle.slug || ''}
-                  onChange={(e) =>
-                    setEditingArticle({ ...editingArticle, slug: slugifyText(e.target.value) })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-1">Cover Image</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={editingArticle.coverImage || ''}
-                    onChange={(e) =>
-                      setEditingArticle({ ...editingArticle, coverImage: e.target.value })
-                    }
-                    className="flex-1 px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setImagePickerCallback(() => (url: string) =>
-                        setEditingArticle((prev) => (prev ? { ...prev, coverImage: url } : null))
-                      )
-                    }
-                    className="px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 font-semibold"
-                  >
-                    {locale === 'ar' ? 'اختر' : 'Pick'}
-                  </button>
-                </div>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block font-medium mb-1">Excerpt (AR)</label>
-                <textarea
-                  rows={2}
-                  value={editingArticle.excerpt?.ar || ''}
-                  onChange={(e) =>
-                    setEditingArticle({
-                      ...editingArticle,
-                      excerpt: { ar: e.target.value, en: editingArticle.excerpt?.en || '' },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block font-medium mb-1">Excerpt (EN)</label>
-                <textarea
-                  rows={2}
-                  value={editingArticle.excerpt?.en || ''}
-                  onChange={(e) =>
-                    setEditingArticle({
-                      ...editingArticle,
-                      excerpt: { ar: editingArticle.excerpt?.ar || '', en: e.target.value },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block font-medium mb-1">Content (AR) *</label>
-                <textarea
-                  rows={4}
-                  value={editingArticle.content?.ar || ''}
-                  onChange={(e) =>
-                    setEditingArticle({
-                      ...editingArticle,
-                      content: { ar: e.target.value, en: editingArticle.content?.en || '' },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block font-medium mb-1">Content (EN) *</label>
-                <textarea
-                  rows={4}
-                  value={editingArticle.content?.en || ''}
-                  onChange={(e) =>
-                    setEditingArticle({
-                      ...editingArticle,
-                      content: { ar: editingArticle.content?.ar || '', en: e.target.value },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800">
-              <label className="inline-flex items-center gap-2 font-semibold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={Boolean(editingArticle.published)}
-                  onChange={(e) =>
-                    setEditingArticle({ ...editingArticle, published: e.target.checked })
-                  }
-                />
-                <span>{locale === 'ar' ? 'نشر المقال' : 'Publish Article'}</span>
-              </label>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditingArticle(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800"
-                >
-                  {locale === 'ar' ? 'إلغاء' : 'Cancel'}
-                </button>
-                <button
-                  onClick={async () => {
-                    const check = validateArticlePayload(editingArticle);
-                    if (!check.valid) {
-                      showToast(check.errors.join(' '), 'error');
-                      return;
-                    }
-                    await upsertRecord('articles', editingArticle);
-                    setEditingArticle(null);
-                  }}
-                  className="px-5 py-2 rounded-lg font-semibold bg-[#00C2CB] text-slate-950"
-                >
-                  {locale === 'ar' ? 'حفظ المقال' : 'Save Article'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ArticleEditor
+          initialArticle={editingArticle}
+          isNew={editingArticleIsNew}
+          existingArticles={db.articles || []}
+          db={db}
+          locale={locale}
+          onClose={() => {
+            setEditingArticle(null);
+            setEditingArticleIsNew(false);
+          }}
+          onSave={async (updatedArticle) => {
+            await upsertRecord('articles', updatedArticle);
+            setEditingArticle(null);
+            setEditingArticleIsNew(false);
+          }}
+          onOpenImagePicker={(cb) => setImagePickerCallback(() => cb)}
+          onShowToast={showToast}
+        />
       )}
 
       {/* ===================================================================== */}
@@ -5043,7 +5402,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
             setEditingPageIsNew(false);
           }}
           onSave={async (updatedPage) => {
-            await upsertRecord('pages', updatedPage);
+            const savedPage = await upsertRecord('pages', updatedPage);
+            if (
+              savedPage &&
+              (savedPage.id === 'home' || savedPage.slug === 'home') &&
+              savedPage.heroImage &&
+              savedPage.heroImage !== db.siteSettings?.avatarUrl
+            ) {
+              await saveSiteSettings({
+                ...db.siteSettings,
+                avatarUrl: savedPage.heroImage,
+              }).catch(() => {});
+            }
             setEditingPage(null);
             setEditingPageIsNew(false);
           }}
@@ -5053,51 +5423,263 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL: COVER IMAGE PICKER FROM MEDIA LIBRARY */}
+      {/* MODAL: ENHANCED MEDIA LIBRARY PICKER & QUICK UPLOAD                   */}
       {/* ===================================================================== */}
-      {imagePickerCallback && (
+      {imagePickerCallback && (() => {
+        const pq = pickerSearch.trim().toLowerCase();
+        const pickerItems = db.media.filter((m) => {
+          if (pickerCategory !== 'all' && m.category !== pickerCategory) return false;
+          if (!pq) return true;
+          return (
+            m.alt.ar.toLowerCase().includes(pq) ||
+            m.alt.en.toLowerCase().includes(pq) ||
+            m.publicId.toLowerCase().includes(pq)
+          );
+        });
+
+        return (
+          <div
+            onClick={() => setImagePickerCallback(null)}
+            className="fixed inset-0 z-[9996] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-3xl rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-6 space-y-4 max-h-[88vh] flex flex-col"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                    {locale === 'ar'
+                      ? 'اختيار أو رفع صورة مضغوطة من مكتبة الوسائط'
+                      : 'Select or Upload Compressed Image'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {locale === 'ar'
+                      ? 'اضغط على أي صورة لإدراجها فوراً، أو ارفع صورة جديدة مع معاينة الضغط.'
+                      : 'Click any image to insert, or compress & upload a new image right from here.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] hover:text-white transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{locale === 'ar' ? 'رفع وضغط صورة جديدة' : 'Upload & Compress'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      disabled={uploadingMedia}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        const cb = imagePickerCallback;
+                        openCompressionPreviewForFile(file, (uploadedUrl) => {
+                          cb(uploadedUrl);
+                          setImagePickerCallback(null);
+                        });
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setImagePickerCallback(null)}
+                    className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Search + Category Filter inside Picker */}
+              <div className="flex flex-wrap gap-2">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
+                  <input
+                    type="text"
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder={
+                      locale === 'ar' ? 'ابحث في الصور...' : 'Search media assets...'
+                    }
+                    className="w-full ps-8 pe-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                  />
+                </div>
+                <select
+                  value={pickerCategory}
+                  onChange={(e) => setPickerCategory(e.target.value as any)}
+                  className="px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                >
+                  <option value="all">{locale === 'ar' ? 'كل التصنيفات' : 'All'}</option>
+                  <option value="blog">Blog</option>
+                  <option value="project">Projects</option>
+                  <option value="clinic">Clinics</option>
+                  <option value="profile">Profile</option>
+                  <option value="general">General</option>
+                </select>
+              </div>
+
+              {pickerItems.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  {locale === 'ar'
+                    ? 'لا توجد صور مطابقة — يمكنك رفع وضغط صورة جديدة الآن.'
+                    : 'No matching images — use Upload & Compress above to add one.'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 overflow-y-auto pr-1">
+                  {pickerItems.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        imagePickerCallback(m.secureUrl);
+                        setImagePickerCallback(null);
+                      }}
+                      className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] bg-[#070E1A] flex flex-col items-center gap-2 text-center cursor-pointer transition-colors"
+                    >
+                      <OptimizedImage
+                        src={m.secureUrl}
+                        alt={m.alt[locale]}
+                        width={400}
+                        containerClassName="relative w-full h-24 rounded-lg bg-slate-900 overflow-hidden flex items-center justify-center"
+                        className="w-full h-full object-contain"
+                      />
+                      <span className="text-[11px] font-semibold text-slate-200 truncate w-full">
+                        {m.alt[locale] || m.publicId}
+                      </span>
+                      <span className="text-[10px] font-mono-tabular text-slate-400">
+                        {m.width}×{m.height} · {m.format.toUpperCase()}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ===================================================================== */}
+      {/* MODAL: EDIT MEDIA ALT TEXT & CATEGORY                                 */}
+      {/* ===================================================================== */}
+      {editingMediaAlt && (
         <div
-          onClick={() => setImagePickerCallback(null)}
-          className="fixed inset-0 z-[9996] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setEditingMediaAlt(null)}
+          className="fixed inset-0 z-[9997] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-6 space-y-4"
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-6 space-y-4 text-xs"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                {locale === 'ar'
-                  ? 'اختر صورة الغلاف من مكتبة الوسائط'
-                  : 'Select Cover Image from Media Library'}
+                {locale === 'ar' ? 'تعديل بيانات الصورة البديلة' : 'Edit Media Alt & Category'}
               </h3>
-              <button onClick={() => setImagePickerCallback(null)} className="text-slate-400">
+              <button
+                type="button"
+                onClick={() => setEditingMediaAlt(null)}
+                className="text-slate-400 cursor-pointer"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-              {db.media.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    imagePickerCallback(m.secureUrl);
-                    setImagePickerCallback(null);
-                  }}
-                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] bg-[#070E1A] flex flex-col items-center gap-2 text-center"
+
+            <div className="space-y-3">
+              <div>
+                <label className="block font-semibold mb-1">Alt (AR)</label>
+                <input
+                  type="text"
+                  dir="rtl"
+                  value={editingMediaAlt.alt.ar}
+                  onChange={(e) =>
+                    setEditingMediaAlt({
+                      ...editingMediaAlt,
+                      alt: { ...editingMediaAlt.alt, ar: e.target.value },
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Alt (EN)</label>
+                <input
+                  type="text"
+                  dir="ltr"
+                  value={editingMediaAlt.alt.en}
+                  onChange={(e) =>
+                    setEditingMediaAlt({
+                      ...editingMediaAlt,
+                      alt: { ...editingMediaAlt.alt, en: e.target.value },
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">
+                  {locale === 'ar' ? 'التصنيف' : 'Category'}
+                </label>
+                <select
+                  value={editingMediaAlt.category}
+                  onChange={(e) =>
+                    setEditingMediaAlt({
+                      ...editingMediaAlt,
+                      category: e.target.value as MediaAsset['category'],
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
                 >
-                  <img
-                    src={m.secureUrl}
-                    alt={m.alt[locale]}
-                    className="w-24 h-24 object-contain"
-                  />
-                  <span className="text-[11px] text-slate-300 truncate w-full">
-                    {m.alt[locale]}
-                  </span>
-                </button>
-              ))}
+                  <option value="general">General</option>
+                  <option value="profile">Profile / About</option>
+                  <option value="project">Project / System</option>
+                  <option value="clinic">Medical Clinic</option>
+                  <option value="blog">Blog Article</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingMediaAlt(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 cursor-pointer"
+              >
+                {locale === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await upsertRecord('media', editingMediaAlt);
+                  setEditingMediaAlt(null);
+                  showToast(
+                    locale === 'ar' ? 'تم تحديث بيانات الصورة' : 'Media metadata updated',
+                    'success'
+                  );
+                }}
+                className="px-4 py-2 rounded-xl font-bold bg-[#00C2CB] text-slate-950 cursor-pointer"
+              >
+                {locale === 'ar' ? 'حفظ' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: PRE-UPLOAD IMAGE COMPRESSION & QUALITY PREVIEW (z-[9998])      */}
+      {/* ===================================================================== */}
+      {pendingUploadPayload && (
+        <ImageUploadPreviewModal
+          file={pendingUploadPayload.file}
+          locale={locale}
+          initialAltAr={mediaAltAr}
+          initialAltEn={mediaAltEn}
+          initialCategory={mediaCategory}
+          replacingAsset={replacingMediaItem}
+          cloudinaryConfigured={cloudinaryStatus?.configured}
+          uploading={uploadingMedia}
+          onCancel={() => setPendingUploadPayload(null)}
+          onConfirmUpload={handleConfirmCompressedUpload}
+        />
       )}
 
       {/* ===================================================================== */}
@@ -5210,6 +5792,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       )}
 
       {/* ===================================================================== */}
+      {/* MODAL: MOVE ARTICLE TO TRASH / ARCHIVE (SOFT DELETE) */}
+      {/* ===================================================================== */}
+      {articleTrashConfirm && (
+        <div
+          onClick={() => setArticleTrashConfirm(null)}
+          className="fixed inset-0 z-[9997] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-amber-500/40 p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center gap-3 text-amber-500">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {locale === 'ar'
+                  ? 'نقل المقال إلى سلة المحذوفات'
+                  : 'Move Article to Trash / Archive'}
+              </h3>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
+              <div className="font-bold text-slate-900 dark:text-white">
+                {articleTrashConfirm.title.ar} — {articleTrashConfirm.title.en}
+              </div>
+              <div className="font-mono-tabular text-[#00C2CB]">
+                /{locale}/blog/{articleTrashConfirm.slug}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {locale === 'ar'
+                ? 'سيتم تحويل هذا المقال إلى حالة مسودة ونقله إلى الأرشيف، فيختفي فوراً من المدونة العامة وملف Sitemap دون فقدان محتواه، ويمكنك استعادته أو حذفه نهائياً لاحقاً.'
+                : 'This article will be converted to draft and moved to Trash—immediately hiding it from the public blog and sitemap while allowing full recovery later.'}
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setArticleTrashConfirm(null)}
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                {locale === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const target = articleTrashConfirm;
+                  setArticleTrashConfirm(null);
+                  await upsertRecord('articles', {
+                    ...target,
+                    published: false,
+                    archived: true,
+                    archivedAt: new Date().toISOString(),
+                  });
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 cursor-pointer"
+              >
+                {locale === 'ar' ? 'نقل للأرشيف كمسودة' : 'Move to Trash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
       {/* MODAL: DELETE CONFIRMATION (WITH LITERAL NAME GUARD WHEN REQUIRED) */}
       {/* ===================================================================== */}
       {deleteConfirm && (
@@ -5241,8 +5888,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
               <div className="space-y-2 text-xs">
                 <label className="block font-semibold text-slate-700 dark:text-slate-200">
                   {locale === 'ar'
-                    ? 'لتأكيد الحذف النهائي، اكتب اسم الصفحة حرفياً:'
-                    : 'Type the exact page name below to confirm permanent deletion:'}
+                    ? 'لتأكيد الحذف النهائي، اكتب الاسم المطابق حرفياً:'
+                    : 'Type the exact name below to confirm permanent deletion:'}
                 </label>
                 <div className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#070E1A] font-bold text-[#00C2CB] select-all">
                   {deleteConfirm.expectedLiteralName}

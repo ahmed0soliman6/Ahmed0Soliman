@@ -82,7 +82,7 @@ function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
     clinics: (rawDb.clinics || []).filter((item) => item.published !== false),
     doctors: (rawDb.doctors || []).filter((item) => item.published !== false),
     services: (rawDb.services || []).filter((item) => item.published !== false),
-    articles: (rawDb.articles || []).filter((item) => item.published !== false),
+    articles: (rawDb.articles || []).filter((item) => item.published !== false && item.archived !== true),
   };
 }
 
@@ -340,17 +340,47 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (fbConfig) {
         const fbData = await fetchFromExistingFirestore(hasVerifiedAdmin, true);
         if (fbData) {
+          const toMs = (iso?: string) => {
+            const t = iso ? Date.parse(iso) : 0;
+            return Number.isNaN(t) ? 0 : t;
+          };
+          const mergeByNewest = <T extends { id?: string; updatedAt?: string }>(
+            serverList: T[] = [],
+            fbList: T[] = []
+          ): T[] => {
+            const map = new Map<string, T>();
+            for (const item of serverList) {
+              if (item?.id) map.set(item.id, item);
+            }
+            for (const fbItem of fbList) {
+              if (!fbItem?.id) continue;
+              const existing = map.get(fbItem.id);
+              if (!existing || toMs(fbItem.updatedAt) > toMs(existing.updatedAt)) {
+                map.set(fbItem.id, fbItem);
+              }
+            }
+            return Array.from(map.values());
+          };
+
+          const serverSettingsTime = toMs((baseData.siteSettings as any)?.updatedAt);
+          const fbSettingsTime = toMs((fbData.siteSettings as any)?.updatedAt);
+          const resolvedSettings =
+            fbData.siteSettings && fbSettingsTime > serverSettingsTime
+              ? fbData.siteSettings
+              : baseData.siteSettings || fbData.siteSettings;
+
           setDb((prev) => {
             const combined: PlatformDatabase = {
               ...prev,
               ...baseData,
-              ...(fbData.siteSettings ? { siteSettings: fbData.siteSettings } : {}),
-              ...(fbData.pages && fbData.pages.length > 0 ? { pages: fbData.pages } : {}),
-              ...(fbData.projects && fbData.projects.length > 0 ? { projects: fbData.projects } : {}),
-              ...(fbData.clinics && fbData.clinics.length > 0 ? { clinics: fbData.clinics } : {}),
-              ...(fbData.doctors && fbData.doctors.length > 0 ? { doctors: fbData.doctors } : {}),
-              ...(fbData.services && fbData.services.length > 0 ? { services: fbData.services } : {}),
-              ...(fbData.articles && fbData.articles.length > 0 ? { articles: fbData.articles } : {}),
+              ...(resolvedSettings ? { siteSettings: resolvedSettings } : {}),
+              pages: mergeByNewest(baseData.pages, fbData.pages),
+              projects: mergeByNewest(baseData.projects, fbData.projects),
+              clinics: mergeByNewest(baseData.clinics, fbData.clinics),
+              doctors: mergeByNewest(baseData.doctors, fbData.doctors),
+              services: mergeByNewest(baseData.services, fbData.services),
+              articles: mergeByNewest(baseData.articles, fbData.articles),
+              media: mergeByNewest(baseData.media, fbData.media),
             };
             const sanitized = hasVerifiedAdmin ? combined : stripDraftRecords(combined);
             saveLocalDbSnapshot(sanitized);

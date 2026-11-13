@@ -13,15 +13,17 @@ interface OptimizedImageProps {
 }
 
 /**
- * Automatically applies Cloudinary URL transformations (f_auto,q_auto,w_...)
- * for WebP/AVIF delivery and responsive sizing, with lazy loading and a resilient fallback container.
+ * Automatically applies Cloudinary URL transformations (f_auto,q_auto,dpr_auto,c_limit,w_...)
+ * for WebP/AVIF delivery, retina pixel-ratio scaling, and resilient fallback rendering.
  */
 export function optimizeCloudinaryUrl(url?: string, targetWidth = 1200): string {
-  if (!url) return '';
+  if (!url || typeof url !== 'string') return '';
   if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
-    // Inject f_auto,q_auto,c_limit,w_{targetWidth} if not already transformed
     if (!url.includes('f_auto')) {
-      return url.replace('/upload/', `/upload/f_auto,q_auto,c_limit,w_${targetWidth}/`);
+      return url.replace(
+        '/upload/',
+        `/upload/f_auto,q_auto,dpr_auto,c_limit,w_${targetWidth}/`
+      );
     }
   }
   return url;
@@ -38,18 +40,32 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
 }) => {
   const [hasError, setHasError] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
 
   const finalSrc = optimizeCloudinaryUrl(src, width);
+  const resolvedContainerClass = containerClassName.includes('relative')
+    ? containerClassName
+    : `relative overflow-hidden ${containerClassName}`;
+
+  React.useEffect(() => {
+    setHasError(false);
+    const el = imgRef.current;
+    if (el && el.complete && el.naturalWidth > 0) {
+      setLoaded(true);
+    } else {
+      setLoaded(false);
+    }
+  }, [finalSrc]);
 
   if (!finalSrc || hasError) {
     return (
       <div
-        className={`${containerClassName} bg-gradient-to-br from-slate-900 via-[#0F172A] to-slate-950 flex flex-col items-center justify-center p-6 text-center border border-slate-800/80`}
+        className={`${resolvedContainerClass} bg-gradient-to-br from-slate-900 via-[#0F172A] to-slate-950 flex flex-col items-center justify-center p-4 text-center border border-slate-800/80`}
       >
-        <div className="w-12 h-12 rounded-xl bg-[#00C2CB]/10 border border-[#00C2CB]/30 flex items-center justify-center text-[#00C2CB] mb-3">
-          <ImageIcon className="w-6 h-6" />
+        <div className="w-10 h-10 rounded-xl bg-[#00C2CB]/10 border border-[#00C2CB]/30 flex items-center justify-center text-[#00C2CB] mb-2">
+          <ImageIcon className="w-5 h-5" />
         </div>
-        <span className="text-xs font-medium text-slate-300 line-clamp-2 max-w-[220px]">
+        <span className="text-[11px] font-medium text-slate-300 line-clamp-2 max-w-[200px]">
           {fallbackLabel || alt || 'Ahmed Soliman Platform'}
         </span>
       </div>
@@ -57,14 +73,15 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   }
 
   return (
-    <div className={containerClassName}>
+    <div className={resolvedContainerClass}>
       {!loaded && (
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-slate-200/60 dark:bg-slate-800/50 animate-pulse"
+          className="absolute inset-0 bg-slate-200/40 dark:bg-slate-800/40 animate-pulse pointer-events-none"
         />
       )}
       <img
+        ref={imgRef}
         src={finalSrc}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
@@ -72,8 +89,8 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         referrerPolicy="no-referrer"
         onLoad={() => setLoaded(true)}
         onError={() => setHasError(true)}
-        className={`${className} transition-opacity duration-300 ${
-          loaded ? 'opacity-100' : 'opacity-0'
+        className={`${className} transition-opacity duration-200 ${
+          loaded ? 'opacity-100' : 'opacity-95'
         }`}
       />
     </div>

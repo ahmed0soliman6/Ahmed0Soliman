@@ -65,7 +65,7 @@ service cloud.firestore {
     // 3. Pages Collection (/pages/{pageId})
     // Core system pages (home, about, projects, clinics, blog, solimedical, isCore) are strictly protected from deletion.
     match /pages/{pageId} {
-      allow get, list: if resource.data.published == true || isAdmin();
+      allow get, list: if (resource.data.published == true && !('archived' in resource.data && resource.data.archived == true)) || isAdmin();
       allow create, update: if isValidId(pageId) && isAdmin() &&
         hasValidBaseContentFields(request.resource.data) &&
         isValidBilingual(request.resource.data.title, 300);
@@ -123,7 +123,7 @@ service cloud.firestore {
 
     // 8. Articles / Blog Collection (/articles/{articleId})
     match /articles/{articleId} {
-      allow get, list: if resource.data.published == true || isAdmin();
+      allow get, list: if (resource.data.published == true && !('archived' in resource.data && resource.data.archived == true)) || isAdmin();
       allow create, update: if isValidId(articleId) && isAdmin() &&
         hasValidBaseContentFields(request.resource.data) &&
         request.resource.data.slug is string &&
