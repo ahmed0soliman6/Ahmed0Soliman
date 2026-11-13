@@ -34,8 +34,11 @@ interface LayoutResolverProps {
   forceStandalone?: boolean;
   standaloneTitle?: string;
   standaloneSubtitle?: string;
+  standaloneLogoUrl?: string;
   standaloneCtaLabel?: string;
   standaloneCtaHref?: string;
+  onStandaloneCtaClick?: () => void;
+  standaloneShowVisitorHeader?: boolean;
   standaloneAccentColor?: string;
   adminQuickEditPath?: string;
 }
@@ -46,8 +49,11 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
   forceStandalone = false,
   standaloneTitle,
   standaloneSubtitle,
+  standaloneLogoUrl,
   standaloneCtaLabel,
   standaloneCtaHref,
+  onStandaloneCtaClick,
+  standaloneShowVisitorHeader = false,
   standaloneAccentColor = '#0D9488',
   adminQuickEditPath = '/admin',
 }) => {
@@ -76,73 +82,107 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
   const isStandaloneQuery =
     searchParams.get('standalone') === '1' || searchParams.get('mode') === 'standalone';
-  const isStandalone = !isAdminRoute && (forceStandalone || isStandaloneQuery);
+  const adminBypassStandalone =
+    Boolean(adminSession) && searchParams.get('preview_nav') === '1';
 
   const settings = db.siteSettings;
 
   const isPagePublished = (slugId: string) => {
     const found = db.pages.find((p) => p.slug === slugId || p.id === slugId);
-    return found ? found.published !== false : true;
+    return found ? found.published !== false && found.archived !== true : true;
   };
 
-  const currentRoutePageSlug = pathname.includes('/about')
+  const cleanRoutePath = pathname.replace(/^\/(ar|en)(?=\/|$)/, '') || '/';
+  const currentRoutePageSlug = cleanRoutePath.startsWith('/landing/')
+    ? decodeURIComponent(cleanRoutePath.slice('/landing/'.length).replace(/\/$/, ''))
+    : cleanRoutePath.startsWith('/p/')
+    ? decodeURIComponent(cleanRoutePath.slice('/p/'.length).replace(/\/$/, ''))
+    : cleanRoutePath.includes('/about')
     ? 'about'
-    : pathname.includes('/solimedical')
+    : cleanRoutePath.includes('/solimedical') ||
+      cleanRoutePath.includes('/campaign') ||
+      cleanRoutePath === '/landing'
     ? 'solimedical'
-    : pathname.includes('/projects')
+    : cleanRoutePath.includes('/projects')
     ? 'projects'
-    : pathname.includes('/clinics')
+    : cleanRoutePath.includes('/clinics')
     ? 'clinics'
-    : pathname.includes('/blog')
+    : cleanRoutePath.includes('/blog')
     ? 'blog'
     : 'home';
+
+  const activePageRecord = db.pages.find(
+    (p) =>
+      p.slug === currentRoutePageSlug ||
+      p.id === currentRoutePageSlug ||
+      p.id === `page-${currentRoutePageSlug}`
+  );
+  const isPageStandaloneByDefault = Boolean(activePageRecord?.standaloneByDefault);
+  const isStandalone =
+    !isAdminRoute &&
+    !adminBypassStandalone &&
+    (forceStandalone || isStandaloneQuery || isPageStandaloneByDefault);
 
   const isCurrentPageHidden = !isAdminRoute && !isPagePublished(currentRoutePageSlug);
 
   const allNavItems = [
     {
       id: 'home',
-      label: locale === 'ar' ? 'الرئيسية' : 'HOME',
+      label: locale === 'ar' ? 'الرئيسية' : 'Home',
       href: `/${locale}`,
       match: (p: string) => p === '/' || p === `/${locale}` || p === `/${locale}/`,
     },
     {
       id: 'about',
-      label: locale === 'ar' ? 'من أنا' : 'ABOUT',
+      label: locale === 'ar' ? 'من أنا' : 'About',
       href: `/${locale}/about`,
       match: (p: string) => p.includes('/about'),
     },
     {
       id: 'projects',
-      label: locale === 'ar' ? 'المشروعات' : 'PORTFOLIO',
+      label: locale === 'ar' ? 'المشروعات' : 'Projects',
       href: `/${locale}/projects`,
       match: (p: string) => p.includes('/projects') || p.includes('/solimedical'),
     },
     {
       id: 'clinics',
-      label: locale === 'ar' ? 'العيادات' : 'CLINICS',
+      label: locale === 'ar' ? 'العيادات' : 'Clinics',
       href: `/${locale}/clinics`,
       match: (p: string) => p.includes('/clinics'),
     },
     {
       id: 'blog',
-      label: locale === 'ar' ? 'المقالات' : 'BLOG',
+      label: locale === 'ar' ? 'المقالات' : 'Articles',
       href: `/${locale}/blog`,
       match: (p: string) => p.includes('/blog'),
     },
   ];
 
-  const navItems = allNavItems.filter((item) => adminSession || isPagePublished(item.id));
+  // Unauthenticated visitors only see published pages; verified admins see all sections
+  const navItems = allNavItems.filter((item) => Boolean(adminSession) || isPagePublished(item.id));
 
   const handleToggleLocale = () => {
     const nextLocale = locale === 'ar' ? 'en' : 'ar';
     setLocale(nextLocale);
   };
 
+  const handleEnterStandalone = () => {
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.delete('preview_nav');
+    nextParams.set('standalone', '1');
+    const queryStr = nextParams.toString();
+    navigate(`${pathname}${queryStr ? `?${queryStr}` : ''}`);
+  };
+
   const handleExitStandalone = () => {
     const nextParams = new URLSearchParams(window.location.search);
     nextParams.delete('standalone');
     nextParams.delete('mode');
+    if (forceStandalone || isPageStandaloneByDefault) {
+      nextParams.set('preview_nav', '1');
+    } else {
+      nextParams.delete('preview_nav');
+    }
     const queryStr = nextParams.toString();
     navigate(`${pathname}${queryStr ? `?${queryStr}` : ''}`);
   };
@@ -198,7 +238,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       case 'clinics-teal':
         return 'bg-[#F2FBF9] text-[#0F172A] selection:bg-[#0D9488] selection:text-white';
       case 'blog-magazine':
-        return 'bg-[#F5F4EF] text-[#18181B] selection:bg-[#18181B] selection:text-white';
+        return 'bg-[#F5F4EF] dark:bg-[#111413] text-[#18181B] dark:text-[#EDEAE2] selection:bg-[#16382E] selection:text-white dark:selection:bg-[#6EE7B7] dark:selection:text-[#0F1715]';
       case 'soli-showcase':
         return 'bg-[#040D12] text-[#F0F9FF] selection:bg-[#00D4FF] selection:text-slate-950';
       default:
@@ -206,52 +246,161 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
     }
   };
 
-  // Render Page-Specific Top Header ONLY when Admin is logged in (visitors see inner pages as 100% standalone without platform header or Admin links)
+  // Render Page-Specific Top Header
   const renderWorldHeader = () => {
     if (isAdminRoute) return null;
 
-    // Visitors who are NOT logged in as Admin do NOT see the top header containing other pages or Admin Dashboard on inner pages
-    if (!adminSession) {
-      return null;
-    }
-
-    // 1. Strict Standalone Mode for Clinic Landing Pages
+    // 1. STANDALONE HEADER (Triggered by ?standalone=1 or standaloneByDefault on page/clinic)
+    // Displays ONLY page/clinic identity + Language Toggle + Direct Contact/Booking CTA (Zero cross-site nav links)
     if (isStandalone) {
+      const resolvedStandaloneTitle =
+        standaloneTitle ||
+        (pageWorld === 'about-editorial'
+          ? settings.ownerName[locale]
+          : activePageRecord?.title?.[locale] || settings.brandName[locale]);
+
+      const resolvedStandaloneSubtitle =
+        standaloneSubtitle ||
+        (pageWorld === 'about-editorial'
+          ? settings.ownerRole[locale]
+          : activePageRecord?.kicker?.[locale] || undefined);
+
+      const isDarkStandaloneWorld =
+        pageWorld === 'soli-showcase' || pageWorld === 'projects-indigo';
+      const isMagazineStandaloneWorld = pageWorld === 'blog-magazine';
+      const isEditorialStandaloneWorld = pageWorld === 'about-editorial';
+
+      const headerClass = isDarkStandaloneWorld
+        ? 'sticky top-0 z-40 h-16 px-4 sm:px-8 bg-[#040D12]/95 backdrop-blur-md border-b border-[#00D4FF]/20 text-white flex items-center justify-between gap-4'
+        : isMagazineStandaloneWorld
+        ? 'sticky top-0 z-40 h-16 px-4 sm:px-8 bg-[#F5F4EF]/95 dark:bg-[#111413]/95 backdrop-blur-md border-b border-stone-300 dark:border-stone-800 text-stone-900 dark:text-[#EDEAE2] flex items-center justify-between gap-4'
+        : 'sticky top-0 z-40 h-16 px-4 sm:px-8 bg-white/95 backdrop-blur-md border-b border-slate-200 text-slate-900 flex items-center justify-between gap-4 shadow-xs';
+
+      const ctaDefaultLabel =
+        pageWorld === 'clinics-teal'
+          ? locale === 'ar'
+            ? 'احجز موعدك الآن'
+            : 'Book Appointment'
+          : locale === 'ar'
+          ? 'تواصل مباشر'
+          : 'Direct Contact';
+
+      const ctaButtonClass = isDarkStandaloneWorld
+        ? 'px-4 py-2 rounded-xl text-xs font-extrabold bg-[#00D4FF] text-slate-950 hover:opacity-95 active:scale-[0.97] transition-all whitespace-nowrap shrink-0 cursor-pointer'
+        : isEditorialStandaloneWorld
+        ? 'px-4 py-2 rounded-full text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 active:scale-[0.97] transition-all whitespace-nowrap shrink-0 cursor-pointer'
+        : isMagazineStandaloneWorld
+        ? 'px-4 py-2 rounded-xl text-xs font-bold bg-[#16382E] text-white dark:bg-[#6EE7B7] dark:text-[#0F1715] hover:opacity-95 active:scale-[0.97] transition-all whitespace-nowrap shrink-0 cursor-pointer'
+        : 'px-4 py-2 rounded-xl text-xs font-bold text-white hover:opacity-95 active:scale-[0.97] transition-all whitespace-nowrap shrink-0 shadow-sm cursor-pointer';
+
       return (
-        <header className="sticky top-0 z-40 h-16 px-4 sm:px-8 bg-white/95 backdrop-blur-md border-b border-teal-500/20 flex items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-center gap-3 min-w-0">
-            <span
-              className="w-3 h-3 rounded-full shrink-0"
-              style={{ backgroundColor: standaloneAccentColor }}
-            />
-            <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 truncate">
-              {standaloneTitle || settings.brandName[locale]}
-            </span>
-            {standaloneSubtitle && (
-              <span className="hidden md:inline-block text-xs text-slate-500 truncate">
-                · {standaloneSubtitle}
-              </span>
-            )}
-          </div>
+        <header
+          className={headerClass}
+          style={
+            pageWorld === 'clinics-teal'
+              ? { borderColor: `${standaloneAccentColor}28` }
+              : undefined
+          }
+        >
+          <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4">
+            {/* Brand identity container (strictly non-navigating inside Standalone mode) */}
+            <div className="flex items-center gap-3 min-w-0">
+              {standaloneLogoUrl ? (
+                <img
+                  src={standaloneLogoUrl}
+                  alt={resolvedStandaloneTitle}
+                  className="w-9 h-9 rounded-xl object-contain bg-white border border-slate-200 p-1 shrink-0"
+                />
+              ) : (
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{
+                    backgroundColor: isDarkStandaloneWorld
+                      ? '#00D4FF'
+                      : isEditorialStandaloneWorld
+                      ? '#18181B'
+                      : isMagazineStandaloneWorld
+                      ? '#16382E'
+                      : standaloneAccentColor,
+                  }}
+                />
+              )}
+              <div className="min-w-0">
+                <span className="block text-sm sm:text-base font-extrabold tracking-tight truncate">
+                  {resolvedStandaloneTitle}
+                </span>
+                {resolvedStandaloneSubtitle && (
+                  <span
+                    className={`hidden md:block text-[11px] truncate ${
+                      isDarkStandaloneWorld
+                        ? 'text-slate-400'
+                        : isMagazineStandaloneWorld
+                        ? 'text-stone-500 dark:text-stone-400'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {resolvedStandaloneSubtitle}
+                  </span>
+                )}
+              </div>
+            </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleToggleLocale}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-700 hover:border-teal-500 transition-colors whitespace-nowrap shrink-0"
-            >
-              {locale === 'ar' ? 'EN' : 'عربي'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {isMagazineStandaloneWorld && (
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#171B1A] text-stone-700 dark:text-stone-200 cursor-pointer"
+                >
+                  {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+                </button>
+              )}
 
-            <a
-              href={standaloneCtaHref || settings.whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ backgroundColor: standaloneAccentColor }}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 shadow-sm"
-            >
-              {standaloneCtaLabel || (locale === 'ar' ? 'احجز موعدك الآن' : 'Book Appointment')}
-            </a>
+              <button
+                type="button"
+                onClick={handleToggleLocale}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  isDarkStandaloneWorld
+                    ? 'border-[#00D4FF]/30 text-slate-100 hover:border-[#00D4FF]'
+                    : isMagazineStandaloneWorld
+                    ? 'border-stone-300 dark:border-stone-700 bg-white dark:bg-[#171B1A] text-stone-800 dark:text-stone-100 hover:border-stone-500'
+                    : 'border-slate-200 text-slate-800 hover:border-slate-400'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>{locale === 'ar' ? 'EN' : 'عربي'}</span>
+              </button>
+
+              {onStandaloneCtaClick ? (
+                <button
+                  type="button"
+                  onClick={onStandaloneCtaClick}
+                  style={
+                    !isDarkStandaloneWorld && !isEditorialStandaloneWorld && !isMagazineStandaloneWorld
+                      ? { backgroundColor: standaloneAccentColor }
+                      : undefined
+                  }
+                  className={ctaButtonClass}
+                >
+                  {standaloneCtaLabel || ctaDefaultLabel}
+                </button>
+              ) : (
+                <a
+                  href={standaloneCtaHref || settings.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={
+                    !isDarkStandaloneWorld && !isEditorialStandaloneWorld && !isMagazineStandaloneWorld
+                      ? { backgroundColor: standaloneAccentColor }
+                      : undefined
+                  }
+                  className={ctaButtonClass}
+                >
+                  {standaloneCtaLabel || ctaDefaultLabel}
+                </a>
+              )}
+            </div>
           </div>
         </header>
       );
@@ -293,30 +442,32 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </nav>
             </div>
 
-            {/* Right: Circular Black Home Icon (exact akhilakrishnan reference) + Admin & Lang */}
+            {/* Right: Language Switcher + Admin CMS (verified admin only) + Circular Black Home Icon */}
             <div className="flex items-center gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={handleToggleLocale}
-                className="px-3 py-1.5 rounded-full text-xs font-bold border border-zinc-300 text-zinc-800 hover:bg-zinc-100 transition-colors"
+                className="px-3 py-1.5 rounded-full text-xs font-bold border border-zinc-300 text-zinc-800 hover:bg-zinc-100 transition-colors cursor-pointer"
               >
                 {locale === 'ar' ? 'EN' : 'عربي'}
               </button>
 
-              <button
-                type="button"
-                onClick={handleAdminButtonClick}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-zinc-300 transition-colors whitespace-nowrap shrink-0"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
-              </button>
+              {Boolean(adminSession) && (
+                <button
+                  type="button"
+                  onClick={handleAdminButtonClick}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-zinc-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={() => navigate(`/${locale}`)}
                 title={locale === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
-                className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors shadow-sm"
+                className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors shadow-sm cursor-pointer"
               >
                 <Home className="w-4 h-4" />
               </button>
@@ -324,7 +475,8 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-full border border-zinc-300 text-zinc-900"
+                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                className="md:hidden p-2 rounded-full border border-zinc-300 text-zinc-900 cursor-pointer"
               >
                 {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </button>
@@ -342,7 +494,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
             <button
               type="button"
               onClick={() => navigate(`/${locale}`)}
-              className="text-base sm:text-lg font-black tracking-wider text-white whitespace-nowrap shrink-0 flex items-center gap-2"
+              className="text-base sm:text-lg font-black tracking-wider text-white whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer"
             >
               <span className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-xs font-mono-tabular text-white">
                 AS
@@ -358,7 +510,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                     key={item.id}
                     type="button"
                     onClick={() => navigate(item.href)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                       active
                         ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm'
                         : 'text-indigo-200/75 hover:text-white'
@@ -374,24 +526,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               <button
                 type="button"
                 onClick={handleToggleLocale}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-500/30 text-indigo-200 hover:border-purple-400 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-500/30 text-indigo-200 hover:border-purple-400 transition-colors cursor-pointer"
               >
                 {locale === 'ar' ? 'EN' : 'عربي'}
               </button>
 
-              <button
-                type="button"
-                onClick={handleAdminButtonClick}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95 transition-opacity shadow-md shadow-indigo-600/20 whitespace-nowrap shrink-0"
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
-              </button>
+              {Boolean(adminSession) && (
+                <button
+                  type="button"
+                  onClick={handleAdminButtonClick}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95 transition-opacity shadow-md shadow-indigo-600/20 whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg border border-indigo-500/30 text-white"
+                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                className="md:hidden p-2 rounded-lg border border-indigo-500/30 text-white cursor-pointer"
               >
                 {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </button>
@@ -408,14 +563,25 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
           <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
             <button
               type="button"
-              onClick={() => navigate(`/${locale}`)}
-              className="flex items-center gap-2.5 text-slate-900 font-extrabold text-base sm:text-lg whitespace-nowrap shrink-0"
+              onClick={() => navigate(`/${locale}/clinics`)}
+              className="flex items-center gap-2.5 text-slate-900 font-extrabold text-base sm:text-lg whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <span className="w-8 h-8 rounded-xl bg-[#0D9488] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                +
-              </span>
+              {standaloneLogoUrl ? (
+                <img
+                  src={standaloneLogoUrl}
+                  alt={standaloneTitle || settings.brandName[locale]}
+                  className="w-8 h-8 rounded-xl object-contain bg-white border border-slate-200 p-1 shrink-0"
+                />
+              ) : (
+                <span
+                  className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-bold text-sm shadow-xs"
+                  style={{ backgroundColor: standaloneAccentColor || '#0D9488' }}
+                >
+                  +
+                </span>
+              )}
               <span>
-                {locale === 'ar' ? 'البوابة الطبية · أحمد سليمان' : 'Medical Clinics Portal'}
+                {locale === 'ar' ? 'دليل العيادات · أحمد سليمان' : 'Medical Clinics Portal'}
               </span>
             </button>
 
@@ -427,7 +593,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                     key={item.id}
                     type="button"
                     onClick={() => navigate(item.href)}
-                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                       active
                         ? 'text-[#0D9488] underline underline-offset-8 decoration-2'
                         : 'text-slate-600 hover:text-[#0D9488]'
@@ -443,24 +609,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               <button
                 type="button"
                 onClick={handleToggleLocale}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-teal-600/25 text-teal-800 hover:bg-teal-50 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-teal-600/25 text-teal-800 hover:bg-teal-50 transition-colors cursor-pointer"
               >
                 {locale === 'ar' ? 'EN' : 'عربي'}
               </button>
 
-              <button
-                type="button"
-                onClick={handleAdminButtonClick}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#0D9488] text-white hover:bg-[#0F766E] transition-colors whitespace-nowrap shrink-0 shadow-xs"
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
-              </button>
+              {Boolean(adminSession) && (
+                <button
+                  type="button"
+                  onClick={handleAdminButtonClick}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#0D9488] text-white hover:bg-[#0F766E] transition-colors whitespace-nowrap shrink-0 shadow-xs cursor-pointer"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-800"
+                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-800 cursor-pointer"
               >
                 {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </button>
@@ -470,17 +639,17 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       );
     }
 
-    // 5. WORLD 5: BLOG & KNOWLEDGE HUB ('blog-magazine' — Warm Daylight Editorial Magazine)
+    // 5. WORLD 5: BLOG & KNOWLEDGE HUB ('blog-magazine' — Ivory Daylight / Night Reading Magazine)
     if (pageWorld === 'blog-magazine') {
       return (
-        <header className="sticky top-0 z-40 h-18 px-4 sm:px-8 bg-[#F5F4EF]/95 backdrop-blur-md border-b border-stone-300">
+        <header className="sticky top-0 z-40 h-18 px-4 sm:px-8 bg-[#F5F4EF]/95 dark:bg-[#111413]/95 backdrop-blur-md border-b border-stone-300 dark:border-stone-800 transition-colors duration-300">
           <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
             <button
               type="button"
-              onClick={() => navigate(`/${locale}`)}
-              className="text-base sm:text-lg font-black tracking-tight text-stone-900 whitespace-nowrap shrink-0 flex items-center gap-2"
+              onClick={() => navigate(`/${locale}/blog`)}
+              className="text-base sm:text-lg font-black tracking-tight text-stone-900 dark:text-[#F5F3EE] whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-700" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#16382E] dark:bg-[#6EE7B7]" />
               <span>
                 {locale === 'ar' ? 'مجلة المعرفة · أحمد سليمان' : 'THE KNOWLEDGE JOURNAL'}
               </span>
@@ -494,10 +663,10 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                     key={item.id}
                     type="button"
                     onClick={() => navigate(item.href)}
-                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                       active
-                        ? 'text-stone-950 bg-white px-3.5 py-1.5 rounded-full shadow-2xs border border-stone-300'
-                        : 'text-stone-600 hover:text-stone-950'
+                        ? 'text-stone-950 dark:text-[#0F1715] bg-white dark:bg-[#6EE7B7] px-3.5 py-1.5 rounded-lg border border-stone-300 dark:border-transparent'
+                        : 'text-stone-600 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white'
                     }`}
                   >
                     {item.label}
@@ -506,28 +675,44 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               })}
             </nav>
 
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={theme === 'dark' ? 'Switch to Daylight Mode' : 'Switch to Night Mode'}
+                className="w-9 h-9 rounded-full flex items-center justify-center border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#171B1A] text-stone-800 dark:text-stone-200 hover:border-stone-500 transition-colors cursor-pointer"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-[#16382E]" />
+                )}
+              </button>
+
               <button
                 type="button"
                 onClick={handleToggleLocale}
-                className="px-3 py-1.5 rounded-full text-xs font-bold border border-stone-300 bg-white text-stone-800 hover:border-stone-500 transition-colors"
+                className="px-3 py-1.5 rounded-full text-xs font-bold border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#171B1A] text-stone-800 dark:text-stone-100 hover:border-stone-500 transition-colors cursor-pointer"
               >
                 {locale === 'ar' ? 'EN' : 'عربي'}
               </button>
 
-              <button
-                type="button"
-                onClick={handleAdminButtonClick}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-stone-900 text-white hover:bg-stone-800 transition-colors whitespace-nowrap shrink-0"
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
-              </button>
+              {Boolean(adminSession) && (
+                <button
+                  type="button"
+                  onClick={handleAdminButtonClick}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-stone-900 dark:bg-[#6EE7B7] text-white dark:text-[#0F1715] hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-full border border-stone-300 text-stone-900"
+                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                className="md:hidden p-2 rounded-full border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 cursor-pointer"
               >
                 {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </button>
@@ -537,7 +722,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       );
     }
 
-    // 6. WORLD 6: SOLI MEDICAL & MEDICAL PROJECTS ('soli-showcase' — solimedical.vercel.app Deep Obsidian-Teal #040D12 & Cyan #00D4FF)
+    // 6. WORLD 6: SOLI MEDICAL & MEDICAL PROJECTS ('soli-showcase' — Dark Obsidian #040D12 & Cyan #00D4FF)
     if (pageWorld === 'soli-showcase') {
       return (
         <header className="sticky top-0 z-40 h-18 px-4 sm:px-8 bg-[#040D12]/90 backdrop-blur-md border-b border-[#00D4FF]/15">
@@ -577,24 +762,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               <button
                 type="button"
                 onClick={handleToggleLocale}
-                className="px-3 py-1.5 rounded-full text-xs font-bold text-slate-200 border border-[#00D4FF]/25 hover:border-[#00D4FF] transition-colors whitespace-nowrap shrink-0"
+                className="px-3 py-1.5 rounded-full text-xs font-bold text-slate-200 border border-[#00D4FF]/25 hover:border-[#00D4FF] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 {locale === 'ar' ? 'EN' : 'عربي'}
               </button>
 
-              <button
-                type="button"
-                onClick={handleAdminButtonClick}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-extrabold bg-gradient-to-r from-[#00D4FF] to-[#38BDF8] text-slate-950 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0 shadow-[0_0_20px_rgba(0,212,255,0.35)] cursor-pointer"
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'لوحة الإدارة' : 'ADMIN CMS'}</span>
-              </button>
+              {Boolean(adminSession) && (
+                <button
+                  type="button"
+                  onClick={handleAdminButtonClick}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-extrabold bg-gradient-to-r from-[#00D4FF] to-[#38BDF8] text-slate-950 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0 shadow-[0_0_20px_rgba(0,212,255,0.35)] cursor-pointer"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>{locale === 'ar' ? 'لوحة الإدارة' : 'ADMIN CMS'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-200"
+                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-200 cursor-pointer"
               >
                 {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </button>
@@ -637,30 +825,17 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       {/* Render the active page's custom header */}
       {renderWorldHeader()}
 
-      {/* Visitor Language Switcher on Individual / Standalone Pages (No multi-page header or admin links) */}
-      {!isAdminRoute && !adminSession && pageWorld !== 'home-avoshu' && (
-        <div className="fixed top-4 end-4 z-40">
-          <button
-            type="button"
-            onClick={handleToggleLocale}
-            aria-label={locale === 'ar' ? 'Switch language to English' : 'تبديل اللغة إلى العربية'}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold backdrop-blur-md border transition-all cursor-pointer active:scale-95 ${
-              pageWorld === 'about-editorial' ||
-              pageWorld === 'clinics-teal' ||
-              pageWorld === 'blog-magazine'
-                ? 'bg-white/95 text-zinc-900 border-zinc-300/90 hover:border-zinc-900 shadow-sm'
-                : 'bg-[#07131B]/90 text-slate-100 border-[#00D4FF]/35 hover:border-[#00D4FF] shadow-[0_4px_18px_rgba(0,0,0,0.35)]'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">{locale === 'ar' ? 'EN' : 'عربي'}</span>
-          </button>
-        </div>
-      )}
-
       {/* Mobile Navigation Drawer */}
       {!isAdminRoute && !isStandalone && mobileMenuOpen && (
-        <div className="md:hidden bg-slate-950 text-white border-b border-slate-800 px-4 py-4 space-y-2 z-40">
+        <div
+          className={`md:hidden border-b px-4 py-4 space-y-2 z-40 ${
+            pageWorld === 'about-editorial' || pageWorld === 'clinics-teal'
+              ? 'bg-white text-slate-900 border-slate-200'
+              : pageWorld === 'blog-magazine'
+              ? 'bg-[#F5F4EF] dark:bg-[#171B1A] text-stone-900 dark:text-[#EDEAE2] border-stone-300 dark:border-stone-800'
+              : 'bg-slate-950 text-white border-slate-800'
+          }`}
+        >
           {navItems.map((item) => {
             const active = item.match(pathname);
             return (
@@ -672,28 +847,42 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                   navigate(item.href);
                 }}
                 className={`w-full text-start px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                  active ? 'bg-[#00D4FF] text-slate-950' : 'text-slate-300 hover:bg-slate-900'
+                  active
+                    ? pageWorld === 'clinics-teal'
+                      ? 'bg-[#0D9488] text-white'
+                      : pageWorld === 'about-editorial'
+                      ? 'bg-zinc-900 text-white'
+                      : pageWorld === 'blog-magazine'
+                      ? 'bg-[#16382E] text-white dark:bg-[#6EE7B7] dark:text-[#0F1715]'
+                      : 'bg-[#00D4FF] text-slate-950'
+                    : pageWorld === 'about-editorial' || pageWorld === 'clinics-teal'
+                    ? 'text-slate-700 hover:bg-slate-100'
+                    : pageWorld === 'blog-magazine'
+                    ? 'text-stone-700 dark:text-stone-300 hover:bg-white/60 dark:hover:bg-stone-800'
+                    : 'text-slate-300 hover:bg-slate-900'
                 }`}
               >
                 {item.label}
               </button>
             );
           })}
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              handleAdminButtonClick();
-            }}
-            className="w-full text-start px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-2"
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>
-              {locale === 'ar'
-                ? 'فتح لوحة الإدارة (/admin)'
-                : 'Open Admin Dashboard (/admin)'}
-            </span>
-          </button>
+          {Boolean(adminSession) && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleAdminButtonClick();
+              }}
+              className="w-full text-start px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-2"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>
+                {locale === 'ar'
+                  ? 'فتح لوحة الإدارة (/admin)'
+                  : 'Open Admin Dashboard (/admin)'}
+              </span>
+            </button>
+          )}
         </div>
       )}
 
@@ -717,7 +906,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
         )}
       </main>
 
-      {/* Public Footer with Prominent Admin Access Button (Shown ONLY when Admin is logged in) */}
+      {/* Admin Quick Navigation Footer (Shown ONLY when Verified Admin is logged in on inner non-standalone pages) */}
       {Boolean(adminSession) && !isAdminRoute && !isStandalone && pageWorld !== 'home-avoshu' && (
         <footer
           className={`border-t py-10 px-4 sm:px-8 text-xs ${
@@ -726,7 +915,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               : pageWorld === 'clinics-teal'
               ? 'bg-white border-teal-600/15 text-slate-600'
               : pageWorld === 'blog-magazine'
-              ? 'bg-[#EAE8E1] border-stone-300 text-stone-600'
+              ? 'bg-[#EAE8E1] dark:bg-[#171B1A] border-stone-300 dark:border-stone-800 text-stone-600 dark:text-stone-300'
               : 'bg-[#05070B] border-slate-800/80 text-slate-400'
           }`}
         >
@@ -735,9 +924,10 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               <div
                 className={`text-sm font-black tracking-tight ${
                   pageWorld === 'about-editorial' ||
-                  pageWorld === 'clinics-teal' ||
-                  pageWorld === 'blog-magazine'
+                  pageWorld === 'clinics-teal'
                     ? 'text-slate-900'
+                    : pageWorld === 'blog-magazine'
+                    ? 'text-stone-950 dark:text-stone-100'
                     : 'text-white'
                 }`}
               >
@@ -789,8 +979,8 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
         </footer>
       )}
 
-      {/* Standalone Clinic Footer */}
-      {!isAdminRoute && isStandalone && (
+      {/* Standalone Clinic WhatsApp Footer */}
+      {!isAdminRoute && isStandalone && pageWorld === 'clinics-teal' && (
         <footer className="border-t border-slate-200 bg-white py-6 px-4 sm:px-8 text-xs text-slate-500">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="font-semibold text-slate-800">
@@ -948,7 +1138,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
             <button
               type="button"
               onClick={handleExitStandalone}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
             >
               <Eye className="w-3 h-3" />
               <span>{locale === 'ar' ? 'إظهار القوائم' : 'Exit Standalone'}</span>
@@ -956,8 +1146,8 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
           ) : (
             <button
               type="button"
-              onClick={() => navigate(`${pathname}?standalone=1`)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+              onClick={handleEnterStandalone}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
             >
               <Eye className="w-3 h-3" />
               <span>{locale === 'ar' ? 'معاينة مستقلة' : 'Standalone Preview'}</span>

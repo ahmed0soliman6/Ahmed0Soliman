@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePlatform } from '../context/PlatformContext';
 import { LayoutResolver } from '../components/layouts/LayoutResolver';
 import { OptimizedImage } from '../components/common/OptimizedImage';
+import { AdminSidebar, AdminSubRoute } from '../components/admin/AdminSidebar';
+import { AdminPagination } from '../components/admin/AdminPagination';
+import { PageEditor } from '../components/admin/PageEditor';
 import {
   validateProjectPayload,
   validateClinicPayload,
@@ -11,6 +14,9 @@ import {
   validatePagePayload,
   validateImageUploadFile,
   checkMediaInPublishedContent,
+  checkPageInSiteReferences,
+  getPageCanonicalPath,
+  isCoreProtectedPage,
   slugifyText,
 } from '../lib/validationSchemas';
 import {
@@ -28,14 +34,11 @@ import {
   SiteSettings,
 } from '../types/cms';
 import {
-  LayoutDashboard,
   FolderKanban,
   Building2,
   FileText,
   BookOpen,
   Image as ImageIcon,
-  Settings,
-  LogOut,
   Plus,
   Edit3,
   Trash2,
@@ -44,22 +47,104 @@ import {
   ArrowUp,
   ArrowDown,
   Search,
-  Check,
   X,
   Upload,
   ShieldCheck,
   Database,
-  Globe,
-  Sun,
-  Moon,
   ExternalLink,
   AlertTriangle,
   Copy,
   RefreshCw,
+  Menu,
+  Clock,
+  ArrowUpDown,
+  FilePlus2,
+  FolderPlus,
+  Cloud,
+  CheckCircle2,
+  FileImage,
+  Lock,
+  RotateCcw,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
-  subRoute: 'overview' | 'projects' | 'clinics' | 'pages' | 'blog' | 'media' | 'settings';
+  subRoute: AdminSubRoute;
+}
+
+type AdminSortOption = 'updatedAt' | 'createdAt' | 'order' | 'title';
+
+function formatAdminDate(iso?: string, locale: 'ar' | 'en' = 'en'): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  try {
+    return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(d);
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
+function getTimestampValue(iso?: string): number {
+  if (!iso) return 0;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+function extractArticleInlineImageUrls(articles: ArticleItem[]): Map<string, string[]> {
+  const usageMap = new Map<string, string[]>();
+  const addRef = (url: string, label: string) => {
+    if (!url || typeof url !== 'string') return;
+    const clean = url.trim();
+    if (!clean) return;
+    const list = usageMap.get(clean) || [];
+    if (!list.includes(label)) {
+      list.push(label);
+      usageMap.set(clean, list);
+    }
+  };
+
+  for (const art of articles) {
+    const label = art.title.en || art.title.ar || art.slug;
+    if (art.coverImage) addRef(art.coverImage, `${label} (Cover)`);
+    if (art.seo?.ogImage) addRef(art.seo.ogImage, `${label} (OG)`);
+
+    for (const raw of [art.content?.ar || '', art.content?.en || '']) {
+      if (!raw) continue;
+      // Markdown image links ![alt](url)
+      const mdRegex = /!\[[^\]]*\]\(([^)\s]+)[^)]*\)/g;
+      let m: RegExpExecArray | null;
+      while ((m = mdRegex.exec(raw)) !== null) {
+        addRef(m[1], `${label} (Inline)`);
+      }
+      // HTML <img src="...">
+      const htmlRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+      while ((m = htmlRegex.exec(raw)) !== null) {
+        addRef(m[1], `${label} (Inline)`);
+      }
+      // Tiptap JSON nodes (if stored JSON stringified)
+      if (raw.trim().startsWith('{')) {
+        try {
+          const walk = (node: any) => {
+            if (!node || typeof node !== 'object') return;
+            if (node.type === 'image' && typeof node.attrs?.src === 'string') {
+              addRef(node.attrs.src, `${label} (Inline)`);
+            }
+            if (Array.isArray(node.content)) {
+              node.content.forEach(walk);
+            }
+          };
+          walk(JSON.parse(raw));
+        } catch {
+          // plain text starting with '{'
+        }
+      }
+    }
+  }
+  return usageMap;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
@@ -68,8 +153,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     setLocale,
     theme,
     toggleTheme,
+    pathname,
+    searchParams,
     navigate,
     db,
+    loading,
+    error,
     adminSession,
     loginAsOwnerAdmin,
     logoutAdmin,
@@ -83,13 +172,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     refreshData,
   } = usePlatform();
 
+  // Sidebar & Global Workspace Navigation State
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeNavKey, setActiveNavKey] = useState<string>(subRoute);
+  const [globalQuery, setGlobalQuery] = useState('');
+  const [confirmSeedOpen, setConfirmSeedOpen] = useState(false);
+
   // Login Gate State
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Search & Filter inside Admin lists
+  // Unified Search, Filter, Sort & Pagination State
   const [searchFilter, setSearchFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'trash'>('all');
+  const [sortBy, setSortBy] = useState<AdminSortOption>('order');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [mediaCategoryFilter, setMediaCategoryFilter] = useState<'all' | MediaAsset['category']>('all');
+  const PAGE_SIZE = 6;
 
   // Clinic Sub-tab: 'clinics' | 'doctors' | 'services'
   const [clinicSubTab, setClinicSubTab] = useState<'clinics' | 'doctors' | 'services'>('clinics');
@@ -101,6 +201,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   const [editingService, setEditingService] = useState<Partial<ServiceItem> | null>(null);
   const [editingArticle, setEditingArticle] = useState<Partial<ArticleItem> | null>(null);
   const [editingPage, setEditingPage] = useState<Partial<PageConfig> | null>(null);
+  const [editingPageIsNew, setEditingPageIsNew] = useState(false);
+  const [pageTrashConfirm, setPageTrashConfirm] = useState<PageConfig | null>(null);
+  const [deleteConfirmLiteralInput, setDeleteConfirmLiteralInput] = useState('');
   const [previewItem, setPreviewItem] = useState<{
     type: string;
     title: string;
@@ -116,6 +219,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     id: string;
     title: string;
     warning?: string;
+    requireLiteralConfirm?: boolean;
+    expectedLiteralName?: string;
   } | null>(null);
 
   // Cover Image Picker Modal
@@ -211,6 +316,227 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       .catch(() => {});
     runLiveAudit();
   }, [adminSession]);
+
+  // Reset pagination & contextual sub-filters on section switch
+  useEffect(() => {
+    setCurrentPage(1);
+    setSearchFilter('');
+    setStatusFilter('all');
+    setGlobalQuery('');
+    const viewParam = searchParams.get('view');
+    const hash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : '';
+    if (subRoute === 'media') {
+      if (viewParam === 'upload') setActiveNavKey('media-upload');
+      else if (viewParam === 'article-images') setActiveNavKey('media-article-images');
+      else setActiveNavKey('media-library');
+    } else if (subRoute === 'settings') {
+      if (hash === 'settings-seo') setActiveNavKey('settings-seo');
+      else if (hash === 'settings-identity') setActiveNavKey('settings-identity');
+      else if (hash === 'settings-integrations') setActiveNavKey('settings-integrations');
+      else if (hash === 'settings-backup') setActiveNavKey('settings-backup');
+      else setActiveNavKey('settings-identity');
+    } else if (subRoute === 'overview' && hash === 'site-overview') {
+      setActiveNavKey('site-overview');
+    } else {
+      setActiveNavKey(subRoute);
+    }
+
+    if (hash) {
+      window.setTimeout(() => {
+        const el = document.getElementById(hash);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+    }
+  }, [subRoute, pathname, searchParams]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchFilter, statusFilter, sortBy, clinicSubTab, mediaCategoryFilter]);
+
+  const mediaView = useMemo<'gallery' | 'upload' | 'article-images'>(() => {
+    const view = searchParams.get('view');
+    if (view === 'upload') return 'upload';
+    if (view === 'article-images') return 'article-images';
+    return 'gallery';
+  }, [searchParams]);
+
+  const articleInlineMediaUsage = useMemo(
+    () => extractArticleInlineImageUrls(db.articles || []),
+    [db.articles]
+  );
+
+  // Real computed statistics directly from Firestore / PlatformDatabase
+  const realStats = useMemo(() => {
+    const pages = (db.pages || []).filter((p) => !p.archived);
+    const projects = db.projects || [];
+    const clinics = db.clinics || [];
+    const doctors = db.doctors || [];
+    const services = db.services || [];
+    const articles = db.articles || [];
+    const media = db.media || [];
+
+    const publishedPages = pages.filter((p) => p.published).length;
+    const publishedProjects = projects.filter((p) => p.published).length;
+    const publishedClinics = clinics.filter((c) => c.published).length;
+    const publishedDoctors = doctors.filter((d) => d.published).length;
+    const publishedServices = services.filter((s) => s.published).length;
+    const publishedArticles = articles.filter((a) => a.published).length;
+    const featuredArticles = articles.filter((a) => a.featured).length;
+
+    const totalDrafts =
+      (pages.length - publishedPages) +
+      (projects.length - publishedProjects) +
+      (clinics.length - publishedClinics) +
+      (doctors.length - publishedDoctors) +
+      (services.length - publishedServices) +
+      (articles.length - publishedArticles);
+
+    const totalContentRecords =
+      pages.length + projects.length + clinics.length + doctors.length + services.length + articles.length;
+
+    const latestArticles = [...articles]
+      .sort(
+        (a, b) =>
+          getTimestampValue(b.updatedAt || b.createdAt) -
+          getTimestampValue(a.updatedAt || a.createdAt)
+      )
+      .slice(0, 5);
+
+    const latestPages = [...pages]
+      .sort(
+        (a, b) =>
+          getTimestampValue(b.updatedAt || b.createdAt) -
+          getTimestampValue(a.updatedAt || a.createdAt)
+      )
+      .slice(0, 5);
+
+    return {
+      pagesTotal: pages.length,
+      publishedPages,
+      projectsTotal: projects.length,
+      publishedProjects,
+      clinicsTotal: clinics.length,
+      publishedClinics,
+      doctorsTotal: doctors.length,
+      publishedDoctors,
+      servicesTotal: services.length,
+      publishedServices,
+      articlesTotal: articles.length,
+      publishedArticles,
+      featuredArticles,
+      mediaTotal: media.length,
+      totalDrafts,
+      totalContentRecords,
+      latestArticles,
+      latestPages,
+    };
+  }, [db]);
+
+  const globalSearchResults = useMemo(() => {
+    const q = globalQuery.trim().toLowerCase();
+    if (!q) return [];
+    const hits: {
+      id: string;
+      kind: 'page' | 'article' | 'project' | 'clinic';
+      title: string;
+      subtitle: string;
+      published: boolean;
+      route: string;
+      onOpen: () => void;
+    }[] = [];
+
+    for (const p of db.pages || []) {
+      if (
+        p.title.ar.toLowerCase().includes(q) ||
+        p.title.en.toLowerCase().includes(q) ||
+        p.slug.toLowerCase().includes(q)
+      ) {
+        hits.push({
+          id: `g-page-${p.id}`,
+          kind: 'page',
+          title: p.title[locale] || p.title.en || p.title.ar,
+          subtitle: `/${p.slug}`,
+          published: p.published,
+          route: '/admin/pages',
+          onOpen: () => {
+            navigate('/admin/pages');
+            setEditingPageIsNew(false);
+            setEditingPage({ ...p });
+            setGlobalQuery('');
+          },
+        });
+      }
+    }
+
+    for (const a of db.articles || []) {
+      if (
+        a.title.ar.toLowerCase().includes(q) ||
+        a.title.en.toLowerCase().includes(q) ||
+        a.slug.toLowerCase().includes(q)
+      ) {
+        hits.push({
+          id: `g-art-${a.id}`,
+          kind: 'article',
+          title: a.title[locale] || a.title.en || a.title.ar,
+          subtitle: `/blog/${a.slug}`,
+          published: a.published,
+          route: '/admin/blog',
+          onOpen: () => {
+            navigate('/admin/blog');
+            setEditingArticle({ ...a });
+            setGlobalQuery('');
+          },
+        });
+      }
+    }
+
+    for (const pr of db.projects || []) {
+      if (
+        pr.title.ar.toLowerCase().includes(q) ||
+        pr.title.en.toLowerCase().includes(q) ||
+        pr.slug.toLowerCase().includes(q)
+      ) {
+        hits.push({
+          id: `g-proj-${pr.id}`,
+          kind: 'project',
+          title: pr.title[locale] || pr.title.en || pr.title.ar,
+          subtitle: `/projects/${pr.slug}`,
+          published: pr.published,
+          route: '/admin/projects',
+          onOpen: () => {
+            navigate('/admin/projects');
+            setEditingProject({ ...pr });
+            setGlobalQuery('');
+          },
+        });
+      }
+    }
+
+    for (const c of db.clinics || []) {
+      if (
+        c.name.ar.toLowerCase().includes(q) ||
+        c.name.en.toLowerCase().includes(q) ||
+        c.slug.toLowerCase().includes(q)
+      ) {
+        hits.push({
+          id: `g-cli-${c.id}`,
+          kind: 'clinic',
+          title: c.name[locale] || c.name.en || c.name.ar,
+          subtitle: `/clinics/${c.slug}`,
+          published: c.published,
+          route: '/admin/clinics',
+          onOpen: () => {
+            navigate('/admin/clinics');
+            setClinicSubTab('clinics');
+            setEditingClinic({ ...c });
+            setGlobalQuery('');
+          },
+        });
+      }
+    }
+
+    return hits.slice(0, 8);
+  }, [globalQuery, db, locale, navigate]);
 
   // ---------------------------------------------------------------------------
   // RENDER ADMIN AUTHENTICATION GATE IF NOT LOGGED IN (Google + Firebase ID Token)
@@ -553,198 +879,342 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     });
   };
 
-  const sidebarItems = [
-    {
-      id: 'overview',
-      path: '/admin',
-      label: locale === 'ar' ? 'لوحة القيادة' : 'Overview',
-      icon: LayoutDashboard,
-    },
-    {
-      id: 'pages',
-      path: '/admin/pages',
-      label: locale === 'ar' ? 'الرئيسية والملف الشخصي' : 'Home & Profile Pages',
-      icon: FileText,
-    },
-    {
-      id: 'projects',
-      path: '/admin/projects',
-      label: locale === 'ar' ? 'إدارة المشروعات' : 'Projects',
-      icon: FolderKanban,
-    },
-    {
-      id: 'clinics',
-      path: '/admin/clinics',
-      label: locale === 'ar' ? 'العيادات والأطباء والخدمات' : 'Clinics, Doctors & Services',
-      icon: Building2,
-    },
-    {
-      id: 'blog',
-      path: '/admin/blog',
-      label: locale === 'ar' ? 'المقالات والمدونة' : 'Blog Articles',
-      icon: BookOpen,
-    },
-    {
-      id: 'media',
-      path: '/admin/media',
-      label: locale === 'ar' ? 'مكتبة الصور (Cloudinary)' : 'Cloudinary Media',
-      icon: ImageIcon,
-    },
-    {
-      id: 'settings',
-      path: '/admin/settings',
-      label: locale === 'ar' ? 'الهوية وFirebase وSEO' : 'Settings, Firebase & SEO',
-      icon: Settings,
-    },
-  ] as const;
+  const subRouteLabels: Record<AdminSubRoute, { ar: string; en: string }> = {
+    overview: { ar: 'لوحة المعلومات', en: 'Dashboard Overview' },
+    pages: { ar: 'إدارة الصفحات', en: 'Pages Management' },
+    blog: { ar: 'إدارة المقالات والمدونة', en: 'Articles & Blog' },
+    projects: { ar: 'إدارة المشروعات', en: 'Projects Management' },
+    clinics: { ar: 'العيادات والأطباء والخدمات', en: 'Clinics, Doctors & Services' },
+    media: { ar: 'مكتبة الوسائط والصور', en: 'Media & Image Library' },
+    settings: { ar: 'إعدادات الموقع والربط', en: 'Site Settings & Integrations' },
+  };
+
+  const openNewPageEditor = (defaultType: 'landing' | 'general' = 'landing') => {
+    navigate('/admin/pages');
+    setEditingPageIsNew(true);
+    setEditingPage({
+      id: `page-${Date.now()}`,
+      slug: '',
+      pageType: defaultType,
+      layoutVariant: defaultType === 'landing' ? 'landing-hero' : 'editorial',
+      isCore: false,
+      title: { ar: '', en: '' },
+      kicker: { ar: '', en: '' },
+      headline: { ar: '', en: '' },
+      subheadline: { ar: '', en: '' },
+      biography: { ar: '', en: '' },
+      highlights: { ar: [], en: [] },
+      metrics: [],
+      experienceTimeline: [],
+      skills: [],
+      blocks: [],
+      additionalImages: [],
+      heroImage: '/assets/aistudio/logo_ae3842b8.png',
+      standaloneByDefault: defaultType === 'landing',
+      published: false,
+      archived: false,
+      order: (db.pages || []).length + 1,
+      seo: { title: { ar: '', en: '' }, description: { ar: '', en: '' } },
+    });
+  };
+
+  const openNewArticleEditor = () => {
+    navigate('/admin/blog');
+    setEditingArticle({
+      id: `art-${Date.now()}`,
+      slug: '',
+      title: { ar: '', en: '' },
+      excerpt: { ar: '', en: '' },
+      content: { ar: '', en: '' },
+      category: { ar: 'هندسة الأنظمة الطبية', en: 'Healthcare Engineering' },
+      tags: ['Soli Medical', 'Healthcare Software'],
+      coverImage: '/assets/aistudio/logo_ae3842b8.png',
+      readingTimeMinutes: 4,
+      authorName: { ar: 'أحمد سليمان', en: 'Ahmed Soliman' },
+      featured: false,
+      published: false,
+      order: db.articles.length + 1,
+      seo: { title: { ar: '', en: '' }, description: { ar: '', en: '' } },
+    });
+  };
+
+  const openNewProjectEditor = () => {
+    navigate('/admin/projects');
+    setEditingProject({
+      id: `proj-${Date.now()}`,
+      slug: '',
+      title: { ar: '', en: '' },
+      kicker: { ar: 'مشروع رقمي', en: 'Digital Project' },
+      summary: { ar: '', en: '' },
+      description: { ar: '', en: '' },
+      category: 'medical-systems',
+      categoryLabel: { ar: 'أنظمة طبية', en: 'Medical Systems' },
+      coverImage: '/assets/aistudio/logo_ae3842b8.png',
+      whatsappInquireText: {
+        ar: 'مرحباً، أريد الاستفسار عن هذا المشروع.',
+        en: 'Hello, I want to inquire about this project.',
+      },
+      features: { ar: ['ميزة أساسية 1'], en: ['Core capability 1'] },
+      techStack: ['React', 'TypeScript'],
+      screens: [],
+      featured: true,
+      published: false,
+      order: db.projects.length + 1,
+      seo: { title: { ar: '', en: '' }, description: { ar: '', en: '' } },
+    });
+  };
 
   return (
     <LayoutResolver>
-      <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 dark:bg-[#070E1A]">
-        {/* SAAS SIDEBAR NAVIGATION */}
-        <aside className="w-full lg:w-68 shrink-0 bg-white dark:bg-[#0F172A] border-b lg:border-b-0 lg:border-e border-slate-200 dark:border-slate-800 flex flex-col justify-between">
-          <div className="p-5 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-base font-bold text-slate-900 dark:text-white">
-                  Ahmed Soliman CMS
-                </div>
-                <div className="text-xs text-[#00C2CB] font-mono-tabular">
-                  UID: {adminSession.uid.slice(0, 16)}
-                </div>
-              </div>
-              <button
-                onClick={() => navigate(`/${locale}`)}
-                className="p-2 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB]"
-                title={locale === 'ar' ? 'معاينة الموقع العام' : 'View Live Website'}
-              >
-                <ExternalLink className="w-4 h-4" />
-              </button>
-            </div>
-
-            <nav className="flex lg:flex-col gap-1.5 overflow-x-auto pb-2 lg:pb-0">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
-                const active = subRoute === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => navigate(item.path)}
-                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                      active
-                        ? 'bg-[#00C2CB] text-slate-950'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="hidden lg:flex flex-col gap-3 p-5 border-t border-slate-200 dark:border-slate-800 text-xs">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <button
-                onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')}
-                className="inline-flex items-center gap-1.5 hover:text-[#00C2CB]"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'English' : 'العربية'}</span>
-              </button>
-              <button
-                onClick={toggleTheme}
-                className="inline-flex items-center gap-1.5 hover:text-[#00C2CB]"
-              >
-                {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-                <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
-              </button>
-            </div>
-
-            <button
-              onClick={logoutAdmin}
-              className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-950/30 border border-red-500/30 flex items-center justify-center gap-2 transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>{locale === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}</span>
-            </button>
-          </div>
-        </aside>
+      <div className="min-h-screen flex bg-slate-50 dark:bg-[#070E1A] text-slate-900 dark:text-slate-100">
+        {/* GROUPED COLLAPSIBLE RESPONSIVE SIDEBAR */}
+        <AdminSidebar
+          locale={locale}
+          setLocale={setLocale}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          subRoute={subRoute}
+          activeNavKey={activeNavKey}
+          adminUid={adminSession.uid}
+          mobileOpen={mobileSidebarOpen}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+          onSelectLink={(item) => {
+            setActiveNavKey(item.id);
+            navigate(item.targetPath);
+            if (item.anchorId) {
+              window.setTimeout(() => {
+                const el = document.getElementById(item.anchorId!);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 140);
+            }
+          }}
+          onOpenPublicSite={() => navigate(`/${locale}`)}
+          onLogout={logoutAdmin}
+          counts={{
+            pages: realStats.pagesTotal,
+            articles: realStats.articlesTotal,
+            projects: realStats.projectsTotal,
+            clinics: realStats.clinicsTotal,
+            media: realStats.mediaTotal,
+            drafts: realStats.totalDrafts,
+          }}
+        />
 
         {/* MAIN WORKSPACE VIEWPORT */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Top Breadcrumb Bar */}
-          <header className="h-16 px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0F172A] flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300">
-              <span>Admin CMS</span>
-              <span>/</span>
-              <span className="font-bold text-slate-900 dark:text-white capitalize">
-                {subRoute}
-              </span>
+          {/* Top Breadcrumb + Global Admin Search + Primary Actions */}
+          <header className="sticky top-0 z-30 h-16 px-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-sm flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] cursor-pointer shrink-0"
+                aria-label={locale === 'ar' ? 'فتح القائمة الجانبية' : 'Open sidebar navigation'}
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400 truncate">
+                <span className="hidden sm:inline whitespace-nowrap">Admin CMS</span>
+                <span className="hidden sm:inline">/</span>
+                <span className="font-bold text-slate-900 dark:text-white truncate">
+                  {subRouteLabels[subRoute][locale]}
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            {/* Global Quick Jump Search */}
+            <div className="relative flex-1 max-w-sm hidden md:block">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3 pointer-events-none" />
+              <input
+                type="text"
+                value={globalQuery}
+                onChange={(e) => setGlobalQuery(e.target.value)}
+                placeholder={
+                  locale === 'ar'
+                    ? 'بحث سريع في الصفحات، المقالات، المشروعات...'
+                    : 'Quick jump to pages, articles, projects...'
+                }
+                className="w-full ps-8 pe-8 py-1.5 rounded-xl text-xs bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-[#00C2CB]"
+              />
+              {globalQuery && (
+                <button
+                  type="button"
+                  onClick={() => setGlobalQuery('')}
+                  className="absolute top-1/2 -translate-y-1/2 end-2.5 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  aria-label="Clear global search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {globalQuery.trim() && (
+                <div className="absolute top-full mt-2 start-0 end-0 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden z-50">
+                  {globalSearchResults.length === 0 ? (
+                    <div className="p-4 text-xs text-slate-500 dark:text-slate-400 text-center">
+                      {locale === 'ar' ? 'لا توجد نتائج مطابقة' : 'No matching records found'}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto">
+                      {globalSearchResults.map((hit) => (
+                        <button
+                          key={hit.id}
+                          type="button"
+                          onClick={hit.onOpen}
+                          className="w-full px-3.5 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                              {hit.title}
+                            </div>
+                            <div className="text-[11px] font-mono-tabular text-slate-500 truncate">
+                              {hit.kind} · {hit.subtitle}
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[11px] font-semibold shrink-0 ${
+                              hit.published ? 'text-emerald-500' : 'text-amber-500'
+                            }`}
+                          >
+                            {hit.published
+                              ? locale === 'ar'
+                                ? 'منشور'
+                                : 'Published'
+                              : locale === 'ar'
+                              ? 'مسودة'
+                              : 'Draft'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
               <button
+                type="button"
                 onClick={() => refreshData()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] whitespace-nowrap shrink-0"
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'تحديث البيانات' : 'Revalidate Cache'}</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">
+                  {locale === 'ar' ? 'تحديث البيانات' : 'Refresh'}
+                </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => navigate(`/${locale}`)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>{locale === 'ar' ? 'فتح الموقع العام' : 'Open Public Site'}</span>
+                <span className="hidden sm:inline">
+                  {locale === 'ar' ? 'فتح الموقع العام' : 'Public Site'}
+                </span>
               </button>
             </div>
           </header>
 
-          <div className="p-6 sm:p-8 space-y-8 max-w-6xl">
+          {/* Loading & Error Feedback Strip */}
+          {loading && (
+            <div className="px-6 py-2 bg-[#00C2CB]/10 border-b border-[#00C2CB]/20 text-xs font-medium text-[#0099A3] dark:text-[#00C2CB] flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+              <span>
+                {locale === 'ar'
+                  ? 'جاري مزامنة بيانات المحتوى من قاعدة البيانات...'
+                  : 'Synchronizing CMS records with Firestore...'}
+              </span>
+            </div>
+          )}
+
+          {error && (
+            <div className="px-6 py-2.5 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-800/60 text-xs text-red-700 dark:text-red-300 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => refreshData()}
+                className="px-2.5 py-1 rounded bg-red-600 text-white font-semibold shrink-0 cursor-pointer"
+              >
+                {locale === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+              </button>
+            </div>
+          )}
+
+          <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-6xl w-full">
             {/* =============================================================== */}
-            {/* TAB 1: OVERVIEW (/admin) */}
+            {/* TAB 1: OVERVIEW (/admin) — 100% REAL CMS TELEMETRY */}
             {/* =============================================================== */}
             {subRoute === 'overview' && (
               <div className="space-y-8">
-                {/* 1. SCREENSHOT 3.5 WELCOME BACK BANNER + FEATURED CARD */}
+                {/* 1. Executive Banner + Quick Creation Shortcuts */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                  <div className="lg:col-span-8 rounded-2xl bg-gradient-to-r from-[#0A251E] via-[#0F352B] to-[#134E4A] text-white p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-lg">
-                    <div className="space-y-2.5 max-w-lg">
-                      <div className="text-xs font-bold uppercase tracking-widest text-emerald-300">
-                        {locale === 'ar' ? 'لوحة القيادة والتحليلات' : 'EXECUTIVE ANALYTICS CMS'}
+                  <div className="lg:col-span-8 rounded-2xl bg-gradient-to-br from-[#0B172A] via-[#0F243D] to-[#113A47] text-white p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 border border-slate-800">
+                    <div className="space-y-3 max-w-xl">
+                      <div className="text-xs font-bold tracking-wide text-[#00C2CB]">
+                        {locale === 'ar'
+                          ? 'مركز إدارة المحتوى التنفيذي'
+                          : 'Executive CMS Workspace'}
                       </div>
-                      <h1 className="text-2xl sm:text-3xl font-extrabold">
+                      <h1 className="text-2xl sm:text-3xl font-extrabold leading-tight">
                         {locale === 'ar'
-                          ? 'مرحباً بعودتك 👋 أحمد سليمان'
-                          : 'Welcome back 👋 Ahmed Soliman'}
+                          ? 'مرحباً بك، أحمد سليمان'
+                          : 'Welcome back, Ahmed Soliman'}
                       </h1>
-                      <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                         {locale === 'ar'
-                          ? 'تحكم كامل في المشروعات، صفحات العيادات المستقلة، الشعارات والصور، المقالات، وإظهار أو إخفاء أي صفحة فوراً.'
-                          : 'Manage projects, standalone clinic pages, logos & images, articles, page visibility, and visitor analytics.'}
+                          ? 'إدارة موحدة للصفحات، المقالات، المشروعات، العيادات المستقلة، مكتبة الصور، وإعدادات SEO الثنائية اللغة.'
+                          : 'Unified editorial workspace for pages, bilingual articles, systems portfolio, standalone clinic landing pages, and Cloudinary media.'}
                       </p>
-                      <div className="pt-2 flex flex-wrap gap-2.5">
+
+                      {/* Quick Creation Shortcuts */}
+                      <div className="pt-1 flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => navigate('/admin/projects')}
-                          className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-400 text-slate-950 hover:bg-emerald-300 transition-colors cursor-pointer"
+                          onClick={openNewArticleEditor}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                         >
-                          {locale === 'ar' ? '+ إضافة / تعديل مشروع' : '+ Manage Projects'}
+                          <FilePlus2 className="w-3.5 h-3.5" />
+                          <span>{locale === 'ar' ? 'مقال جديد' : 'New Article'}</span>
                         </button>
+
                         <button
                           type="button"
-                          onClick={seedBaselineDatabase}
-                          className="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors cursor-pointer"
+                          onClick={openNewProjectEditor}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                         >
-                          {locale === 'ar' ? 'تحديث البيانات الأساسية' : 'Sync Seed Data'}
+                          <FolderPlus className="w-3.5 h-3.5" />
+                          <span>{locale === 'ar' ? 'مشروع جديد' : 'New Project'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => navigate('/admin/media?view=upload')}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{locale === 'ar' ? 'رفع صورة' : 'Upload Image'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setConfirmSeedOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-transparent hover:bg-white/10 text-slate-300 border border-white/15 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                        >
+                          <Database className="w-3.5 h-3.5" />
+                          <span>{locale === 'ar' ? 'مزامنة البيانات الأساسية' : 'Sync Baseline'}</span>
                         </button>
                       </div>
                     </div>
 
-                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-emerald-400/50 shrink-0 bg-slate-950">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-[#00C2CB]/40 shrink-0 bg-slate-950">
                       <OptimizedImage
                         src={db.siteSettings.avatarUrl}
                         alt={db.siteSettings.ownerName[locale]}
@@ -754,329 +1224,515 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                     </div>
                   </div>
 
-                  {/* Right 4 Cols Featured Highlight Card matching Screenshot 3.5 */}
-                  <div className="lg:col-span-4 rounded-2xl bg-[#0F172A] text-white p-6 border border-slate-800 flex flex-col justify-between relative overflow-hidden shadow-lg">
-                    <div className="space-y-1.5 relative z-10">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#00C2CB]">
-                        {locale === 'ar' ? 'حالة المنصة المباشرة' : 'PLATFORM STATUS'}
-                      </span>
-                      <h2 className="text-lg font-extrabold">
-                        {locale === 'ar'
-                          ? 'جميع الأقسام الخمسة نشطة ومتصلة'
-                          : 'All 5 Platform Worlds Live'}
-                      </h2>
-                      <p className="text-xs text-slate-400">
-                        {locale === 'ar'
-                          ? `${db.projects.filter((p) => p.published).length} مشروعات منشورة · ${
-                              db.clinics.filter((c) => c.published).length
-                            } عيادات مستقلة · ${
-                              db.articles.filter((a) => a.published).length
-                            } مقالات`
-                          : `${db.projects.filter((p) => p.published).length} Published Projects · ${
-                              db.clinics.filter((c) => c.published).length
-                            } Clinics · ${db.articles.filter((a) => a.published).length} Articles`}
-                      </p>
+                  {/* Connection & Quick Shortcuts Card */}
+                  <div className="lg:col-span-4 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#0099A3] dark:text-[#00C2CB]">
+                          {locale === 'ar' ? 'حالة الربط والمزامنة' : 'System Readiness'}
+                        </span>
+                        <span className="text-[11px] font-mono-tabular text-slate-400">
+                          {realStats.totalContentRecords} {locale === 'ar' ? 'سجل' : 'records'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-slate-600 dark:text-slate-400">
+                            {locale === 'ar' ? 'قاعدة بيانات Firestore' : 'Firestore Connection'}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 font-semibold ${
+                              isFirebaseConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>
+                              {isFirebaseConnected
+                                ? locale === 'ar'
+                                  ? 'متصل'
+                                  : 'Connected'
+                                : locale === 'ar'
+                                ? 'مزامنة محلية'
+                                : 'Local Sync'}
+                            </span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-slate-600 dark:text-slate-400">
+                            {locale === 'ar' ? 'تخزين Cloudinary' : 'Cloudinary CDN'}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 font-semibold ${
+                              cloudinaryStatus?.configured
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-slate-500'
+                            }`}
+                          >
+                            <Cloud className="w-3.5 h-3.5" />
+                            <span>
+                              {cloudinaryStatus?.configured
+                                ? cloudinaryStatus.cloudName || (locale === 'ar' ? 'جاهز' : 'Configured')
+                                : locale === 'ar'
+                                ? 'اختياري'
+                                : 'Fallback Mode'}
+                            </span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between py-1.5">
+                          <span className="text-slate-600 dark:text-slate-400">
+                            {locale === 'ar' ? 'العيادات النشطة' : 'Active Clinics'}
+                          </span>
+                          <span className="font-mono-tabular font-bold text-slate-900 dark:text-white">
+                            {realStats.publishedClinics} / {realStats.clinicsTotal}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="pt-4 flex items-center justify-between text-xs border-t border-slate-800/80 mt-4">
-                      <span className="text-emerald-400 font-bold">
-                        {cloudinaryStatus?.configured ? 'Cloudinary CDN Ready' : 'Media Library Ready'}
-                      </span>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                       <button
                         type="button"
                         onClick={() => navigate('/admin/pages')}
-                        className="text-[#00C2CB] font-bold hover:underline cursor-pointer"
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:text-[#00C2CB] text-center cursor-pointer transition-colors"
                       >
-                        {locale === 'ar' ? 'التحكم في الصفحات ←' : 'Page Visibility →'}
+                        {locale === 'ar' ? 'إدارة الصفحات' : 'Pages'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin/clinics')}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:text-[#00C2CB] text-center cursor-pointer transition-colors"
+                      >
+                        {locale === 'ar' ? 'إدارة العيادات' : 'Clinics'}
                       </button>
                     </div>
                   </div>
                 </div>
 
-                {/* 2. REAL CONTENT COUNTS KPI CARDS WITH MINI BAR SPARKLINES */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-2xs">
-                    <div className="space-y-1">
-                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {locale === 'ar'
-                          ? 'الصفحات المنشورة حالياً'
-                          : 'Published Platform Pages'}
-                      </div>
-                      <div className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
-                        {db.pages.filter((p) => p.published).length} / {db.pages.length}
-                      </div>
-                      <div className="text-xs font-bold text-emerald-600">
-                        {locale === 'ar' ? 'تحكم فوري بالإظهار والإخفاء' : 'Instant Hide/Show Control'}
-                      </div>
+                {/* 2. REAL COMPUTED KPI SUMMARY CARDS (4 METRICS FROM LIVE DB) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/projects')}
+                    className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2.5 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      <span>{locale === 'ar' ? 'المشروعات المنشورة' : 'Published Projects'}</span>
+                      <FolderKanban className="w-4 h-4 text-[#00C2CB]" />
                     </div>
-                    {/* Mini Emerald Bar Sparkline */}
-                    <div className="flex items-end gap-1 h-12">
-                      {[40, 65, 50, 85, 60, 95, 75].map((h, i) => (
-                        <span
-                          key={i}
-                          style={{ height: `${h}%` }}
-                          className="w-2 rounded-t bg-emerald-500"
-                        />
-                      ))}
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                        {realStats.publishedProjects}
+                      </span>
+                      <span className="text-xs font-mono-tabular text-slate-400">
+                        / {realStats.projectsTotal}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-[#00C2CB]"
+                        style={{
+                          width: `${
+                            realStats.projectsTotal > 0
+                              ? Math.round((realStats.publishedProjects / realStats.projectsTotal) * 100)
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/blog')}
+                    className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2.5 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      <span>{locale === 'ar' ? 'المقالات المنشورة' : 'Published Articles'}</span>
+                      <BookOpen className="w-4 h-4 text-emerald-500" />
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                        {realStats.publishedArticles}
+                      </span>
+                      <span className="text-xs font-mono-tabular text-slate-400">
+                        / {realStats.articlesTotal}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 font-mono-tabular">
+                      {realStats.featuredArticles}{' '}
+                      {locale === 'ar' ? 'مقالات مميزة' : 'featured articles'}
+                    </div>
+                  </button>
+
+                  <div className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      <span>{locale === 'ar' ? 'المسودات غير المنشورة' : 'Total Drafts'}</span>
+                      <Clock className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                        {realStats.totalDrafts}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {locale === 'ar' ? 'بانتظار النشر' : 'unpublished'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      {realStats.totalDrafts === 0
+                        ? locale === 'ar'
+                          ? 'جميع السجلات منشورة'
+                          : 'All content records live'
+                        : locale === 'ar'
+                        ? 'متاح للمراجعة والنشر'
+                        : 'Ready for review'}
                     </div>
                   </div>
 
-                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-2xs">
-                    <div className="space-y-1">
-                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {locale === 'ar'
-                          ? 'المشروعات والأنظمة المنشورة'
-                          : 'Published Projects & Systems'}
-                      </div>
-                      <div className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
-                        {db.projects.filter((p) => p.published).length} / {db.projects.length}
-                      </div>
-                      <div className="text-xs font-bold text-sky-500 font-mono-tabular">
-                        {db.clinics.filter((c) => c.published).length}{' '}
-                        {locale === 'ar' ? 'عيادات منشورة' : 'published clinics'}
-                      </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/media')}
+                    className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2.5 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      <span>
+                        {locale === 'ar' ? 'الصفحات والعيادات والوسائط' : 'Pages, Clinics & Media'}
+                      </span>
+                      <ImageIcon className="w-4 h-4 text-sky-500" />
                     </div>
-                    {/* Mini Sky Blue Bar Sparkline */}
-                    <div className="flex items-end gap-1 h-12">
-                      {[35, 55, 70, 60, 90, 65, 80].map((h, i) => (
-                        <span
-                          key={i}
-                          style={{ height: `${h}%` }}
-                          className="w-2 rounded-t bg-sky-500"
-                        />
-                      ))}
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
+                        {realStats.mediaTotal}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {locale === 'ar' ? 'صورة مسجلة' : 'media assets'}
+                      </span>
                     </div>
-                  </div>
-
-                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shadow-2xs">
-                    <div className="space-y-1">
-                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {locale === 'ar'
-                          ? 'الأطباء والخدمات والمقالات'
-                          : 'Doctors, Services & Articles'}
-                      </div>
-                      <div className="text-3xl font-black font-mono-tabular text-slate-900 dark:text-white">
-                        {db.doctors.length + db.services.length + db.articles.length}
-                      </div>
-                      <div className="text-xs font-bold text-amber-500 font-mono-tabular">
-                        {db.doctors.length} {locale === 'ar' ? 'أطباء' : 'doctors'} ·{' '}
-                        {db.services.length} {locale === 'ar' ? 'خدمات' : 'services'} ·{' '}
-                        {db.articles.length} {locale === 'ar' ? 'مقالات' : 'articles'}
-                      </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 font-mono-tabular">
+                      {realStats.pagesTotal} {locale === 'ar' ? 'صفحات' : 'pages'} ·{' '}
+                      {realStats.clinicsTotal} {locale === 'ar' ? 'عيادات' : 'clinics'} ·{' '}
+                      {realStats.doctorsTotal} {locale === 'ar' ? 'أطباء' : 'doctors'}
                     </div>
-                    {/* Mini Amber/Orange Bar Sparkline */}
-                    <div className="flex items-end gap-1 h-12">
-                      {[50, 40, 75, 55, 80, 70, 90].map((h, i) => (
-                        <span
-                          key={i}
-                          style={{ height: `${h}%` }}
-                          className="w-2 rounded-t bg-amber-500"
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  </button>
                 </div>
 
-                {/* 3. CONTENT DISTRIBUTION DONUT CHART & MONTHLY OVERVIEW */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Donut Chart Card (Left 5 Cols) */}
-                  <div className="lg:col-span-5 p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-5 shadow-2xs">
+                {/* 3. SITE OVERVIEW BREAKDOWN (#site-overview) — REAL COLLECTION METRICS */}
+                <section
+                  id="site-overview"
+                  className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-5 scroll-mt-20"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                      <h2 className="text-base font-bold text-slate-900 dark:text-white">
                         {locale === 'ar'
-                          ? 'توزيع محتوى المنصة النشط'
-                          : 'Platform Content Breakdown'}
+                          ? 'نظرة عامة على بنية المحتوى الفعلية'
+                          : 'Live Site Content Distribution'}
                       </h2>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         {locale === 'ar'
-                          ? 'توزيع المشروعات والعيادات والمقالات في قاعدة البيانات'
-                          : 'Distribution of projects, clinics, and articles'}
+                          ? 'إحصاءات مباشرة محسوبة من السجلات الفعلية لكل قسم في المنصة'
+                          : 'Exact counts calculated directly from active Firestore / CMS collections'}
                       </p>
                     </div>
-
-                    <div className="flex items-center justify-center py-2">
-                      <div className="relative w-44 h-44 flex items-center justify-center">
-                        <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                          <circle
-                            cx="18"
-                            cy="18"
-                            r="15.915"
-                            fill="transparent"
-                            stroke="#E2E8F0"
-                            strokeWidth="3.8"
-                          />
-                          <circle
-                            cx="18"
-                            cy="18"
-                            r="15.915"
-                            fill="transparent"
-                            stroke="#10B981"
-                            strokeWidth="3.8"
-                            strokeDasharray="45 55"
-                            strokeDashoffset="0"
-                          />
-                          <circle
-                            cx="18"
-                            cy="18"
-                            r="15.915"
-                            fill="transparent"
-                            stroke="#0066FF"
-                            strokeWidth="3.8"
-                            strokeDasharray="30 70"
-                            strokeDashoffset="-45"
-                          />
-                          <circle
-                            cx="18"
-                            cy="18"
-                            r="15.915"
-                            fill="transparent"
-                            stroke="#F59E0B"
-                            strokeWidth="3.8"
-                            strokeDasharray="25 75"
-                            strokeDashoffset="-75"
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                          <span className="text-[11px] text-slate-400">
-                            {locale === 'ar' ? 'إجمالي السجلات' : 'Total Records'}
-                          </span>
-                          <span className="text-xl font-black font-mono-tabular text-slate-900 dark:text-white">
-                            {db.pages.length +
-                              db.projects.length +
-                              db.clinics.length +
-                              db.doctors.length +
-                              db.services.length +
-                              db.articles.length}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-center gap-4 text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                        <span>{locale === 'ar' ? 'المشروعات (45%)' : 'Projects (45%)'}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#0066FF]" />
-                        <span>{locale === 'ar' ? 'العيادات (30%)' : 'Clinics (30%)'}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                        <span>{locale === 'ar' ? 'المقالات والسيرة (25%)' : 'Blog & CV (25%)'}</span>
-                      </span>
-                    </div>
+                    <span className="text-xs font-mono-tabular font-semibold text-[#0099A3] dark:text-[#00C2CB]">
+                      {realStats.totalContentRecords + realStats.mediaTotal}{' '}
+                      {locale === 'ar' ? 'إجمالي الأصول والسجلات' : 'Total CMS Objects'}
+                    </span>
                   </div>
 
-                  {/* Monthly Bar Chart Card (Right 7 Cols) */}
-                  <div className="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-5 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                          {locale === 'ar'
-                            ? 'معدل الزيارات وطلبات الحجز الشهرية'
-                            : 'Monthly Platform Visits & Clinic Bookings'}
-                        </h2>
-                        <p className="text-xs text-slate-500 font-mono-tabular">
-                          (+43% {locale === 'ar' ? 'نمو سنوي' : 'than last year'})
-                        </p>
-                      </div>
-                      <span className="px-3 py-1 rounded-lg text-xs font-mono-tabular font-bold bg-slate-100 dark:bg-slate-800">
-                        2026
-                      </span>
-                    </div>
-
-                    <div className="h-44 flex items-end justify-between gap-2 sm:gap-3 pt-4 px-2">
+                  {/* Proportional Stacked Bar */}
+                  {realStats.totalContentRecords > 0 && (
+                    <div className="h-3 w-full rounded-full overflow-hidden flex bg-slate-100 dark:bg-slate-800">
                       {[
-                        { m: 'Jan', h1: 45, h2: 30 },
-                        { m: 'Feb', h1: 60, h2: 35 },
-                        { m: 'Mar', h1: 50, h2: 40 },
-                        { m: 'Apr', h1: 75, h2: 45 },
-                        { m: 'May', h1: 65, h2: 50 },
-                        { m: 'Jun', h1: 85, h2: 55 },
-                        { m: 'Jul', h1: 70, h2: 45 },
-                        { m: 'Aug', h1: 90, h2: 60 },
-                        { m: 'Sep', h1: 80, h2: 50 },
-                        { m: 'Oct', h1: 95, h2: 65 },
-                      ].map((bar) => (
-                        <div key={bar.m} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                          <div className="w-full max-w-[22px] flex flex-col justify-end h-full gap-0.5">
-                            <span
-                              style={{ height: `${bar.h2}%` }}
-                              className="w-full rounded-t bg-amber-400"
-                            />
-                            <span
-                              style={{ height: `${bar.h1}%` }}
-                              className="w-full rounded-b bg-emerald-600"
-                            />
-                          </div>
-                          <span className="text-[10px] font-mono-tabular text-slate-400">
-                            {bar.m}
-                          </span>
-                        </div>
-                      ))}
+                        { count: realStats.projectsTotal, color: 'bg-[#00C2CB]', label: 'Projects' },
+                        { count: realStats.clinicsTotal, color: 'bg-teal-500', label: 'Clinics' },
+                        { count: realStats.doctorsTotal + realStats.servicesTotal, color: 'bg-sky-500', label: 'Doctors & Services' },
+                        { count: realStats.articlesTotal, color: 'bg-emerald-500', label: 'Articles' },
+                        { count: realStats.pagesTotal, color: 'bg-indigo-500', label: 'Pages' },
+                      ].map((seg) => {
+                        const pct = (seg.count / realStats.totalContentRecords) * 100;
+                        if (pct <= 0) return null;
+                        return (
+                          <div
+                            key={seg.label}
+                            style={{ width: `${pct}%` }}
+                            className={`${seg.color} h-full`}
+                            title={`${seg.label}: ${seg.count}`}
+                          />
+                        );
+                      })}
                     </div>
+                  )}
 
-                    <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
-                      <span>
-                        {locale === 'ar'
-                          ? 'جميع البيانات متزامنة مع قاعدة البيانات الحية'
-                          : 'Synchronized with live platform database'}
-                      </span>
-                      <span className="font-mono-tabular font-bold text-emerald-600">
-                        {db.media.length} Media Assets
-                      </span>
-                    </div>
+                  {/* Clean Structured Collections Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-start border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                          <th className="py-2.5 pe-4 font-semibold text-start">
+                            {locale === 'ar' ? 'القسم' : 'Collection'}
+                          </th>
+                          <th className="py-2.5 px-3 font-semibold text-end">
+                            {locale === 'ar' ? 'الإجمالي' : 'Total'}
+                          </th>
+                          <th className="py-2.5 px-3 font-semibold text-end">
+                            {locale === 'ar' ? 'منشور' : 'Published'}
+                          </th>
+                          <th className="py-2.5 px-3 font-semibold text-end">
+                            {locale === 'ar' ? 'مسودة' : 'Draft'}
+                          </th>
+                          <th className="py-2.5 ps-3 font-semibold text-end">
+                            {locale === 'ar' ? 'الإدارة' : 'Action'}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                        {[
+                          {
+                            key: 'pages',
+                            label: locale === 'ar' ? 'الصفحات الأساسية والهبوط' : 'Pages',
+                            total: realStats.pagesTotal,
+                            pub: realStats.publishedPages,
+                            color: 'bg-indigo-500',
+                            path: '/admin/pages',
+                          },
+                          {
+                            key: 'projects',
+                            label: locale === 'ar' ? 'المشروعات والأنظمة' : 'Projects',
+                            total: realStats.projectsTotal,
+                            pub: realStats.publishedProjects,
+                            color: 'bg-[#00C2CB]',
+                            path: '/admin/projects',
+                          },
+                          {
+                            key: 'clinics',
+                            label: locale === 'ar' ? 'العيادات الطبية' : 'Medical Clinics',
+                            total: realStats.clinicsTotal,
+                            pub: realStats.publishedClinics,
+                            color: 'bg-teal-500',
+                            path: '/admin/clinics',
+                          },
+                          {
+                            key: 'doctors',
+                            label: locale === 'ar' ? 'الأطباء والاستشاريون' : 'Doctors',
+                            total: realStats.doctorsTotal,
+                            pub: realStats.publishedDoctors,
+                            color: 'bg-sky-500',
+                            path: '/admin/clinics',
+                          },
+                          {
+                            key: 'services',
+                            label: locale === 'ar' ? 'الخدمات والأسعار' : 'Services & Pricing',
+                            total: realStats.servicesTotal,
+                            pub: realStats.publishedServices,
+                            color: 'bg-sky-400',
+                            path: '/admin/clinics',
+                          },
+                          {
+                            key: 'articles',
+                            label: locale === 'ar' ? 'المقالات والمدونة' : 'Blog Articles',
+                            total: realStats.articlesTotal,
+                            pub: realStats.publishedArticles,
+                            color: 'bg-emerald-500',
+                            path: '/admin/blog',
+                          },
+                        ].map((row) => (
+                          <tr
+                            key={row.key}
+                            className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                          >
+                            <td className="py-2.5 pe-4 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                              <span className={`w-2.5 h-2.5 rounded-xs ${row.color} shrink-0`} />
+                              <span>{row.label}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-end font-mono-tabular font-semibold">
+                              {row.total}
+                            </td>
+                            <td className="py-2.5 px-3 text-end font-mono-tabular text-emerald-600 dark:text-emerald-400 font-semibold">
+                              {row.pub}
+                            </td>
+                            <td className="py-2.5 px-3 text-end font-mono-tabular text-amber-600 dark:text-amber-400">
+                              {row.total - row.pub}
+                            </td>
+                            <td className="py-2.5 ps-3 text-end">
+                              <button
+                                type="button"
+                                onClick={() => navigate(row.path)}
+                                className="text-[#0099A3] dark:text-[#00C2CB] font-semibold hover:underline cursor-pointer whitespace-nowrap"
+                              >
+                                {locale === 'ar' ? 'فتح ←' : 'Open →'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
+                </section>
 
-                {/* Quick Jump Management Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <button
-                    onClick={() => navigate('/admin/projects')}
-                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors cursor-pointer"
-                  >
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar' ? 'إدارة المشروعات والأنظمة' : 'Manage Systems & Projects'}
+                {/* 4. LAST MODIFIED ARTICLES & LAST MODIFIED PAGES */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Last Modified Articles */}
+                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                        {locale === 'ar' ? 'آخر المقالات المعدّلة' : 'Last Modified Articles'}
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin/blog')}
+                        className="text-xs font-semibold text-[#0099A3] dark:text-[#00C2CB] hover:underline cursor-pointer"
+                      >
+                        {locale === 'ar' ? 'عرض الكل' : 'View All'}
+                      </button>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar'
-                        ? 'إضافة أو تعديل المشروعات، الشاشات، الفيديو، وترتيب العرض.'
-                        : 'Add or edit projects, screens, videos, and display order.'}
-                    </p>
-                  </button>
 
-                  <button
-                    onClick={() => navigate('/admin/clinics')}
-                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors cursor-pointer"
-                  >
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar'
-                        ? 'إدارة صفحات العيادات والأطباء والأسعار'
-                        : 'Manage Clinics, Doctors & Prices'}
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar'
-                        ? 'إنشاء صفحات هبوط طبية مستقلة وتحديث الأطباء والخدمات.'
-                        : 'Create standalone medical landing pages and manage doctors & fees.'}
-                    </p>
-                  </button>
+                    {realStats.latestArticles.length === 0 ? (
+                      <div className="py-8 text-center space-y-3">
+                        <p className="text-xs text-slate-500">
+                          {locale === 'ar' ? 'لا توجد مقالات مسجلة حتى الآن.' : 'No articles yet.'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={openNewArticleEditor}
+                          className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
+                        >
+                          {locale === 'ar' ? '+ كتابة أول مقال' : '+ Write First Article'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {realStats.latestArticles.map((art) => (
+                          <div
+                            key={art.id}
+                            className="py-3 flex items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {art.title[locale] || art.title.en || art.title.ar}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                <span className="font-mono-tabular text-[#0099A3] dark:text-[#00C2CB]">
+                                  /blog/{art.slug}
+                                </span>
+                                <span>·</span>
+                                <span className="font-mono-tabular">
+                                  {formatAdminDate(art.updatedAt || art.createdAt, locale)}
+                                </span>
+                                <span>·</span>
+                                <span
+                                  className={
+                                    art.published
+                                      ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                                      : 'text-amber-600 dark:text-amber-400 font-semibold'
+                                  }
+                                >
+                                  {art.published
+                                    ? locale === 'ar'
+                                      ? 'منشور'
+                                      : 'Published'
+                                    : locale === 'ar'
+                                    ? 'مسودة'
+                                    : 'Draft'}
+                                </span>
+                              </div>
+                            </div>
 
-                  <button
-                    onClick={() => navigate('/admin/settings')}
-                    className="p-5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#00C2CB] text-start space-y-2 transition-colors cursor-pointer"
-                  >
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar'
-                        ? 'ربط مشروع Firebase الحالي وقواعد الحماية'
-                        : 'Connect Existing Firebase & Security Rules'}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigate('/admin/blog');
+                                  setEditingArticle({ ...art });
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-[#00C2CB] hover:text-slate-950 transition-colors cursor-pointer"
+                              >
+                                {locale === 'ar' ? 'تعديل' : 'Edit'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Last Modified Pages */}
+                  <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                        {locale === 'ar' ? 'آخر الصفحات المعدّلة' : 'Last Modified Pages'}
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin/pages')}
+                        className="text-xs font-semibold text-[#0099A3] dark:text-[#00C2CB] hover:underline cursor-pointer"
+                      >
+                        {locale === 'ar' ? 'عرض الكل' : 'View All'}
+                      </button>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar'
-                        ? 'إدخال مفاتيح مشروعك الحالي دون إنشاء مشروع جديد ونسخ firestore.rules.'
-                        : 'Configure your existing Firebase project and copy production firestore.rules.'}
-                    </p>
-                  </button>
+
+                    {realStats.latestPages.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-slate-500">
+                        {locale === 'ar' ? 'لا توجد صفحات مسجلة حالياً.' : 'No pages configured.'}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {realStats.latestPages.map((page) => (
+                          <div
+                            key={page.id}
+                            className="py-3 flex items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {page.title[locale] || page.title.en || page.title.ar}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                <span className="font-mono-tabular text-[#0099A3] dark:text-[#00C2CB]">
+                                  /{page.slug}
+                                </span>
+                                <span>·</span>
+                                <span className="font-mono-tabular">
+                                  {formatAdminDate(page.updatedAt || page.createdAt, locale)}
+                                </span>
+                                <span>·</span>
+                                <span
+                                  className={
+                                    page.published
+                                      ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                                      : 'text-amber-600 dark:text-amber-400 font-semibold'
+                                  }
+                                >
+                                  {page.published
+                                    ? locale === 'ar'
+                                      ? 'منشور'
+                                      : 'Published'
+                                    : locale === 'ar'
+                                    ? 'مسودة'
+                                    : 'Draft'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigate('/admin/pages');
+                                  setEditingPageIsNew(false);
+                                  setEditingPage({ ...page });
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-[#00C2CB] hover:text-slate-950 transition-colors cursor-pointer"
+                              >
+                                {locale === 'ar' ? 'تعديل' : 'Edit'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Live Functional Testing (PROMPT 5.1) & Security Audit (PROMPT 5.2) Report Center */}
@@ -1204,336 +1860,767 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
             )}
 
             {/* =============================================================== */}
-            {/* TAB 2: PAGES MANAGEMENT (/admin/pages) - Home & About/CV */}
+            {/* TAB 2: PAGES MANAGEMENT (/admin/pages) — COMPLETE CMS CRUD */}
             {/* =============================================================== */}
-            {subRoute === 'pages' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar'
-                        ? 'إدارة الصفحة الرئيسية والمعلومات الشخصية والسيرة الذاتية'
-                        : 'Manage Home Page & Personal Profile / CV'}
-                    </h1>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar'
-                        ? 'تحكم في النصوص العربية والإنجليزية، الصورة الشخصية، وإعدادات SEO لكل صفحة.'
-                        : 'Control Arabic/English copy, portrait image, standalone mode, and per-page SEO.'}
-                    </p>
+            {subRoute === 'pages' && (() => {
+              const allPages = db.pages || [];
+              const archivedCount = allPages.filter((p) => p.archived).length;
+
+              const filteredPages = [...allPages]
+                .filter((page) => {
+                  if (statusFilter === 'trash') {
+                    if (!page.archived) return false;
+                  } else {
+                    if (page.archived) return false;
+                    if (statusFilter === 'published' && !page.published) return false;
+                    if (statusFilter === 'draft' && page.published) return false;
+                  }
+                  if (!searchFilter.trim()) return true;
+                  const q = searchFilter.toLowerCase();
+                  return (
+                    page.title.ar.toLowerCase().includes(q) ||
+                    page.title.en.toLowerCase().includes(q) ||
+                    page.slug.toLowerCase().includes(q) ||
+                    page.headline.ar.toLowerCase().includes(q) ||
+                    page.headline.en.toLowerCase().includes(q)
+                  );
+                })
+                .sort((a, b) => {
+                  if (sortBy === 'updatedAt') {
+                    return getTimestampValue(b.updatedAt) - getTimestampValue(a.updatedAt);
+                  }
+                  if (sortBy === 'createdAt') {
+                    return getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt);
+                  }
+                  if (sortBy === 'title') {
+                    return (a.title[locale] || '').localeCompare(b.title[locale] || '');
+                  }
+                  return (a.order ?? 0) - (b.order ?? 0);
+                });
+
+              const paginatedPages = filteredPages.slice(
+                (currentPage - 1) * PAGE_SIZE,
+                currentPage * PAGE_SIZE
+              );
+
+              const handleRequestPermanentPageDelete = (page: PageConfig) => {
+                if (isCoreProtectedPage(page)) {
+                  showToast(
+                    locale === 'ar'
+                      ? 'لا يمكن حذف الصفحات الأساسية المحمية من المنصة نهائياً.'
+                      : 'Core protected system pages cannot be permanently deleted.',
+                    'error'
+                  );
+                  return;
+                }
+                const refs = checkPageInSiteReferences(page, db);
+                if (refs.inUse) {
+                  showToast(
+                    locale === 'ar'
+                      ? `لا يمكن الحذف النهائي: هذه الصفحة مرتبطة داخل محتوى آخر (${refs.usedIn.join('، ')}).`
+                      : `Cannot permanently delete: page is referenced in (${refs.usedIn.join(', ')}).`,
+                    'error'
+                  );
+                  return;
+                }
+                const expectedName = page.title[locale] || page.title.en || page.title.ar;
+                setDeleteConfirmLiteralInput('');
+                setDeleteConfirm({
+                  collection: 'pages',
+                  id: page.id,
+                  title: `${page.title.ar} — ${page.title.en}`,
+                  requireLiteralConfirm: true,
+                  expectedLiteralName: expectedName,
+                });
+              };
+
+              return (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                        {locale === 'ar'
+                          ? 'إدارة الصفحات وصفحات الهبوط'
+                          : 'Pages & Landing Pages Management'}
+                      </h1>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'إنشاء صفحات هبوط (/landing/slug) وصفحات محتوى (/p/slug) وإدارة الصفحات الأساسية وإعدادات SEO والمعاينة الحية.'
+                          : 'Create landing (/landing/slug) and content (/p/slug) pages, manage core pages, SEO, standalone mode, and live preview.'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openNewPageEditor('general')}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-[#00C2CB] cursor-pointer"
+                      >
+                        <FilePlus2 className="w-3.5 h-3.5 text-[#00C2CB]" />
+                        <span>{locale === 'ar' ? '+ صفحة عامة' : '+ General Page'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openNewPageEditor('landing')}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] cursor-pointer shadow-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{locale === 'ar' ? '+ صفحة هبوط جديدة' : '+ New Landing Page'}</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  {db.pages.map((page) => (
-                    <div
-                      key={page.id}
-                      className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="font-mono-tabular text-[#00C2CB]">/{page.slug}</span>
-                          <span>·</span>
-                          <span
-                            className={
-                              page.published ? 'text-emerald-500 font-semibold' : 'text-amber-500'
-                            }
-                          >
-                            {page.published
-                              ? locale === 'ar'
-                                ? 'منشور'
-                                : 'Published'
-                              : locale === 'ar'
-                              ? 'مسودة'
-                              : 'Draft'}
-                          </span>
-                          {page.standaloneByDefault && (
-                            <>
-                              <span>·</span>
-                              <span className="text-[#00C2CB]">Standalone Mode Active</span>
-                            </>
-                          )}
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                          {page.title.ar} — {page.title.en}
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                          {page.headline[locale]}
-                        </p>
-                      </div>
+                  {/* Unified Search, Status Filter (inc. Trash) & Sort Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex-1 min-w-[220px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5" />
+                      <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        placeholder={locale === 'ar' ? 'بحث في الصفحات...' : 'Search pages...'}
+                        className="w-full ps-9 pe-3.5 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
+                      />
+                    </div>
 
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        {page.slug !== 'home' && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800 overflow-x-auto">
+                        {(
+                          [
+                            { id: 'all', label: { ar: 'الكل', en: 'All' } },
+                            { id: 'published', label: { ar: 'المنشورة', en: 'Published' } },
+                            { id: 'draft', label: { ar: 'المسودات', en: 'Draft' } },
+                            {
+                              id: 'trash',
+                              label: {
+                                ar: `الأرشيف (${archivedCount})`,
+                                en: `Trash (${archivedCount})`,
+                              },
+                            },
+                          ] as const
+                        ).map((st) => (
                           <button
+                            key={st.id}
                             type="button"
-                            onClick={() => handleTogglePublished('pages', page)}
-                            className={`px-3.5 py-2 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-                              page.published
-                                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
-                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                            onClick={() => setStatusFilter(st.id)}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                              statusFilter === st.id
+                                ? 'bg-[#00C2CB] text-slate-950'
+                                : 'text-slate-600 dark:text-slate-300'
                             }`}
                           >
-                            {page.published ? (
-                              <>
-                                <EyeOff className="w-3.5 h-3.5" />
-                                <span>{locale === 'ar' ? 'إخفاء الصفحة' : 'Hide Page'}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>{locale === 'ar' ? 'إظهار الصفحة' : 'Show Page'}</span>
-                              </>
-                            )}
+                            {st.label[locale]}
                           </button>
-                        )}
+                        ))}
+                      </div>
 
-                        <button
-                          onClick={() =>
-                            setPreviewItem({
-                              type: 'Page',
-                              title: page.headline[locale],
-                              subtitle: page.subheadline[locale],
-                              body: page.biography[locale],
-                              image: page.heroImage,
-                              published: page.published,
-                            })
-                          }
-                          className="px-3 py-2 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] inline-flex items-center gap-1.5"
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-xs">
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                        <select
+                          value={sortBy}
+                          onChange={(e) => setSortBy(e.target.value as AdminSortOption)}
+                          className="bg-transparent text-xs font-medium focus:outline-none cursor-pointer"
+                          aria-label={locale === 'ar' ? 'ترتيب الصفحات' : 'Sort pages'}
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>{locale === 'ar' ? 'معاينة' : 'Preview'}</span>
-                        </button>
-
-                        <button
-                          onClick={() => setEditingPage({ ...page })}
-                          className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] inline-flex items-center gap-1.5"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>{locale === 'ar' ? 'تعديل الصفحة وSEO' : 'Edit Page & SEO'}</span>
-                        </button>
+                          <option value="order" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'ترتيب العرض' : 'Display Order'}
+                          </option>
+                          <option value="updatedAt" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الأحدث تعديلاً' : 'Recently Updated'}
+                          </option>
+                          <option value="createdAt" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الأحدث إنشاءً' : 'Recently Created'}
+                          </option>
+                          <option value="title" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الاسم أبجدياً' : 'Title A–Z'}
+                          </option>
+                        </select>
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  {filteredPages.length === 0 ? (
+                    <div className="p-10 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 text-center space-y-3">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {statusFilter === 'trash'
+                          ? locale === 'ar'
+                            ? 'سلة المحذوفات / الأرشيف فارغة حالياً'
+                            : 'Archive / Trash is currently empty'
+                          : locale === 'ar'
+                          ? 'لا توجد صفحات مطابقة لمعايير البحث الحالية'
+                          : 'No pages match your current filter criteria'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchFilter('');
+                          setStatusFilter('all');
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
+                      >
+                        {locale === 'ar' ? 'إعادة تعيين البحث' : 'Reset Filters'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-start border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 dark:bg-[#0B1222] border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                              <th className="py-3.5 px-4 font-semibold text-start">
+                                {locale === 'ar' ? 'الصفحة (عربي / إنجليزي)' : 'Page Title (AR / EN)'}
+                              </th>
+                              <th className="py-3.5 px-3 font-semibold text-start">
+                                {locale === 'ar' ? 'الرابط (Slug & URL)' : 'Slug & Canonical URL'}
+                              </th>
+                              <th className="py-3.5 px-3 font-semibold text-start">
+                                {locale === 'ar' ? 'النوع' : 'Type'}
+                              </th>
+                              <th className="py-3.5 px-3 font-semibold text-start">
+                                {locale === 'ar' ? 'الحالة' : 'Status'}
+                              </th>
+                              <th className="py-3.5 px-3 font-semibold text-start">
+                                {locale === 'ar' ? 'آخر تعديل' : 'Last Modified'}
+                              </th>
+                              <th className="py-3.5 px-4 font-semibold text-end">
+                                {locale === 'ar' ? 'الإجراءات' : 'Actions'}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                            {paginatedPages.map((page) => {
+                              const isCore = isCoreProtectedPage(page);
+                              const pageUrl = getPageCanonicalPath(page, locale);
+                              const typeBadge = isCore
+                                ? locale === 'ar'
+                                  ? 'أساسية'
+                                  : 'Core'
+                                : page.pageType === 'landing'
+                                ? locale === 'ar'
+                                  ? 'هبوط'
+                                  : 'Landing'
+                                : locale === 'ar'
+                                ? 'عامة'
+                                : 'General';
+
+                              return (
+                                <tr
+                                  key={page.id}
+                                  className="hover:bg-slate-50/70 dark:hover:bg-slate-800/35 transition-colors"
+                                >
+                                  <td className="py-4 px-4 align-top max-w-xs">
+                                    <div className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="font-bold text-sm text-slate-900 dark:text-white">
+                                          {page.title.ar}
+                                        </span>
+                                        {isCore && (
+                                          <span
+                                            title={
+                                              locale === 'ar'
+                                                ? 'صفحة أساسية محمية من الحذف النهائي'
+                                                : 'Core protected page'
+                                            }
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-500 text-[10px] font-bold"
+                                          >
+                                            <Lock className="w-2.5 h-2.5" />
+                                            <span>{locale === 'ar' ? 'محمية' : 'Core'}</span>
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                        {page.title.en}
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td className="py-4 px-3 align-top">
+                                    <div className="space-y-1">
+                                      <div className="font-mono-tabular text-[#0099A3] dark:text-[#00C2CB] font-semibold">
+                                        {pageUrl}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const full = `${window.location.origin}${pageUrl}`;
+                                            navigator.clipboard?.writeText(full);
+                                            showToast(
+                                              locale === 'ar' ? 'تم نسخ الرابط' : 'URL copied',
+                                              'info'
+                                            );
+                                          }}
+                                          className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#00C2CB] cursor-pointer"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                          <span>{locale === 'ar' ? 'نسخ' : 'Copy'}</span>
+                                        </button>
+                                        <a
+                                          href={pageUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#00C2CB]"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                          <span>{locale === 'ar' ? 'فتح' : 'Open'}</span>
+                                        </a>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td className="py-4 px-3 align-top whitespace-nowrap">
+                                    <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
+                                      {typeBadge}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-4 px-3 align-top whitespace-nowrap">
+                                    <div className="flex flex-col items-start gap-1">
+                                      <span
+                                        className={`font-bold ${
+                                          page.archived
+                                            ? 'text-red-500'
+                                            : page.published
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-amber-600 dark:text-amber-400'
+                                        }`}
+                                      >
+                                        {page.archived
+                                          ? locale === 'ar'
+                                            ? 'مؤرشف'
+                                            : 'Archived'
+                                          : page.published
+                                          ? locale === 'ar'
+                                            ? 'منشور'
+                                            : 'Published'
+                                          : locale === 'ar'
+                                          ? 'مسودة'
+                                          : 'Draft'}
+                                      </span>
+                                      {page.standaloneByDefault && (
+                                        <span className="text-[10px] font-semibold text-[#0099A3] dark:text-[#00C2CB]">
+                                          Standalone
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-4 px-3 align-top whitespace-nowrap font-mono-tabular text-slate-500 dark:text-slate-400">
+                                    {formatAdminDate(page.updatedAt || page.createdAt, locale)}
+                                  </td>
+
+                                  <td className="py-4 px-4 align-top">
+                                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                      {!page.archived ? (
+                                        <>
+                                          {page.slug !== 'home' && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleTogglePublished('pages', page)}
+                                              className={`px-2.5 py-1.5 rounded-lg font-bold inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                                                page.published
+                                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
+                                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                                              }`}
+                                              title={page.published ? 'Hide Page' : 'Publish Page'}
+                                            >
+                                              {page.published ? (
+                                                <>
+                                                  <EyeOff className="w-3.5 h-3.5" />
+                                                  <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Eye className="w-3.5 h-3.5" />
+                                                  <span>{locale === 'ar' ? 'نشر' : 'Publish'}</span>
+                                                </>
+                                              )}
+                                            </button>
+                                          )}
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingPageIsNew(false);
+                                              setEditingPage({ ...page });
+                                            }}
+                                            className="px-3 py-1.5 rounded-lg font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] inline-flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <Edit3 className="w-3.5 h-3.5" />
+                                            <span>{locale === 'ar' ? 'تحرير' : 'Edit'}</span>
+                                          </button>
+
+                                          {!isCore ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => setPageTrashConfirm(page)}
+                                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 cursor-pointer"
+                                              title={
+                                                locale === 'ar'
+                                                  ? 'نقل إلى سلة المحذوفات'
+                                                  : 'Move to Trash'
+                                              }
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </button>
+                                          ) : (
+                                            <span
+                                              className="p-1.5 rounded-lg text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                                              title={
+                                                locale === 'ar'
+                                                  ? 'الصفحات الأساسية محمية من الحذف النهائي'
+                                                  : 'Core pages cannot be deleted'
+                                              }
+                                            >
+                                              <Lock className="w-3.5 h-3.5" />
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              upsertRecord('pages', {
+                                                ...page,
+                                                archived: false,
+                                                archivedAt: undefined,
+                                                published: false,
+                                              })
+                                            }
+                                            className="px-3 py-1.5 rounded-lg font-bold bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25 inline-flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <RotateCcw className="w-3.5 h-3.5" />
+                                            <span>{locale === 'ar' ? 'استعادة' : 'Restore'}</span>
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRequestPermanentPageDelete(page)}
+                                            className="px-3 py-1.5 rounded-lg font-bold bg-red-600 text-white hover:bg-red-700 inline-flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>
+                                              {locale === 'ar' ? 'حذف نهائي' : 'Delete Forever'}
+                                            </span>
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  <AdminPagination
+                    locale={locale}
+                    totalItems={filteredPages.length}
+                    pageSize={PAGE_SIZE}
+                    currentPage={currentPage}
+                    onPageChange={setCurrentPage}
+                  />
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* =============================================================== */}
             {/* TAB 3: PROJECTS MANAGEMENT (/admin/projects) */}
             {/* =============================================================== */}
-            {subRoute === 'projects' && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar' ? 'إدارة المشروعات والأنظمة' : 'Manage Projects & Systems'}
-                    </h1>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar'
-                        ? 'إضافة، تعديل، ترتيب، مسودة/نشر، وإدارة الروابط (Slugs) وصور الغلاف.'
-                        : 'Create, edit, reorder, toggle Draft/Published, and manage slugs & covers.'}
-                    </p>
+            {subRoute === 'projects' && (() => {
+              const filteredProjects = [...(db.projects || [])]
+                .filter((p) => {
+                  if (statusFilter === 'published' && !p.published) return false;
+                  if (statusFilter === 'draft' && p.published) return false;
+                  if (!searchFilter.trim()) return true;
+                  const q = searchFilter.toLowerCase();
+                  return (
+                    p.title.ar.toLowerCase().includes(q) ||
+                    p.title.en.toLowerCase().includes(q) ||
+                    p.slug.toLowerCase().includes(q)
+                  );
+                })
+                .sort((a, b) => {
+                  if (sortBy === 'updatedAt') {
+                    return getTimestampValue(b.updatedAt) - getTimestampValue(a.updatedAt);
+                  }
+                  if (sortBy === 'createdAt') {
+                    return getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt);
+                  }
+                  if (sortBy === 'title') {
+                    return (a.title[locale] || '').localeCompare(b.title[locale] || '');
+                  }
+                  return (a.order ?? 0) - (b.order ?? 0);
+                });
+
+              const paginatedProjects = filteredProjects.slice(
+                (currentPage - 1) * PAGE_SIZE,
+                currentPage * PAGE_SIZE
+              );
+
+              return (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                        {locale === 'ar' ? 'إدارة المشروعات والأنظمة' : 'Manage Projects & Systems'}
+                      </h1>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'إضافة، تعديل، ترتيب، مسودة/نشر، وإدارة الروابط (Slugs) وصور الغلاف.'
+                          : 'Create, edit, reorder, toggle Draft/Published, and manage slugs & covers.'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={openNewProjectEditor}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{locale === 'ar' ? 'إضافة مشروع جديد' : 'Add New Project'}</span>
+                    </button>
                   </div>
 
-                  <button
-                    onClick={() =>
-                      setEditingProject({
-                        id: `proj-${Date.now()}`,
-                        slug: '',
-                        title: { ar: '', en: '' },
-                        kicker: { ar: 'مشروع رقمي', en: 'Digital Project' },
-                        summary: { ar: '', en: '' },
-                        description: { ar: '', en: '' },
-                        category: 'medical-systems',
-                        categoryLabel: { ar: 'أنظمة طبية', en: 'Medical Systems' },
-                        coverImage: '/assets/aistudio/logo_ae3842b8.png',
-                        whatsappInquireText: {
-                          ar: 'مرحباً، أريد الاستفسار عن هذا المشروع.',
-                          en: 'Hello, I want to inquire about this project.',
-                        },
-                        features: { ar: ['ميزة أساسية 1'], en: ['Core capability 1'] },
-                        techStack: ['React', 'TypeScript'],
-                        screens: [],
-                        featured: true,
-                        published: false,
-                        order: db.projects.length + 1,
-                        seo: {
-                          title: { ar: '', en: '' },
-                          description: { ar: '', en: '' },
-                        },
-                      })
-                    }
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] whitespace-nowrap shrink-0"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>{locale === 'ar' ? 'إضافة مشروع جديد' : 'Add New Project'}</span>
-                  </button>
-                </div>
-
-                {/* Search & Status Filter Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="relative flex-1 min-w-[220px]">
-                    <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5" />
-                    <input
-                      type="text"
-                      value={searchFilter}
-                      onChange={(e) => setSearchFilter(e.target.value)}
-                      placeholder={locale === 'ar' ? 'بحث في المشروعات...' : 'Search projects...'}
-                      className="w-full ps-9 pe-3.5 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {(['all', 'published', 'draft'] as const).map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => setStatusFilter(st)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize ${
-                          statusFilter === st
-                            ? 'bg-[#00C2CB] text-slate-950'
-                            : 'bg-white dark:bg-[#0F172A] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {db.projects
-                    .filter((p) => {
-                      if (statusFilter === 'published' && !p.published) return false;
-                      if (statusFilter === 'draft' && p.published) return false;
-                      if (!searchFilter.trim()) return true;
-                      const q = searchFilter.toLowerCase();
-                      return (
-                        p.title.ar.toLowerCase().includes(q) ||
-                        p.title.en.toLowerCase().includes(q) ||
-                        p.slug.toLowerCase().includes(q)
-                      );
-                    })
-                    .map((proj, idx, arr) => (
-                      <div
-                        key={proj.id}
-                        className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#070E1A] border border-slate-700 p-1.5 shrink-0">
-                            <OptimizedImage
-                              src={proj.coverImage}
-                              alt={proj.title[locale]}
-                              containerClassName="w-full h-full"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-xs">
-                              <span className="font-mono-tabular text-slate-400">#{proj.order}</span>
-                              <span>·</span>
-                              <span className="font-mono-tabular text-[#00C2CB]">
-                                /projects/{proj.slug}
-                              </span>
-                              <span>·</span>
-                              <button
-                                onClick={() => handleTogglePublished('projects', proj)}
-                                className={`font-semibold underline ${
-                                  proj.published ? 'text-emerald-500' : 'text-amber-500'
-                                }`}
-                              >
-                                {proj.published
-                                  ? locale === 'ar'
-                                    ? 'منشور (انقر لتحويله لمسودة)'
-                                    : 'Published'
-                                  : locale === 'ar'
-                                  ? 'مسودة (انقر للنشر)'
-                                  : 'Draft'}
-                              </button>
-                            </div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                              {proj.title.ar} / {proj.title.en}
-                            </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                              {proj.summary[locale]}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {/* Search, Status Filter & Sort Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex-1 min-w-[220px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5" />
+                      <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        placeholder={locale === 'ar' ? 'بحث في المشروعات...' : 'Search projects...'}
+                        className="w-full ps-9 pe-3.5 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800">
+                        {(
+                          [
+                            { id: 'all', label: { ar: 'الكل', en: 'All' } },
+                            { id: 'published', label: { ar: 'المنشورة', en: 'Published' } },
+                            { id: 'draft', label: { ar: 'المسودات', en: 'Draft' } },
+                          ] as const
+                        ).map((st) => (
                           <button
-                            onClick={() => handleMoveItemOrder('projects', arr, idx, 'up')}
-                            disabled={idx === 0}
-                            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-40"
-                            title="Move Up"
-                          >
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveItemOrder('projects', arr, idx, 'down')}
-                            disabled={idx === arr.length - 1}
-                            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-40"
-                            title="Move Down"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-                          <button
+                            key={st.id}
                             type="button"
-                            onClick={() => handleTogglePublished('projects', proj)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-                              proj.published
-                                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
-                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                            onClick={() => setStatusFilter(st.id)}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                              statusFilter === st.id
+                                ? 'bg-[#00C2CB] text-slate-950'
+                                : 'text-slate-600 dark:text-slate-300'
                             }`}
                           >
-                            {proj.published ? (
-                              <>
-                                <EyeOff className="w-3.5 h-3.5" />
-                                <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
-                              </>
-                            )}
+                            {st.label[locale]}
                           </button>
-                          <button
-                            onClick={() =>
-                              setPreviewItem({
-                                type: 'Project',
-                                title: proj.title[locale],
-                                subtitle: proj.summary[locale],
-                                body: proj.description[locale],
-                                image: proj.coverImage,
-                                published: proj.published,
-                              })
-                            }
-                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB]"
-                          >
-                            {locale === 'ar' ? 'معاينة' : 'Preview'}
-                          </button>
-                          <button
-                            onClick={() => setEditingProject({ ...proj })}
-                            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950"
-                          >
-                            {locale === 'ar' ? 'تعديل' : 'Edit'}
-                          </button>
-                          <button
-                            onClick={() =>
-                              setDeleteConfirm({
-                                collection: 'projects',
-                                id: proj.id,
-                                title: proj.title[locale],
-                              })
-                            }
-                            className="p-2 rounded-lg text-red-500 hover:bg-red-950/30"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-xs">
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                        <select
+                          value={sortBy}
+                          onChange={(e) => setSortBy(e.target.value as AdminSortOption)}
+                          className="bg-transparent text-xs font-medium focus:outline-none cursor-pointer"
+                        >
+                          <option value="order" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'ترتيب العرض' : 'Display Order'}
+                          </option>
+                          <option value="updatedAt" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الأحدث تعديلاً' : 'Recently Updated'}
+                          </option>
+                          <option value="createdAt" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الأحدث إنشاءً' : 'Recently Created'}
+                          </option>
+                          <option value="title" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الاسم أبجدياً' : 'Title A–Z'}
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredProjects.length === 0 ? (
+                    <div className="p-10 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 text-center space-y-3">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {locale === 'ar'
+                          ? 'لا توجد مشروعات مطابقة للبحث أو التصفية'
+                          : 'No projects match your search or filter'}
+                      </p>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchFilter('');
+                            setStatusFilter('all');
+                          }}
+                          className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 cursor-pointer"
+                        >
+                          {locale === 'ar' ? 'إعادة تعيين الفلاتر' : 'Reset Filters'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={openNewProjectEditor}
+                          className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
+                        >
+                          {locale === 'ar' ? '+ إضافة مشروع' : '+ New Project'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {paginatedProjects.map((proj, idx, arr) => (
+                        <div
+                          key={proj.id}
+                          className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#070E1A] border border-slate-700 p-1.5 shrink-0">
+                              <OptimizedImage
+                                src={proj.coverImage}
+                                alt={proj.title[locale]}
+                                containerClassName="w-full h-full"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="font-mono-tabular text-slate-400">#{proj.order}</span>
+                                <span>·</span>
+                                <span className="font-mono-tabular text-[#0099A3] dark:text-[#00C2CB]">
+                                  /projects/{proj.slug}
+                                </span>
+                                <span>·</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePublished('projects', proj)}
+                                  className={`font-semibold underline cursor-pointer ${
+                                    proj.published
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : 'text-amber-600 dark:text-amber-400'
+                                  }`}
+                                >
+                                  {proj.published
+                                    ? locale === 'ar'
+                                      ? 'منشور'
+                                      : 'Published'
+                                    : locale === 'ar'
+                                    ? 'مسودة'
+                                    : 'Draft'}
+                                </button>
+                                <span>·</span>
+                                <span className="font-mono-tabular text-slate-400">
+                                  {formatAdminDate(proj.updatedAt || proj.createdAt, locale)}
+                                </span>
+                              </div>
+                              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                {proj.title.ar} / {proj.title.en}
+                              </h3>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                                {proj.summary[locale]}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItemOrder('projects', arr, idx, 'up')}
+                              disabled={idx === 0 || sortBy !== 'order'}
+                              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-40 cursor-pointer"
+                              title="Move Up"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItemOrder('projects', arr, idx, 'down')}
+                              disabled={idx === arr.length - 1 || sortBy !== 'order'}
+                              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-40 cursor-pointer"
+                              title="Move Down"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePublished('projects', proj)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                proj.published
+                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
+                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                              }`}
+                            >
+                              {proj.published ? (
+                                <>
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                  <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewItem({
+                                  type: 'Project',
+                                  title: proj.title[locale],
+                                  subtitle: proj.summary[locale],
+                                  body: proj.description[locale],
+                                  image: proj.coverImage,
+                                  published: proj.published,
+                                })
+                              }
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] cursor-pointer"
+                            >
+                              {locale === 'ar' ? 'معاينة' : 'Preview'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProject({ ...proj })}
+                              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
+                            >
+                              {locale === 'ar' ? 'تعديل' : 'Edit'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteConfirm({
+                                  collection: 'projects',
+                                  id: proj.id,
+                                  title: proj.title[locale],
+                                })
+                              }
+                              className="p-2 rounded-lg text-red-500 hover:bg-red-950/30 cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <AdminPagination
+                    locale={locale}
+                    totalItems={filteredProjects.length}
+                    pageSize={PAGE_SIZE}
+                    currentPage={currentPage}
+                    onPageChange={setCurrentPage}
+                  />
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* =============================================================== */}
             {/* TAB 4: CLINICS, DOCTORS & SERVICES (/admin/clinics) */}
@@ -1557,8 +2644,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                   {/* Sub-Navigation between Clinics, Doctors, Services */}
                   <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800">
                     <button
+                      type="button"
                       onClick={() => setClinicSubTab('clinics')}
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                         clinicSubTab === 'clinics'
                           ? 'bg-[#00C2CB] text-slate-950'
                           : 'text-slate-600 dark:text-slate-300'
@@ -1567,8 +2655,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                       {locale === 'ar' ? 'العيادات' : 'Clinics'} ({db.clinics.length})
                     </button>
                     <button
+                      type="button"
                       onClick={() => setClinicSubTab('doctors')}
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                         clinicSubTab === 'doctors'
                           ? 'bg-[#00C2CB] text-slate-950'
                           : 'text-slate-600 dark:text-slate-300'
@@ -1577,8 +2666,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                       {locale === 'ar' ? 'الأطباء' : 'Doctors'} ({db.doctors.length})
                     </button>
                     <button
+                      type="button"
                       onClick={() => setClinicSubTab('services')}
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                         clinicSubTab === 'services'
                           ? 'bg-[#00C2CB] text-slate-950'
                           : 'text-slate-600 dark:text-slate-300'
@@ -1590,11 +2680,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                   </div>
                 </div>
 
+                {/* Unified Search & Status Filter for Clinics Section */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5" />
+                    <input
+                      type="text"
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      placeholder={
+                        locale === 'ar' ? 'بحث في العيادات والأطباء والخدمات...' : 'Search clinics, doctors, services...'
+                      }
+                      className="w-full ps-9 pe-3.5 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800">
+                    {(
+                      [
+                        { id: 'all', label: { ar: 'الكل', en: 'All' } },
+                        { id: 'published', label: { ar: 'المنشورة', en: 'Published' } },
+                        { id: 'draft', label: { ar: 'المسودات', en: 'Draft' } },
+                      ] as const
+                    ).map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setStatusFilter(st.id)}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                          statusFilter === st.id
+                            ? 'bg-[#00C2CB] text-slate-950'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {st.label[locale]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* SUB-TAB A: CLINICS */}
                 {clinicSubTab === 'clinics' && (
                   <div className="space-y-4">
                     <div className="flex justify-end">
                       <button
+                        type="button"
                         onClick={() =>
                           setEditingClinic({
                             id: `clinic-${Date.now()}`,
@@ -1633,7 +2762,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                       </button>
                     </div>
 
-                    {db.clinics.map((clinic) => (
+                    {db.clinics
+                      .filter((c) => {
+                        if (statusFilter === 'published' && !c.published) return false;
+                        if (statusFilter === 'draft' && c.published) return false;
+                        if (!searchFilter.trim()) return true;
+                        const q = searchFilter.toLowerCase();
+                        return (
+                          c.name.ar.toLowerCase().includes(q) ||
+                          c.name.en.toLowerCase().includes(q) ||
+                          c.slug.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((clinic) => (
                       <div
                         key={clinic.id}
                         className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
@@ -1906,375 +3047,715 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
             {/* =============================================================== */}
             {/* TAB 5: BLOG ARTICLES MANAGEMENT (/admin/blog) */}
             {/* =============================================================== */}
-            {subRoute === 'blog' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar' ? 'إدارة المقالات والمدونة' : 'Manage Blog Articles'}
-                    </h1>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar'
-                        ? 'كتابة، تحرير، معاينة، ونشر المقالات باللغتين العربية والإنجليزية.'
-                        : 'Write, preview, and publish bilingual articles with custom SEO.'}
-                    </p>
+            {subRoute === 'blog' && (() => {
+              const filteredArticles = [...(db.articles || [])]
+                .filter((art) => {
+                  if (statusFilter === 'published' && !art.published) return false;
+                  if (statusFilter === 'draft' && art.published) return false;
+                  if (!searchFilter.trim()) return true;
+                  const q = searchFilter.toLowerCase();
+                  return (
+                    art.title.ar.toLowerCase().includes(q) ||
+                    art.title.en.toLowerCase().includes(q) ||
+                    art.slug.toLowerCase().includes(q) ||
+                    art.category.ar.toLowerCase().includes(q) ||
+                    art.category.en.toLowerCase().includes(q)
+                  );
+                })
+                .sort((a, b) => {
+                  if (sortBy === 'updatedAt') {
+                    return getTimestampValue(b.updatedAt) - getTimestampValue(a.updatedAt);
+                  }
+                  if (sortBy === 'createdAt') {
+                    return getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt);
+                  }
+                  if (sortBy === 'title') {
+                    return (a.title[locale] || '').localeCompare(b.title[locale] || '');
+                  }
+                  return (a.order ?? 0) - (b.order ?? 0);
+                });
+
+              const paginatedArticles = filteredArticles.slice(
+                (currentPage - 1) * PAGE_SIZE,
+                currentPage * PAGE_SIZE
+              );
+
+              return (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                        {locale === 'ar' ? 'إدارة المقالات والمدونة' : 'Manage Blog Articles'}
+                      </h1>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'كتابة، تحرير، معاينة، ونشر المقالات باللغتين العربية والإنجليزية.'
+                          : 'Write, preview, and publish bilingual articles with custom SEO.'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={openNewArticleEditor}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{locale === 'ar' ? 'مقال جديد' : 'New Article'}</span>
+                    </button>
                   </div>
 
-                  <button
-                    onClick={() =>
-                      setEditingArticle({
-                        id: `art-${Date.now()}`,
-                        slug: '',
-                        title: { ar: '', en: '' },
-                        excerpt: { ar: '', en: '' },
-                        content: { ar: '', en: '' },
-                        category: { ar: 'هندسة الأنظمة الطبية', en: 'Healthcare Engineering' },
-                        tags: ['Soli Medical', 'Healthcare Software'],
-                        coverImage: '/assets/aistudio/logo_ae3842b8.png',
-                        readingTimeMinutes: 4,
-                        authorName: { ar: 'أحمد سليمان', en: 'Ahmed Soliman' },
-                        featured: false,
-                        published: false,
-                        order: db.articles.length + 1,
-                        seo: { title: { ar: '', en: '' }, description: { ar: '', en: '' } },
-                      })
-                    }
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>{locale === 'ar' ? 'مقال جديد' : 'New Article'}</span>
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {db.articles.map((art, idx, arr) => (
-                    <div
-                      key={art.id}
-                      className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="font-mono-tabular text-[#00C2CB]">/blog/{art.slug}</span>
-                          <span>·</span>
+                  {/* Unified Search, Status Filter & Sort Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex-1 min-w-[220px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5" />
+                      <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        placeholder={locale === 'ar' ? 'بحث في المقالات...' : 'Search articles...'}
+                        className="w-full ps-9 pe-3.5 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800">
+                        {(
+                          [
+                            { id: 'all', label: { ar: 'الكل', en: 'All' } },
+                            { id: 'published', label: { ar: 'المنشورة', en: 'Published' } },
+                            { id: 'draft', label: { ar: 'المسودات', en: 'Draft' } },
+                          ] as const
+                        ).map((st) => (
                           <button
-                            onClick={() => handleTogglePublished('articles', art)}
-                            className={`font-semibold underline ${
-                              art.published ? 'text-emerald-500' : 'text-amber-500'
+                            key={st.id}
+                            type="button"
+                            onClick={() => setStatusFilter(st.id)}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                              statusFilter === st.id
+                                ? 'bg-[#00C2CB] text-slate-950'
+                                : 'text-slate-600 dark:text-slate-300'
                             }`}
                           >
-                            {art.published
-                              ? locale === 'ar'
-                                ? 'منشور'
-                                : 'Published'
-                              : locale === 'ar'
-                              ? 'مسودة'
-                              : 'Draft'}
+                            {st.label[locale]}
                           </button>
-                          <span>·</span>
-                          <span className="font-mono-tabular text-slate-400">
-                            {art.readingTimeMinutes} min
-                          </span>
-                        </div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                          {art.title.ar}
-                        </h3>
-                        <p className="text-xs text-slate-500">{art.title.en}</p>
+                        ))}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => handleMoveItemOrder('articles', arr, idx, 'up')}
-                          disabled={idx === 0}
-                          className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40"
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 text-xs">
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                        <select
+                          value={sortBy}
+                          onChange={(e) => setSortBy(e.target.value as AdminSortOption)}
+                          className="bg-transparent text-xs font-medium focus:outline-none cursor-pointer"
                         >
-                          <ArrowUp className="w-3.5 h-3.5" />
-                        </button>
+                          <option value="order" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'ترتيب العرض' : 'Display Order'}
+                          </option>
+                          <option value="updatedAt" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الأحدث تعديلاً' : 'Recently Updated'}
+                          </option>
+                          <option value="createdAt" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'الأحدث إنشاءً' : 'Recently Created'}
+                          </option>
+                          <option value="title" className="dark:bg-[#0F172A]">
+                            {locale === 'ar' ? 'العنوان أبجدياً' : 'Title A–Z'}
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredArticles.length === 0 ? (
+                    <div className="p-10 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 text-center space-y-3">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {locale === 'ar'
+                          ? 'لا توجد مقالات مطابقة للبحث الحالي'
+                          : 'No articles match your current filter'}
+                      </p>
+                      <div className="flex items-center justify-center gap-2">
                         <button
-                          onClick={() => handleMoveItemOrder('articles', arr, idx, 'down')}
-                          disabled={idx === arr.length - 1}
-                          className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40"
+                          type="button"
+                          onClick={() => {
+                            setSearchFilter('');
+                            setStatusFilter('all');
+                          }}
+                          className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 cursor-pointer"
                         >
-                          <ArrowDown className="w-3.5 h-3.5" />
+                          {locale === 'ar' ? 'إعادة تعيين البحث' : 'Reset Filters'}
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleTogglePublished('articles', art)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-                            art.published
-                              ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
-                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
-                          }`}
+                          onClick={openNewArticleEditor}
+                          className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
                         >
-                          {art.published ? (
-                            <>
-                              <EyeOff className="w-3.5 h-3.5" />
-                              <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() =>
-                            setPreviewItem({
-                              type: 'Article',
-                              title: art.title[locale],
-                              subtitle: art.excerpt[locale],
-                              body: art.content[locale],
-                              image: art.coverImage,
-                              published: art.published,
-                            })
-                          }
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                        >
-                          {locale === 'ar' ? 'معاينة' : 'Preview'}
-                        </button>
-                        <button
-                          onClick={() => setEditingArticle({ ...art })}
-                          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950"
-                        >
-                          {locale === 'ar' ? 'تعديل' : 'Edit'}
-                        </button>
-                        <button
-                          onClick={() =>
-                            setDeleteConfirm({
-                              collection: 'articles',
-                              id: art.id,
-                              title: art.title[locale],
-                            })
-                          }
-                          className="p-2 rounded-lg text-red-500 hover:bg-red-950/30"
-                        >
-                          <Trash2 className="w-4 h-4" />
+                          {locale === 'ar' ? '+ مقال جديد' : '+ New Article'}
                         </button>
                       </div>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="space-y-3">
+                      {paginatedArticles.map((art, idx, arr) => (
+                        <div
+                          key={art.id}
+                          className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                        >
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="font-mono-tabular text-[#0099A3] dark:text-[#00C2CB]">
+                                /blog/{art.slug}
+                              </span>
+                              <span>·</span>
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePublished('articles', art)}
+                                className={`font-semibold underline cursor-pointer ${
+                                  art.published
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-amber-600 dark:text-amber-400'
+                                }`}
+                              >
+                                {art.published
+                                  ? locale === 'ar'
+                                    ? 'منشور'
+                                    : 'Published'
+                                  : locale === 'ar'
+                                  ? 'مسودة'
+                                  : 'Draft'}
+                              </button>
+                              <span>·</span>
+                              <span className="font-mono-tabular text-slate-400">
+                                {art.readingTimeMinutes} min
+                              </span>
+                              <span>·</span>
+                              <span className="font-mono-tabular text-slate-400">
+                                {formatAdminDate(art.updatedAt || art.createdAt, locale)}
+                              </span>
+                            </div>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                              {art.title.ar}
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{art.title.en}</p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItemOrder('articles', arr, idx, 'up')}
+                              disabled={idx === 0 || sortBy !== 'order'}
+                              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItemOrder('articles', arr, idx, 'down')}
+                              disabled={idx === arr.length - 1 || sortBy !== 'order'}
+                              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePublished('articles', art)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                art.published
+                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
+                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                              }`}
+                            >
+                              {art.published ? (
+                                <>
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                  <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>{locale === 'ar' ? 'إظهار' : 'Show'}</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewItem({
+                                  type: 'Article',
+                                  title: art.title[locale],
+                                  subtitle: art.excerpt[locale],
+                                  body: art.content[locale],
+                                  image: art.coverImage,
+                                  published: art.published,
+                                })
+                              }
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+                            >
+                              {locale === 'ar' ? 'معاينة' : 'Preview'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingArticle({ ...art })}
+                              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
+                            >
+                              {locale === 'ar' ? 'تعديل' : 'Edit'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteConfirm({
+                                  collection: 'articles',
+                                  id: art.id,
+                                  title: art.title[locale],
+                                })
+                              }
+                              className="p-2 rounded-lg text-red-500 hover:bg-red-950/30 cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <AdminPagination
+                    locale={locale}
+                    totalItems={filteredArticles.length}
+                    pageSize={PAGE_SIZE}
+                    currentPage={currentPage}
+                    onPageChange={setCurrentPage}
+                  />
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* =============================================================== */}
-            {/* TAB 6: CLOUDINARY MEDIA MANAGEMENT (/admin/media) (PROMPT 4.4) */}
+            {/* TAB 6: CLOUDINARY MEDIA MANAGEMENT (/admin/media) */}
             {/* =============================================================== */}
-            {subRoute === 'media' && (
-              <div className="space-y-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {locale === 'ar'
-                        ? 'مكتبة الصور والوسائط — Cloudinary Media Manager'
-                        : 'Cloudinary Signed Media Library'}
-                    </h1>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {locale === 'ar'
-                        ? 'رفع الصور عبر توقيع خادم آمن (Signed Upload)، معاينة، استبدال، والتحقق من عدم الاستخدام في محتوى منشور قبل الحذف.'
-                        : 'Server-side Signed Upload, image replacement, cover selection, and in-use protection before deletion.'}
-                    </p>
-                  </div>
-                </div>
+            {subRoute === 'media' && (() => {
+              const filteredMedia = [...(db.media || [])].filter((asset) => {
+                if (mediaCategoryFilter !== 'all' && asset.category !== mediaCategoryFilter) {
+                  return false;
+                }
+                if (mediaView === 'article-images') {
+                  const usedInArticle =
+                    asset.category === 'blog' || articleInlineMediaUsage.has(asset.secureUrl);
+                  if (!usedInArticle) return false;
+                }
+                if (!searchFilter.trim()) return true;
+                const q = searchFilter.toLowerCase();
+                return (
+                  asset.alt.ar.toLowerCase().includes(q) ||
+                  asset.alt.en.toLowerCase().includes(q) ||
+                  asset.publicId.toLowerCase().includes(q)
+                );
+              });
 
-                {/* Upload / Replace Form Card */}
-                <div className="p-6 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                      {replacingMediaItem
-                        ? locale === 'ar'
-                          ? `استبدال الصورة: ${replacingMediaItem.alt[locale]}`
-                          : `Replace Image: ${replacingMediaItem.alt[locale]}`
-                        : locale === 'ar'
-                        ? 'رفع صورة جديدة (الحد الأقصى 5MB — صيغ JPG, PNG, WebP, AVIF)'
-                        : 'Upload New Image (Max 5MB — Allowed: JPG, PNG, WebP, AVIF)'}
-                    </h2>
-                    {replacingMediaItem && (
+              const paginatedMedia = filteredMedia.slice(
+                (currentPage - 1) * PAGE_SIZE,
+                currentPage * PAGE_SIZE
+              );
+
+              return (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                        {locale === 'ar'
+                          ? 'مكتبة الصور والوسائط — Cloudinary Media Manager'
+                          : 'Cloudinary Signed Media Library'}
+                      </h1>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'رفع الصور عبر توقيع خادم آمن (Signed Upload)، معاينة، استبدال، والتحقق من الاستخدام قبل الحذف.'
+                          : 'Server-side Signed Upload, image replacement, and usage verification.'}
+                      </p>
+                    </div>
+
+                    {/* View Mode Tabs Matching Sidebar */}
+                    <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-[#0F172A] border border-slate-300/60 dark:border-slate-800 shrink-0">
                       <button
-                        onClick={() => setReplacingMediaItem(null)}
-                        className="text-xs text-slate-400 hover:text-white"
+                        type="button"
+                        onClick={() => navigate('/admin/media')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                          mediaView === 'gallery'
+                            ? 'bg-[#00C2CB] text-slate-950'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
                       >
-                        {locale === 'ar' ? 'إلغاء الاستبدال' : 'Cancel Replace'}
+                        {locale === 'ar' ? 'كل المكتبة' : 'All Library'}
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin/media?view=upload')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                          mediaView === 'upload'
+                            ? 'bg-[#00C2CB] text-slate-950'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {locale === 'ar' ? 'رفع الصور' : 'Upload'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin/media?view=article-images')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                          mediaView === 'article-images'
+                            ? 'bg-[#00C2CB] text-slate-950'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {locale === 'ar' ? 'صور المقالات' : 'Article Images'}
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <input
-                      type="text"
-                      value={mediaAltAr}
-                      onChange={(e) => setMediaAltAr(e.target.value)}
-                      placeholder={locale === 'ar' ? 'النص البديل بالعربية (Alt AR)' : 'Arabic Alt Text'}
-                      className="px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                    />
-                    <input
-                      type="text"
-                      value={mediaAltEn}
-                      onChange={(e) => setMediaAltEn(e.target.value)}
-                      placeholder={
-                        locale === 'ar' ? 'النص البديل بالإنجليزية (Alt EN)' : 'English Alt Text'
-                      }
-                      className="px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                    />
+                  {/* Upload / Replace Form Card */}
+                  <div
+                    id="media-upload-zone"
+                    className={`p-6 rounded-2xl bg-white dark:bg-[#0F172A] border space-y-4 scroll-mt-20 ${
+                      mediaView === 'upload'
+                        ? 'border-[#00C2CB] ring-1 ring-[#00C2CB]/30'
+                        : 'border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                        {replacingMediaItem
+                          ? locale === 'ar'
+                            ? `استبدال الصورة: ${replacingMediaItem.alt[locale]}`
+                            : `Replace Image: ${replacingMediaItem.alt[locale]}`
+                          : locale === 'ar'
+                          ? 'رفع صورة جديدة (الحد الأقصى 5MB — صيغ JPG, PNG, WebP, AVIF)'
+                          : 'Upload New Image (Max 5MB — Allowed: JPG, PNG, WebP, AVIF)'}
+                      </h2>
+                      {replacingMediaItem && (
+                        <button
+                          type="button"
+                          onClick={() => setReplacingMediaItem(null)}
+                          className="text-xs text-slate-400 hover:text-white cursor-pointer"
+                        >
+                          {locale === 'ar' ? 'إلغاء الاستبدال' : 'Cancel Replace'}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <input
+                        type="text"
+                        value={mediaAltAr}
+                        onChange={(e) => setMediaAltAr(e.target.value)}
+                        placeholder={locale === 'ar' ? 'النص البديل بالعربية (Alt AR)' : 'Arabic Alt Text'}
+                        className="px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                      />
+                      <input
+                        type="text"
+                        value={mediaAltEn}
+                        onChange={(e) => setMediaAltEn(e.target.value)}
+                        placeholder={
+                          locale === 'ar' ? 'النص البديل بالإنجليزية (Alt EN)' : 'English Alt Text'
+                        }
+                        className="px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                      />
+                      <select
+                        value={mediaCategory}
+                        onChange={(e) => setMediaCategory(e.target.value as MediaAsset['category'])}
+                        className="px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                      >
+                        <option value="general">General</option>
+                        <option value="profile">Profile / About</option>
+                        <option value="project">Project / System</option>
+                        <option value="clinic">Medical Clinic</option>
+                        <option value="blog">Blog Article</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="cursor-pointer inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] transition-colors">
+                        <Upload className="w-4 h-4" />
+                        <span>
+                          {uploadingMedia
+                            ? locale === 'ar'
+                              ? 'جاري التوقيع والرفع...'
+                              : 'Signing & Uploading...'
+                            : replacingMediaItem
+                            ? locale === 'ar'
+                              ? 'اختر الملف البديل'
+                              : 'Select Replacement File'
+                            : locale === 'ar'
+                            ? 'اختر صورة للرفع الآمن'
+                            : 'Choose Image for Signed Upload'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
+                          disabled={uploadingMedia}
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+
+                      <span className="text-xs text-slate-500">
+                        {cloudinaryStatus?.configured
+                          ? `Connected to Cloudinary (${cloudinaryStatus.cloudName})`
+                          : locale === 'ar'
+                          ? 'ملاحظة: أضف CLOUDINARY_API_SECRET في متغيرات الخادم لتفعيل التخزين السحابي المباشر.'
+                          : 'Tip: Set CLOUDINARY_API_SECRET in server env vars for remote CDN delivery.'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Article Inline Images Reference Summary (when in article-images view) */}
+                  {mediaView === 'article-images' && (
+                    <div className="p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                        <FileImage className="w-4 h-4 text-[#00C2CB]" />
+                        <span>
+                          {locale === 'ar'
+                            ? `الصور المرتبطة بالمقالات (${articleInlineMediaUsage.size})`
+                            : `Images Referenced Inside Articles (${articleInlineMediaUsage.size})`}
+                        </span>
+                      </div>
+                      {articleInlineMediaUsage.size === 0 ? (
+                        <p className="text-xs text-slate-500">
+                          {locale === 'ar'
+                            ? 'لا توجد صور مضافة داخل المقالات بعد.'
+                            : 'No images embedded in articles yet.'}
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                          {Array.from(articleInlineMediaUsage.entries()).map(([imgUrl, refs]) => (
+                            <div
+                              key={imgUrl}
+                              className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-200 dark:border-slate-800 flex items-center gap-3"
+                            >
+                              <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-900 shrink-0">
+                                <OptimizedImage
+                                  src={imgUrl}
+                                  alt={refs[0]}
+                                  containerClassName="w-full h-full"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-slate-900 dark:text-white truncate">
+                                  {refs.join(' · ')}
+                                </div>
+                                <div className="text-[11px] font-mono-tabular text-slate-400 truncate">
+                                  {imgUrl}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Search & Category Filter Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex-1 min-w-[220px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5" />
+                      <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        placeholder={locale === 'ar' ? 'بحث في الصور والوسائط...' : 'Search media assets...'}
+                        className="w-full ps-9 pe-3.5 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
+                      />
+                    </div>
                     <select
-                      value={mediaCategory}
-                      onChange={(e) => setMediaCategory(e.target.value as MediaAsset['category'])}
-                      className="px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                      value={mediaCategoryFilter}
+                      onChange={(e) => setMediaCategoryFilter(e.target.value as any)}
+                      className="px-3 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
                     >
+                      <option value="all">{locale === 'ar' ? 'كل التصنيفات' : 'All Categories'}</option>
                       <option value="general">General</option>
                       <option value="profile">Profile / About</option>
-                      <option value="project">Project / System</option>
+                      <option value="project">Project</option>
                       <option value="clinic">Medical Clinic</option>
                       <option value="blog">Blog Article</option>
                     </select>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <label className="cursor-pointer inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] transition-colors">
-                      <Upload className="w-4 h-4" />
-                      <span>
-                        {uploadingMedia
-                          ? locale === 'ar'
-                            ? 'جاري التوقيع والرفع...'
-                            : 'Signing & Uploading...'
-                          : replacingMediaItem
-                          ? locale === 'ar'
-                            ? 'اختر الملف البديل'
-                            : 'Select Replacement File'
-                          : locale === 'ar'
-                          ? 'اختر صورة للرفع الآمن'
-                          : 'Choose Image for Signed Upload'}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/avif"
-                        disabled={uploadingMedia}
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                    </label>
-
-                    <span className="text-xs text-slate-500">
-                      {cloudinaryStatus?.configured
-                        ? `Connected to Cloudinary (${cloudinaryStatus.cloudName})`
-                        : locale === 'ar'
-                        ? 'ملاحظة: أضف CLOUDINARY_API_SECRET في متغيرات الخادم لتفعيل التخزين السحابي المباشر.'
-                        : 'Tip: Set CLOUDINARY_API_SECRET in server env vars for remote CDN delivery.'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Media Gallery Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {db.media.map((asset) => {
-                    const usage = checkMediaInPublishedContent(asset, db);
-                    return (
-                      <div
-                        key={asset.id}
-                        className="rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between"
+                  {/* Media Gallery Grid */}
+                  {filteredMedia.length === 0 ? (
+                    <div className="p-10 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 text-center space-y-3">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {locale === 'ar'
+                          ? 'لا توجد صور مطابقة للبحث في مكتبة الوسائط'
+                          : 'No media assets match your current criteria'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchFilter('');
+                          setMediaCategoryFilter('all');
+                          navigate('/admin/media');
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
                       >
-                        <div className="h-48 bg-[#070E1A] p-4 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
-                          <OptimizedImage
-                            src={asset.secureUrl}
-                            alt={asset.alt[locale]}
-                            containerClassName="w-full h-full"
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-
-                        <div className="p-4 space-y-3">
-                          <div>
-                            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                              {asset.alt[locale]}
+                        {locale === 'ar' ? 'عرض كل المكتبة' : 'Show Full Library'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {paginatedMedia.map((asset) => {
+                        const usage = checkMediaInPublishedContent(asset, db);
+                        return (
+                          <div
+                            key={asset.id}
+                            className="rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between"
+                          >
+                            <div className="h-48 bg-[#070E1A] p-4 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
+                              <OptimizedImage
+                                src={asset.secureUrl}
+                                alt={asset.alt[locale]}
+                                containerClassName="w-full h-full"
+                                className="w-full h-full object-contain"
+                              />
                             </div>
-                            <div className="text-[11px] font-mono-tabular text-slate-400 truncate mt-0.5">
-                              public_id: {asset.publicId}
+
+                            <div className="p-4 space-y-3">
+                              <div>
+                                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {asset.alt[locale]}
+                                </div>
+                                <div className="text-[11px] font-mono-tabular text-slate-400 truncate mt-0.5">
+                                  public_id: {asset.publicId}
+                                </div>
+                              </div>
+
+                              <div className="text-[11px] text-slate-500">
+                                {usage.inUse ? (
+                                  <span className="text-[#0099A3] dark:text-[#00C2CB] font-medium">
+                                    {locale === 'ar' ? 'مستخدم في: ' : 'Used in: '}
+                                    {usage.usedIn.join(', ')}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    {locale === 'ar'
+                                      ? 'غير مستخدم حالياً في محتوى منشور'
+                                      : 'Not currently used in published content'}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(asset.secureUrl);
+                                    showToast(
+                                      locale === 'ar' ? 'تم نسخ رابط الصورة' : 'Image URL copied',
+                                      'info'
+                                    );
+                                  }}
+                                  className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 hover:text-[#00C2CB] cursor-pointer"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>{locale === 'ar' ? 'نسخ الرابط' : 'Copy URL'}</span>
+                                </button>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setReplacingMediaItem(asset);
+                                      setMediaAltAr(asset.alt.ar);
+                                      setMediaAltEn(asset.alt.en);
+                                      setMediaCategory(asset.category);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] cursor-pointer"
+                                  >
+                                    {locale === 'ar' ? 'استبدال' : 'Replace'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRequestDeleteMedia(asset)}
+                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-950/30 cursor-pointer"
+                                    title={locale === 'ar' ? 'حذف الصورة' : 'Delete Image'}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                          <div className="text-[11px] text-slate-500">
-                            {usage.inUse ? (
-                              <span className="text-[#00C2CB] font-medium">
-                                {locale === 'ar' ? 'مستخدم في: ' : 'Used in: '}
-                                {usage.usedIn.join(', ')}
-                              </span>
-                            ) : (
-                              <span>
-                                {locale === 'ar'
-                                  ? 'غير مستخدم حالياً في محتوى منشور'
-                                  : 'Not currently used in published content'}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                            <button
-                              onClick={() => {
-                                navigator.clipboard?.writeText(asset.secureUrl);
-                                showToast(
-                                  locale === 'ar' ? 'تم نسخ رابط الصورة' : 'Image URL copied',
-                                  'info'
-                                );
-                              }}
-                              className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 hover:text-[#00C2CB]"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>{locale === 'ar' ? 'نسخ الرابط' : 'Copy URL'}</span>
-                            </button>
-
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setReplacingMediaItem(asset);
-                                  setMediaAltAr(asset.alt.ar);
-                                  setMediaAltEn(asset.alt.en);
-                                  setMediaCategory(asset.category);
-                                }}
-                                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB]"
-                              >
-                                {locale === 'ar' ? 'استبدال' : 'Replace'}
-                              </button>
-
-                              <button
-                                onClick={() => handleRequestDeleteMedia(asset)}
-                                className="p-1.5 rounded-lg text-red-500 hover:bg-red-950/30"
-                                title={locale === 'ar' ? 'حذف الصورة' : 'Delete Image'}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <AdminPagination
+                    locale={locale}
+                    totalItems={filteredMedia.length}
+                    pageSize={PAGE_SIZE}
+                    currentPage={currentPage}
+                    onPageChange={setCurrentPage}
+                  />
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* =============================================================== */}
             {/* TAB 7: SITE SETTINGS, EXISTING FIREBASE & SEO (/admin/settings) */}
             {/* =============================================================== */}
             {subRoute === 'settings' && (
               <div className="space-y-8">
-                {/* 1. Connect Existing Firebase Project Without Creating a New Project */}
-                <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-5">
+                {/* 1. Connect Existing Firebase Project & Read-only Cloudinary Diagnostics */}
+                <div
+                  id="settings-integrations"
+                  className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-5 scroll-mt-20"
+                >
                   <div className="space-y-1">
                     <div className="text-xs font-semibold text-[#00C2CB]">
                       {locale === 'ar'
-                        ? 'ربط مشروع Firebase الحالي (دون إنشاء مشروع جديد)'
-                        : 'Connect Your Existing Firebase Project'}
+                        ? 'ربط مشروع Firebase الحالي وخدمات Cloudinary'
+                        : 'Connect Your Existing Firebase & Cloudinary Status'}
                     </div>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                       {locale === 'ar'
                         ? 'إعدادات Firebase Authentication & Cloud Firestore'
-                        : 'Existing Firebase Web SDK Configuration'}
+                        : 'Existing Firebase Web SDK & Cloudinary Configuration'}
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {locale === 'ar'
                         ? 'أدخل بيانات تطبيق الويب من مشروعك الحالي في Firebase Console (أو ضعها في متغيرات البيئة VITE_FIREBASE_*) ليتم الربط المباشر بقاعدة بياناتك.'
                         : 'Paste your existing Firebase Web App configuration below (or via VITE_FIREBASE_* environment variables).'}
                     </p>
+                  </div>
+
+                  {/* Read-only Cloudinary Security Summary */}
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <Cloud className="w-4 h-4 text-[#00C2CB] shrink-0" />
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white">
+                          {locale === 'ar'
+                            ? 'حالة الربط مع Cloudinary (توقيع آمن على الخادم)'
+                            : 'Cloudinary Server-Signed Integration'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono-tabular">
+                          Cloud: {cloudinaryStatus?.cloudName || '—'} · Folder:{' '}
+                          {cloudinaryStatus?.folder || 'ahmed-soliman-platform'}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`font-semibold shrink-0 ${
+                        cloudinaryStatus?.configured
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-amber-600 dark:text-amber-400'
+                      }`}
+                    >
+                      {cloudinaryStatus?.configured
+                        ? locale === 'ar'
+                          ? 'متصل ومفعل (المفتاح السري محمي)'
+                          : 'Configured (Secret Protected Server-Side)'
+                        : locale === 'ar'
+                        ? 'بانتظار متغيرات الخادم'
+                        : 'Awaiting Server Env Vars'}
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2355,7 +3836,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                           'success'
                         );
                       }}
-                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950"
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 cursor-pointer"
                     >
                       {locale === 'ar'
                         ? 'حفظ والاتصال بمشروع Firebase الحالي'
@@ -2382,7 +3863,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                           'info'
                         );
                       }}
-                      className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-red-400"
+                      className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-red-400 cursor-pointer"
                     >
                       {locale === 'ar' ? 'إلغاء الربط / مسح الإعدادات' : 'Disconnect / Clear Config'}
                     </button>
@@ -2391,16 +3872,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
 
                 {/* 2. Global Brand Identity, Contact Links & Default SEO */}
                 <form
+                  id="settings-identity"
                   onSubmit={async (e) => {
                     e.preventDefault();
                     await saveSiteSettings(settingsForm);
                   }}
-                  className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-5"
+                  className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-5 scroll-mt-20"
                 >
                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                     {locale === 'ar'
-                      ? 'إعدادات الهوية، روابط التواصل، وSEO العام'
-                      : 'Global Brand Identity, Contact Links & Default SEO'}
+                      ? 'إعدادات الهوية، روابط التواصل، واللغة'
+                      : 'Global Brand Identity, Contact Links & Language'}
                   </h2>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2458,58 +3940,119 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                         className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">
-                        {locale === 'ar' ? 'عنوان SEO الافتراضي (عربي)' : 'Default SEO Title (AR)'}
-                      </label>
-                      <input
-                        type="text"
-                        value={settingsForm.seo.title.ar}
-                        onChange={(e) =>
-                          setSettingsForm({
-                            ...settingsForm,
-                            seo: {
-                              ...settingsForm.seo,
-                              title: { ...settingsForm.seo.title, ar: e.target.value },
-                            },
-                          })
-                        }
-                        className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">
-                        {locale === 'ar'
-                          ? 'عنوان SEO الافتراضي (إنجليزي)'
-                          : 'Default SEO Title (EN)'}
-                      </label>
-                      <input
-                        type="text"
-                        value={settingsForm.seo.title.en}
-                        onChange={(e) =>
-                          setSettingsForm({
-                            ...settingsForm,
-                            seo: {
-                              ...settingsForm.seo,
-                              title: { ...settingsForm.seo.title, en: e.target.value },
-                            },
-                          })
-                        }
-                        className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                      />
+                  </div>
+
+                  {/* SEO Section Anchor */}
+                  <div
+                    id="settings-seo"
+                    className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4 scroll-mt-20"
+                  >
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      {locale === 'ar' ? 'إعدادات SEO الافتراضية' : 'Default Site SEO Settings'}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1">
+                          {locale === 'ar' ? 'عنوان SEO الافتراضي (عربي)' : 'Default SEO Title (AR)'}
+                        </label>
+                        <input
+                          type="text"
+                          value={settingsForm.seo.title.ar}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              seo: {
+                                ...settingsForm.seo,
+                                title: { ...settingsForm.seo.title, ar: e.target.value },
+                              },
+                            })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">
+                          {locale === 'ar'
+                            ? 'عنوان SEO الافتراضي (إنجليزي)'
+                            : 'Default SEO Title (EN)'}
+                        </label>
+                        <input
+                          type="text"
+                          value={settingsForm.seo.title.en}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              seo: {
+                                ...settingsForm.seo,
+                                title: { ...settingsForm.seo.title, en: e.target.value },
+                              },
+                            })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">
+                          {locale === 'ar' ? 'وصف SEO الافتراضي (عربي)' : 'Default SEO Description (AR)'}
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={settingsForm.seo.description.ar}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              seo: {
+                                ...settingsForm.seo,
+                                description: {
+                                  ...settingsForm.seo.description,
+                                  ar: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">
+                          {locale === 'ar'
+                            ? 'وصف SEO الافتراضي (إنجليزي)'
+                            : 'Default SEO Description (EN)'}
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={settingsForm.seo.description.en}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              seo: {
+                                ...settingsForm.seo,
+                                description: {
+                                  ...settingsForm.seo.description,
+                                  en: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3]"
+                    className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] cursor-pointer"
                   >
                     {locale === 'ar' ? 'حفظ إعدادات الهوية وSEO' : 'Save Identity & SEO Settings'}
                   </button>
                 </form>
 
-                {/* 3. Full Platform Backup & Restore JSON (PROMPT 5.5 Item 8) */}
-                <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-4">
+                {/* 3. Full Platform Backup & Restore JSON */}
+                <div
+                  id="settings-backup"
+                  className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-4 scroll-mt-20"
+                >
                   <div className="space-y-1">
                     <div className="text-xs font-semibold text-[#00C2CB]">
                       {locale === 'ar'
@@ -3487,148 +5030,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL: EDIT PAGE & SEO (Home / About) */}
+      {/* WIDE 5-TAB PAGE EDITOR (Content / Design / SEO / Preview / Publish)   */}
       {/* ===================================================================== */}
       {editingPage && (
-        <div className="fixed inset-0 z-[9992] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto text-xs">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              {locale === 'ar' ? 'تعديل محتوى الصفحة وإعدادات SEO' : 'Edit Page Content & SEO'}
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-medium mb-1">Headline (AR) *</label>
-                <input
-                  type="text"
-                  value={editingPage.headline?.ar || ''}
-                  onChange={(e) =>
-                    setEditingPage({
-                      ...editingPage,
-                      headline: { ar: e.target.value, en: editingPage.headline?.en || '' },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-1">Headline (EN) *</label>
-                <input
-                  type="text"
-                  value={editingPage.headline?.en || ''}
-                  onChange={(e) =>
-                    setEditingPage({
-                      ...editingPage,
-                      headline: { ar: editingPage.headline?.ar || '', en: e.target.value },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block font-medium mb-1">Subheadline (AR)</label>
-                <textarea
-                  rows={2}
-                  value={editingPage.subheadline?.ar || ''}
-                  onChange={(e) =>
-                    setEditingPage({
-                      ...editingPage,
-                      subheadline: { ar: e.target.value, en: editingPage.subheadline?.en || '' },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block font-medium mb-1">Subheadline (EN)</label>
-                <textarea
-                  rows={2}
-                  value={editingPage.subheadline?.en || ''}
-                  onChange={(e) =>
-                    setEditingPage({
-                      ...editingPage,
-                      subheadline: { ar: editingPage.subheadline?.ar || '', en: e.target.value },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-1">SEO Title (AR)</label>
-                <input
-                  type="text"
-                  value={editingPage.seo?.title?.ar || ''}
-                  onChange={(e) =>
-                    setEditingPage({
-                      ...editingPage,
-                      seo: {
-                        ...editingPage.seo!,
-                        title: { ar: e.target.value, en: editingPage.seo?.title?.en || '' },
-                      },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-1">SEO Title (EN)</label>
-                <input
-                  type="text"
-                  value={editingPage.seo?.title?.en || ''}
-                  onChange={(e) =>
-                    setEditingPage({
-                      ...editingPage,
-                      seo: {
-                        ...editingPage.seo!,
-                        title: { ar: editingPage.seo?.title?.ar || '', en: e.target.value },
-                      },
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800">
-              <label className="inline-flex items-center gap-2 font-semibold cursor-pointer text-[#00C2CB]">
-                <input
-                  type="checkbox"
-                  checked={Boolean(editingPage.standaloneByDefault)}
-                  onChange={(e) =>
-                    setEditingPage({ ...editingPage, standaloneByDefault: e.target.checked })
-                  }
-                />
-                <span>
-                  {locale === 'ar'
-                    ? 'تفعيل نمط العرض المستقل افتراضياً لهذه الصفحة'
-                    : 'Enable Standalone Mode by Default'}
-                </span>
-              </label>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditingPage(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800"
-                >
-                  {locale === 'ar' ? 'إلغاء' : 'Cancel'}
-                </button>
-                <button
-                  onClick={async () => {
-                    const check = validatePagePayload(editingPage);
-                    if (!check.valid) {
-                      showToast(check.errors.join(' '), 'error');
-                      return;
-                    }
-                    await upsertRecord('pages', editingPage);
-                    setEditingPage(null);
-                  }}
-                  className="px-5 py-2 rounded-lg font-semibold bg-[#00C2CB] text-slate-950"
-                >
-                  {locale === 'ar' ? 'حفظ التعديلات' : 'Save Page'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PageEditor
+          initialPage={editingPage}
+          isNew={editingPageIsNew}
+          existingPages={db.pages || []}
+          locale={locale}
+          onClose={() => {
+            setEditingPage(null);
+            setEditingPageIsNew(false);
+          }}
+          onSave={async (updatedPage) => {
+            await upsertRecord('pages', updatedPage);
+            setEditingPage(null);
+            setEditingPageIsNew(false);
+          }}
+          onOpenImagePicker={(cb) => setImagePickerCallback(() => cb)}
+          onShowToast={showToast}
+        />
       )}
 
       {/* ===================================================================== */}
@@ -3724,16 +5145,84 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL: DELETE CONFIRMATION (SECTION 9 & PROMPT 4.5) */}
+      {/* MODAL: MOVE CUSTOM PAGE TO TRASH / ARCHIVE (SOFT DELETE) */}
       {/* ===================================================================== */}
-      {deleteConfirm && (
+      {pageTrashConfirm && (
         <div
-          onClick={() => setDeleteConfirm(null)}
+          onClick={() => setPageTrashConfirm(null)}
           className="fixed inset-0 z-[9997] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-red-500/40 p-6 space-y-5"
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-amber-500/40 p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center gap-3 text-amber-500">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {locale === 'ar'
+                  ? 'نقل الصفحة إلى سلة المحذوفات'
+                  : 'Move Page to Trash / Archive'}
+              </h3>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
+              <div className="font-bold text-slate-900 dark:text-white">
+                {pageTrashConfirm.title.ar} — {pageTrashConfirm.title.en}
+              </div>
+              <div className="font-mono-tabular text-[#00C2CB]">
+                {getPageCanonicalPath(pageTrashConfirm, locale)}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {locale === 'ar'
+                ? 'سيتم تحويل هذه الصفحة إلى مسودة ونقلها إلى الأرشيف، فتختفي فوراً عن الزوار ومن Sitemap دون فقدان بياناتها، ويمكنك استعادتها أو حذفها نهائياً لاحقاً.'
+                : 'This page will be converted to draft and moved to Trash—immediately hiding it from public visitors and sitemap while allowing full recovery later.'}
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPageTrashConfirm(null)}
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                {locale === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const target = pageTrashConfirm;
+                  setPageTrashConfirm(null);
+                  await upsertRecord('pages', {
+                    ...target,
+                    published: false,
+                    archived: true,
+                    archivedAt: new Date().toISOString(),
+                  });
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 cursor-pointer"
+              >
+                {locale === 'ar' ? 'نقل للأرشيف كمسودة' : 'Move to Trash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: DELETE CONFIRMATION (WITH LITERAL NAME GUARD WHEN REQUIRED) */}
+      {/* ===================================================================== */}
+      {deleteConfirm && (
+        <div
+          onClick={() => {
+            setDeleteConfirm(null);
+            setDeleteConfirmLiteralInput('');
+          }}
+          className="fixed inset-0 z-[9997] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-red-500/40 p-6 space-y-5 shadow-2xl"
           >
             <div className="flex items-center gap-3 text-red-400">
               <AlertTriangle className="w-6 h-6 shrink-0" />
@@ -3748,22 +5237,100 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                 : `Are you sure you want to permanently delete "${deleteConfirm.title}"? This action cannot be undone.`}
             </p>
 
+            {deleteConfirm.requireLiteralConfirm && deleteConfirm.expectedLiteralName && (
+              <div className="space-y-2 text-xs">
+                <label className="block font-semibold text-slate-700 dark:text-slate-200">
+                  {locale === 'ar'
+                    ? 'لتأكيد الحذف النهائي، اكتب اسم الصفحة حرفياً:'
+                    : 'Type the exact page name below to confirm permanent deletion:'}
+                </label>
+                <div className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#070E1A] font-bold text-[#00C2CB] select-all">
+                  {deleteConfirm.expectedLiteralName}
+                </div>
+                <input
+                  type="text"
+                  value={deleteConfirmLiteralInput}
+                  onChange={(e) => setDeleteConfirmLiteralInput(e.target.value)}
+                  placeholder={deleteConfirm.expectedLiteralName}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-red-500/40 text-xs focus:outline-none focus:border-red-500"
+                />
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                onClick={() => {
+                  setDeleteConfirm(null);
+                  setDeleteConfirmLiteralInput('');
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 {locale === 'ar' ? 'إلغاء' : 'Cancel'}
               </button>
               <button
+                disabled={
+                  Boolean(deleteConfirm.requireLiteralConfirm) &&
+                  deleteConfirmLiteralInput.trim() !==
+                    (deleteConfirm.expectedLiteralName || '').trim()
+                }
                 onClick={async () => {
                   const target = deleteConfirm;
                   setDeleteConfirm(null);
+                  setDeleteConfirmLiteralInput('');
                   await deleteRecord(target.collection, target.id);
                 }}
-                className="px-5 py-2 rounded-xl text-xs font-semibold bg-red-600 text-white hover:bg-red-700"
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {locale === 'ar' ? 'نعم، احذف نهائياً' : 'Yes, Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ===================================================================== */}
+      {/* MODAL: CONFIRM BASELINE SYNC (SENSITIVE OPERATION PROTECTION) */}
+      {/* ===================================================================== */}
+      {confirmSeedOpen && (
+        <div
+          onClick={() => setConfirmSeedOpen(false)}
+          className="fixed inset-0 z-[9997] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center gap-3 text-[#00C2CB]">
+              <Database className="w-5 h-5 shrink-0" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {locale === 'ar'
+                  ? 'تأكيد مزامنة البيانات الأساسية'
+                  : 'Confirm Baseline Synchronization'}
+              </h3>
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              {locale === 'ar'
+                ? 'سيتم مزامنة العناصر الافتراضية المفقودة فقط دون حذف مقالاتك أو صفحاتك المخصصة. هل تريد المتابعة؟'
+                : 'This will synchronize missing default baseline records without deleting your custom articles or pages. Proceed?'}
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmSeedOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                {locale === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setConfirmSeedOpen(false);
+                  await seedBaselineDatabase();
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] cursor-pointer"
+              >
+                {locale === 'ar' ? 'تأكيد المزامنة' : 'Confirm Sync'}
               </button>
             </div>
           </div>

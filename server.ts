@@ -6,13 +6,17 @@ import dotenv from 'dotenv';
 import { INITIAL_PLATFORM_DATA } from './src/data/initialSeedData';
 import { PlatformDatabase } from './src/types/cms';
 import {
+  CORE_PAGE_IDS,
   checkMediaInPublishedContent,
+  checkPageInSiteReferences,
+  isCoreProtectedPage,
   sanitizePayload,
   sanitizeText,
   validateCollectionRecord,
   validateCloudinaryFolder,
   validateConsultationForm,
   validateImageUploadFile,
+  validatePageSlug,
 } from './src/lib/validationSchemas';
 
 if (!process.env.VERCEL) {
@@ -839,7 +843,7 @@ export function createExpressApp(): express.Express {
         ? db.siteSettings
         : INITIAL_PLATFORM_DATA.siteSettings,
       pages: db.pages
-        .filter((p) => p.published)
+        .filter((p) => p.published && !p.archived)
         .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
       projects: db.projects
         .filter((p) => p.published)
@@ -969,6 +973,51 @@ export function createExpressApp(): express.Express {
     const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 128) || `${col.slice(0, 4)}-${Date.now()}`;
 
     const existingIndex = list.findIndex((item) => item.id === safeId);
+
+    // Task C: Enforce page slug uniqueness, reserved route checks & core protection
+    if (col === 'pages') {
+      const existingRecord = existingIndex >= 0 ? list[existingIndex] : null;
+      const isCore =
+        isCoreProtectedPage(safeId) ||
+        (existingRecord ? isCoreProtectedPage(existingRecord) : false);
+      const targetSlug = String(sanitizedPayload.slug || existingRecord?.slug || '').trim().toLowerCase();
+
+      const slugCheck = validatePageSlug(targetSlug, {
+        editingId: safeId,
+        isCore,
+        existingPages: list,
+      });
+      if (!slugCheck.valid) {
+        res.status(400).json({
+          error: slugCheck.errors.join(' '),
+          errors: slugCheck.errors,
+          code: 'INVALID_OR_DUPLICATE_PAGE_SLUG',
+        });
+        return;
+      }
+
+      if (isCore) {
+        sanitizedPayload.isCore = true;
+        sanitizedPayload.pageType = 'core';
+        sanitizedPayload.archived = false;
+        if (existingRecord?.slug) {
+          sanitizedPayload.slug = existingRecord.slug;
+        }
+      } else {
+        sanitizedPayload.slug = targetSlug;
+        sanitizedPayload.isCore = false;
+        sanitizedPayload.pageType =
+          sanitizedPayload.pageType === 'landing' ? 'landing' : 'general';
+        if (sanitizedPayload.archived) {
+          sanitizedPayload.published = false;
+          sanitizedPayload.archivedAt = sanitizedPayload.archivedAt || now;
+        } else {
+          sanitizedPayload.archived = false;
+          delete sanitizedPayload.archivedAt;
+        }
+      }
+    }
+
     const record = {
       ...sanitizedPayload,
       id: safeId,
@@ -1027,6 +1076,26 @@ export function createExpressApp(): express.Express {
     if (!target) {
       res.status(404).json({ error: 'Record not found' });
       return;
+    }
+
+    if (col === 'pages') {
+      if (isCoreProtectedPage(target) || (CORE_PAGE_IDS as readonly string[]).includes(id)) {
+        res.status(403).json({
+          error: 'Core system pages (Home, About, Projects, Clinics, Blog, Soli Medical) cannot be permanently deleted.',
+          code: 'CORE_PAGE_DELETE_FORBIDDEN',
+        });
+        return;
+      }
+
+      const refCheck = checkPageInSiteReferences(target, db);
+      if (refCheck.inUse) {
+        res.status(409).json({
+          error: `Cannot permanently delete page while it is referenced in: ${refCheck.usedIn.join(', ')}`,
+          code: 'PAGE_IN_USE',
+          usedIn: refCheck.usedIn,
+        });
+        return;
+      }
     }
 
     if (col === 'media') {
@@ -1496,22 +1565,37 @@ export function createExpressApp(): express.Express {
     ).replace(/\/$/, '');
     const db = loadDatabase();
 
-    const staticPaths = [
-      '/ar',
-      '/en',
-      '/ar/about',
-      '/en/about',
-      '/ar/projects',
-      '/en/projects',
-      '/ar/solimedical',
-      '/en/solimedical',
-      '/ar/clinics',
-      '/en/clinics',
-      '/ar/blog',
-      '/en/blog',
-    ];
+    const isCorePublished = (slug: string) => {
+      const found = (db.pages || []).find((p) => p.slug === slug || p.id === slug);
+      if (!found) return true;
+      return Boolean(found.published) && !found.archived && !found.seo?.noindex;
+    };
+
+    const staticPaths: string[] = [];
+    if (isCorePublished('home')) staticPaths.push('/ar', '/en');
+    if (isCorePublished('about')) staticPaths.push('/ar/about', '/en/about');
+    if (isCorePublished('projects')) staticPaths.push('/ar/projects', '/en/projects');
+    if (isCorePublished('solimedical')) staticPaths.push('/ar/solimedical', '/en/solimedical');
+    if (isCorePublished('clinics')) staticPaths.push('/ar/clinics', '/en/clinics');
+    if (isCorePublished('blog')) staticPaths.push('/ar/blog', '/en/blog');
 
     const dynamicPaths: { path: string; updatedAt: string }[] = [];
+
+    // Include ONLY published, non-archived, indexable custom CMS pages (/landing/[slug] & /p/[slug])
+    (db.pages || [])
+      .filter(
+        (p) =>
+          p.published &&
+          !p.archived &&
+          !p.seo?.noindex &&
+          !isCoreProtectedPage(p) &&
+          Boolean(p.slug)
+      )
+      .forEach((p) => {
+        const prefix = p.pageType === 'landing' ? 'landing' : 'p';
+        dynamicPaths.push({ path: `/ar/${prefix}/${p.slug}`, updatedAt: p.updatedAt });
+        dynamicPaths.push({ path: `/en/${prefix}/${p.slug}`, updatedAt: p.updatedAt });
+      });
 
     db.projects
       .filter((p) => p.published)

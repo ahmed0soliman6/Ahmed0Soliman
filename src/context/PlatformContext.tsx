@@ -74,12 +74,24 @@ const STORAGE_THEME_KEY = 'ahmed_soliman_theme_pref';
 const STORAGE_ADMIN_SESSION_KEY = 'ahmed_soliman_admin_session_v1';
 const STORAGE_LOCAL_CMS_DB_KEY = 'ahmed_soliman_cms_db_snapshot_v1';
 
-function loadLocalDbSnapshot(): PlatformDatabase {
+function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
+  return {
+    ...rawDb,
+    pages: (rawDb.pages || []).filter((item) => item.published !== false && item.archived !== true),
+    projects: (rawDb.projects || []).filter((item) => item.published !== false),
+    clinics: (rawDb.clinics || []).filter((item) => item.published !== false),
+    doctors: (rawDb.doctors || []).filter((item) => item.published !== false),
+    services: (rawDb.services || []).filter((item) => item.published !== false),
+    articles: (rawDb.articles || []).filter((item) => item.published !== false),
+  };
+}
+
+function loadLocalDbSnapshot(includeDrafts = false): PlatformDatabase {
   try {
     const raw = localStorage.getItem(STORAGE_LOCAL_CMS_DB_KEY);
-    if (!raw) return INITIAL_PLATFORM_DATA;
+    if (!raw) return includeDrafts ? INITIAL_PLATFORM_DATA : stripDraftRecords(INITIAL_PLATFORM_DATA);
     const parsed = JSON.parse(raw) as PlatformDatabase;
-    return {
+    const merged: PlatformDatabase = {
       ...INITIAL_PLATFORM_DATA,
       ...parsed,
       siteSettings: {
@@ -91,9 +103,32 @@ function loadLocalDbSnapshot(): PlatformDatabase {
         telegramBotUrl: 'https://t.me/SoliMedicalproBot',
       },
     };
+    return includeDrafts ? merged : stripDraftRecords(merged);
   } catch {
-    return INITIAL_PLATFORM_DATA;
+    return includeDrafts ? INITIAL_PLATFORM_DATA : stripDraftRecords(INITIAL_PLATFORM_DATA);
   }
+}
+
+function readCandidateAdminSession(): AdminUserSession | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_ADMIN_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AdminUserSession;
+    if (
+      parsed &&
+      parsed.token &&
+      !parsed.token.startsWith('local-owner-token-') &&
+      parsed.viaFirebase === true &&
+      typeof parsed.expiresAt === 'number' &&
+      parsed.expiresAt > Date.now()
+    ) {
+      return parsed;
+    }
+    localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
+  } catch {
+    localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
+  }
+  return null;
 }
 
 function saveLocalDbSnapshot(nextDb: PlatformDatabase): void {
@@ -137,28 +172,10 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return 'dark';
   });
 
-  const [adminSession, setAdminSession] = useState<AdminUserSession | null>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_ADMIN_SESSION_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as AdminUserSession;
-      if (
-        parsed &&
-        parsed.token &&
-        !parsed.token.startsWith('local-owner-token-') &&
-        parsed.viaFirebase === true &&
-        parsed.expiresAt > Date.now()
-      ) {
-        return parsed;
-      }
-      localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
-    } catch {
-      // ignore
-    }
-    return null;
-  });
+  // Never trust localStorage alone on initial mount; keep adminSession null until server verifies token
+  const [adminSession, setAdminSession] = useState<AdminUserSession | null>(null);
 
-  const [db, setDb] = useState<PlatformDatabase>(() => loadLocalDbSnapshot());
+  const [db, setDb] = useState<PlatformDatabase>(() => loadLocalDbSnapshot(false));
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -226,16 +243,27 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setLocale = useCallback(
     (newLocale: Locale) => {
       setLocaleState(newLocale);
-      if (pathname === '/' || pathname === '/ar' || pathname === '/en') {
-        const nextPath = `/${newLocale}${search}`;
-        window.history.replaceState({}, '', nextPath);
-        setPathname(`/${newLocale}`);
-      } else if (pathname.startsWith('/ar/') || pathname.startsWith('/en/')) {
-        const rest = pathname.slice(3);
-        const nextPath = `/${newLocale}${rest}${search}`;
-        window.history.replaceState({}, '', nextPath);
-        setPathname(`/${newLocale}${rest}`);
+      const currentSearch = window.location.search || search || '';
+      const currentPath = window.location.pathname || pathname;
+
+      // Never rewrite /admin routes with locale prefixes
+      if (currentPath === '/admin' || currentPath.startsWith('/admin/')) {
+        return;
       }
+
+      let nextCleanPath: string;
+      if (currentPath === '/' || currentPath === '/ar' || currentPath === '/en' || currentPath === '/ar/' || currentPath === '/en/') {
+        nextCleanPath = `/${newLocale}`;
+      } else if (currentPath.startsWith('/ar/') || currentPath.startsWith('/en/')) {
+        nextCleanPath = `/${newLocale}${currentPath.slice(3)}`;
+      } else {
+        nextCleanPath = `/${newLocale}${currentPath.startsWith('/') ? currentPath : `/${currentPath}`}`;
+      }
+
+      const nextUrl = `${nextCleanPath}${currentSearch}`;
+      window.history.replaceState({}, '', nextUrl);
+      setPathname(nextCleanPath);
+      setSearch(currentSearch);
     },
     [pathname, search]
   );
@@ -244,54 +272,76 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
-  // Verify Admin session on mount & handle session expiration / revocation
+  // Verify any saved candidate session against /api/auth/session before trusting adminSession
   useEffect(() => {
-    if (!adminSession) return;
     let cancelled = false;
+    const candidate = adminSession || readCandidateAdminSession();
+    if (!candidate) return;
+
     (async () => {
       const apiSession = await safeFetchJson('/api/auth/session', {
-        headers: { Authorization: `Bearer ${adminSession.token}` },
+        headers: { Authorization: `Bearer ${candidate.token}` },
       });
-      if ((!apiSession || !apiSession.ok) && !cancelled) {
+      if (cancelled) return;
+
+      if (apiSession && apiSession.ok && apiSession.data?.authenticated === true) {
+        const verifiedSession: AdminUserSession = {
+          uid: apiSession.data.uid || candidate.uid,
+          email: apiSession.data.email || candidate.email,
+          name: apiSession.data.name || candidate.name,
+          token: candidate.token,
+          expiresAt: apiSession.data.expiresAt || candidate.expiresAt,
+          viaFirebase: true,
+        };
+        setAdminSession((prev) =>
+          prev && prev.token === verifiedSession.token ? prev : verifiedSession
+        );
+      } else {
         setAdminSession(null);
         localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [adminSession?.token]);
 
-  // Fetch data from existing Firestore (if configured) + Backend CMS API (or local snapshot on static Vercel)
+  // Fetch data from existing Firestore (if configured) + Backend CMS API (or local snapshot)
   const refreshData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const hasVerifiedAdmin = Boolean(adminSession?.token);
     try {
-      const endpoint = adminSession ? '/api/cms/admin' : '/api/cms/public';
+      const endpoint = hasVerifiedAdmin ? '/api/cms/admin' : '/api/cms/public';
       const headers: Record<string, string> = {};
-      if (adminSession?.token) {
+      if (hasVerifiedAdmin && adminSession?.token) {
         headers.Authorization = `Bearer ${adminSession.token}`;
       }
 
-      let baseData: Partial<PlatformDatabase> = loadLocalDbSnapshot();
+      let baseData: Partial<PlatformDatabase> = loadLocalDbSnapshot(hasVerifiedAdmin);
       const apiRes = await safeFetchJson(endpoint, { headers });
 
       if (apiRes && apiRes.ok && apiRes.data) {
-        baseData = apiRes.data;
-      } else if (apiRes && apiRes.status === 401 && adminSession) {
+        baseData = hasVerifiedAdmin
+          ? apiRes.data
+          : stripDraftRecords(apiRes.data as PlatformDatabase);
+      } else if (apiRes && apiRes.status === 401 && hasVerifiedAdmin) {
+        setAdminSession(null);
+        localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
         const pubRes = await safeFetchJson('/api/cms/public');
         if (pubRes && pubRes.ok && pubRes.data) {
-          baseData = pubRes.data;
+          baseData = stripDraftRecords(pubRes.data as PlatformDatabase);
         }
       }
 
       // Also check if an existing Firebase project is configured
       const fbConfig = getSavedFirebaseConfig();
       if (fbConfig) {
-        const fbData = await fetchFromExistingFirestore(Boolean(adminSession), true);
+        const fbData = await fetchFromExistingFirestore(hasVerifiedAdmin, true);
         if (fbData) {
           setDb((prev) => {
-            const merged = {
+            const combined: PlatformDatabase = {
               ...prev,
               ...baseData,
               ...(fbData.siteSettings ? { siteSettings: fbData.siteSettings } : {}),
@@ -302,8 +352,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ...(fbData.services && fbData.services.length > 0 ? { services: fbData.services } : {}),
               ...(fbData.articles && fbData.articles.length > 0 ? { articles: fbData.articles } : {}),
             };
-            saveLocalDbSnapshot(merged);
-            return merged;
+            const sanitized = hasVerifiedAdmin ? combined : stripDraftRecords(combined);
+            saveLocalDbSnapshot(sanitized);
+            return sanitized;
           });
           setLoading(false);
           return;
@@ -311,9 +362,10 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       setDb((prev) => {
-        const merged = { ...prev, ...baseData };
-        saveLocalDbSnapshot(merged);
-        return merged;
+        const combined = { ...prev, ...baseData } as PlatformDatabase;
+        const sanitized = hasVerifiedAdmin ? combined : stripDraftRecords(combined);
+        saveLocalDbSnapshot(sanitized);
+        return sanitized;
       });
     } catch (err: any) {
       console.error('Data load error:', err);
@@ -470,6 +522,12 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         body: JSON.stringify(record),
       });
 
+      if (apiRes && !apiRes.ok) {
+        const msg = apiRes.data?.error || 'Failed to save changes';
+        showToast(msg, 'error');
+        throw new Error(msg);
+      }
+
       const savedRecord =
         apiRes && apiRes.ok
           ? apiRes.data
@@ -513,12 +571,18 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: string
     ) => {
       if (!adminSession) throw new Error('Admin session required');
-      await safeFetchJson(`/api/cms/${collectionName}/${id}`, {
+      const apiRes = await safeFetchJson(`/api/cms/${collectionName}/${id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${adminSession.token}`,
         },
       });
+
+      if (apiRes && !apiRes.ok) {
+        const msg = apiRes.data?.error || 'Deletion rejected by server';
+        showToast(msg, 'error');
+        throw new Error(msg);
+      }
 
       setDb((prev) => {
         const list = ((prev as any)[collectionName] || []).filter((item: any) => item.id !== id);

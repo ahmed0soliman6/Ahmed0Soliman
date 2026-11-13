@@ -68,6 +68,7 @@ export function sanitizePayload<T>(input: T): T {
       if (
         typeof val === 'string' &&
         (key.toLowerCase().includes('url') ||
+          key.toLowerCase().includes('href') ||
           key.toLowerCase().includes('image') ||
           key === 'whatsapp')
       ) {
@@ -198,6 +199,162 @@ export function validateArticlePayload(article: Partial<ArticleItem>): Validatio
   return { valid: errors.length === 0, errors };
 }
 
+export const CORE_PAGE_IDS = [
+  'home',
+  'about',
+  'projects',
+  'clinics',
+  'blog',
+  'solimedical',
+  'page-about',
+] as const;
+
+export const RESERVED_PAGE_SLUGS = [
+  'home',
+  'about',
+  'projects',
+  'clinics',
+  'blog',
+  'solimedical',
+  'landing',
+  'p',
+  'admin',
+  'api',
+  'campaign',
+  'ar',
+  'en',
+  'sitemap',
+  'robots',
+] as const;
+
+export function isCoreProtectedPage(pageOrId: Partial<PageConfig> | string | undefined | null): boolean {
+  if (!pageOrId) return false;
+  if (typeof pageOrId === 'string') {
+    return (CORE_PAGE_IDS as readonly string[]).includes(pageOrId);
+  }
+  const id = String(pageOrId.id || '').trim().toLowerCase();
+  const slug = String(pageOrId.slug || '').trim().toLowerCase();
+  return (
+    Boolean(pageOrId.isCore) ||
+    pageOrId.pageType === 'core' ||
+    (CORE_PAGE_IDS as readonly string[]).includes(id) ||
+    (CORE_PAGE_IDS as readonly string[]).includes(slug)
+  );
+}
+
+export function getPageCanonicalPath(
+  page: Partial<PageConfig>,
+  locale: 'ar' | 'en' = 'ar'
+): string {
+  const slug = String(page.slug || '').trim().toLowerCase();
+  const isCore = isCoreProtectedPage(page);
+
+  if (isCore || slug === 'home' || page.id === 'home') {
+    if (slug === 'home' || page.id === 'home') return `/${locale}`;
+    if (slug === 'about' || page.id === 'about' || page.id === 'page-about') {
+      return `/${locale}/about`;
+    }
+    if (slug === 'projects' || page.id === 'projects') return `/${locale}/projects`;
+    if (slug === 'clinics' || page.id === 'clinics') return `/${locale}/clinics`;
+    if (slug === 'blog' || page.id === 'blog') return `/${locale}/blog`;
+    if (slug === 'solimedical' || page.id === 'solimedical') return `/${locale}/solimedical`;
+  }
+
+  const cleanSlug = slug || 'page';
+  if (page.pageType === 'landing') {
+    return `/${locale}/landing/${cleanSlug}`;
+  }
+  return `/${locale}/p/${cleanSlug}`;
+}
+
+export function validatePageSlug(
+  rawSlug: string,
+  options?: {
+    editingId?: string;
+    isCore?: boolean;
+    existingPages?: PageConfig[];
+  }
+): ValidationResult {
+  const errors: string[] = [];
+  const slug = String(rawSlug || '').trim().toLowerCase();
+
+  if (!slug || !validateSlug(slug)) {
+    errors.push(
+      'Page slug must be 2–120 lowercase alphanumeric characters or hyphens (e.g. clinic-launch-offer).'
+    );
+    return { valid: false, errors };
+  }
+
+  if (!options?.isCore && (RESERVED_PAGE_SLUGS as readonly string[]).includes(slug)) {
+    errors.push(
+      `Slug "${slug}" is reserved for core platform routes and cannot be used for a custom page.`
+    );
+  }
+
+  if (options?.existingPages && Array.isArray(options.existingPages)) {
+    const duplicate = options.existingPages.find(
+      (p) => p.slug?.toLowerCase() === slug && p.id !== options.editingId
+    );
+    if (duplicate) {
+      errors.push(
+        `Slug "${slug}" is already used by another page ("${duplicate.title?.en || duplicate.title?.ar || duplicate.id}").`
+      );
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+export function checkPageInSiteReferences(
+  page: Partial<PageConfig>,
+  db: PlatformDatabase
+): { inUse: boolean; usedIn: string[] } {
+  const usedIn: string[] = [];
+  const slug = String(page.slug || '').trim().toLowerCase();
+  if (!slug) return { inUse: false, usedIn };
+
+  const patterns = [`/landing/${slug}`, `/p/${slug}`];
+  const containsRef = (text?: string) => {
+    if (!text || typeof text !== 'string') return false;
+    const lower = text.toLowerCase();
+    return patterns.some((pat) => lower.includes(pat));
+  };
+
+  for (const art of db.articles || []) {
+    if (art.id && (containsRef(art.content?.ar) || containsRef(art.content?.en) || containsRef(art.seo?.canonicalSlug))) {
+      usedIn.push(`Article: ${art.title?.en || art.title?.ar || art.slug}`);
+    }
+  }
+
+  for (const proj of db.projects || []) {
+    if (
+      containsRef(proj.showcaseRoute) ||
+      containsRef(proj.liveUrl) ||
+      containsRef(proj.description?.ar) ||
+      containsRef(proj.description?.en)
+    ) {
+      usedIn.push(`Project: ${proj.title?.en || proj.title?.ar || proj.slug}`);
+    }
+  }
+
+  for (const other of db.pages || []) {
+    if (other.id === page.id || other.archived) continue;
+    const inBlocks = (other.blocks || []).some(
+      (b) => containsRef(b.ctaHref) || containsRef(b.body?.ar) || containsRef(b.body?.en)
+    );
+    if (
+      containsRef(other.ctaHref) ||
+      containsRef(other.biography?.ar) ||
+      containsRef(other.biography?.en) ||
+      inBlocks
+    ) {
+      usedIn.push(`Page: ${other.title?.en || other.title?.ar || other.slug}`);
+    }
+  }
+
+  return { inUse: usedIn.length > 0, usedIn };
+}
+
 export function validatePagePayload(page: Partial<PageConfig>): ValidationResult {
   const errors: string[] = [];
   if (!page.title?.ar?.trim() || !page.title?.en?.trim()) {
@@ -205,6 +362,13 @@ export function validatePagePayload(page: Partial<PageConfig>): ValidationResult
   }
   if (!page.headline?.ar?.trim() || !page.headline?.en?.trim()) {
     errors.push('Page headline is required in both Arabic and English.');
+  }
+  const isCore = isCoreProtectedPage(page);
+  if (page.slug || !isCore) {
+    const slugCheck = validatePageSlug(page.slug || '', { isCore });
+    if (!slugCheck.valid) {
+      errors.push(...slugCheck.errors);
+    }
   }
   return { valid: errors.length === 0, errors };
 }

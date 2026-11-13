@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { PlatformProvider, usePlatform } from './context/PlatformContext';
 import { CustomCursorAndRipple } from './components/common/CustomCursorAndRipple';
 import { HomePage } from './pages/HomePage';
@@ -30,6 +30,9 @@ const BlogPage = lazy(() =>
 const BlogDetailPage = lazy(() =>
   import('./pages/BlogDetailPage').then((m) => ({ default: m.BlogDetailPage }))
 );
+const CustomCmsPage = lazy(() =>
+  import('./pages/CustomCmsPage').then((m) => ({ default: m.CustomCmsPage }))
+);
 const AdminDashboard = lazy(() =>
   import('./pages/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
 );
@@ -41,11 +44,30 @@ const RouteLoadingFallback: React.FC = () => (
 );
 
 const RouteDispatcher: React.FC = () => {
-  const { pathname } = usePlatform();
+  const { pathname, locale, db, navigate } = usePlatform();
 
   // Normalize trailing slash
   const cleanPath =
     pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+
+  const hasLocalePrefix =
+    cleanPath === '/ar' ||
+    cleanPath === '/en' ||
+    cleanPath.startsWith('/ar/') ||
+    cleanPath.startsWith('/en/');
+
+  // Redirect unprefixed /landing/:slug or /p/:slug cleanly to canonical localized URL (prevents duplicate indexing)
+  useEffect(() => {
+    if (
+      !hasLocalePrefix &&
+      (cleanPath.startsWith('/landing/') || cleanPath.startsWith('/p/'))
+    ) {
+      const search = window.location.search || '';
+      const target = `/${locale}${cleanPath}${search}`;
+      window.history.replaceState({}, '', target);
+      navigate(target);
+    }
+  }, [hasLocalePrefix, cleanPath, locale, navigate]);
 
   // 1. Admin Routes (/admin, /admin/*)
   if (cleanPath === '/admin') {
@@ -118,13 +140,32 @@ const RouteDispatcher: React.FC = () => {
     return <HomePage />;
   }
 
+  const landingSlug = routeWithoutLocale.startsWith('/landing/')
+    ? decodeURIComponent(routeWithoutLocale.slice('/landing/'.length))
+    : '';
+  const generalSlug = routeWithoutLocale.startsWith('/p/')
+    ? decodeURIComponent(routeWithoutLocale.slice('/p/'.length))
+    : '';
+  const hasDynamicLandingPage =
+    Boolean(landingSlug) &&
+    (landingSlug !== 'solimedical' ||
+      (db.pages || []).some((p) => p.slug === 'solimedical' && p.pageType === 'landing'));
+
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
       {routeWithoutLocale === '/about' ? (
         <AboutPage />
       ) : routeWithoutLocale === '/solimedical' ||
-        routeWithoutLocale === '/projects/solimedical' ? (
+        routeWithoutLocale === '/projects/solimedical' ||
+        routeWithoutLocale === '/campaign' ||
+        routeWithoutLocale.startsWith('/campaign/') ||
+        routeWithoutLocale === '/landing' ||
+        (routeWithoutLocale === '/landing/solimedical' && !hasDynamicLandingPage) ? (
         <SoliMedicalShowcasePage />
+      ) : landingSlug ? (
+        <CustomCmsPage slug={landingSlug} expectedType="landing" />
+      ) : generalSlug ? (
+        <CustomCmsPage slug={generalSlug} expectedType="general" />
       ) : routeWithoutLocale === '/projects' ? (
         <ProjectsPage />
       ) : routeWithoutLocale.startsWith('/projects/') ? (

@@ -53,16 +53,41 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     };
 
     const origin = window.location.origin;
-    const canonicalUrl = `${origin}${pathname}`;
+
+    // Compute canonical path cleanly without duplicate aliases
+    let canonicalPath = pathname;
+    if (seo?.canonicalSlug && seo.canonicalSlug.trim()) {
+      const rawCanon = seo.canonicalSlug.trim();
+      if (rawCanon.startsWith('http://') || rawCanon.startsWith('https://')) {
+        canonicalPath = rawCanon;
+      } else {
+        const strippedCanon =
+          rawCanon === '/' || rawCanon === '/ar' || rawCanon === '/en'
+            ? ''
+            : rawCanon.startsWith('/ar/') || rawCanon.startsWith('/en/')
+            ? rawCanon.slice(3)
+            : rawCanon.startsWith('/')
+            ? rawCanon
+            : `/${rawCanon}`;
+        canonicalPath = `/${locale}${strippedCanon}`;
+      }
+    }
+
+    const canonicalUrl = canonicalPath.startsWith('http')
+      ? canonicalPath
+      : `${origin}${canonicalPath}`;
     const fullOgImage = ogImage.startsWith('http') ? ogImage : `${origin}${ogImage}`;
 
     // Compute bilingual alternate paths (/ar/... and /en/...)
+    const pathForAlternates = canonicalPath.startsWith('http')
+      ? pathname
+      : canonicalPath;
     const strippedPath =
-      pathname === '/ar' || pathname === '/en'
+      pathForAlternates === '/ar' || pathForAlternates === '/en'
         ? ''
-        : pathname.startsWith('/ar/') || pathname.startsWith('/en/')
-        ? pathname.slice(3)
-        : pathname;
+        : pathForAlternates.startsWith('/ar/') || pathForAlternates.startsWith('/en/')
+        ? pathForAlternates.slice(3)
+        : pathForAlternates;
     const arUrl = `${origin}/ar${strippedPath}`;
     const enUrl = `${origin}/en${strippedPath}`;
 
@@ -149,6 +174,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     noindex,
     pathname,
     locale,
+    seo?.canonicalSlug,
     seo?.structuredDataType,
     structuredDataPayload,
   ]);

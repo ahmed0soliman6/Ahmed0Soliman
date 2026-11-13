@@ -50,6 +50,28 @@ export interface SiteSettings {
   updatedAt: string;
 }
 
+export type CmsPageType = 'core' | 'landing' | 'general';
+export type PageLayoutVariant = 'editorial' | 'landing-hero' | 'campaign' | 'article-page' | 'home';
+
+export interface PageContentBlock {
+  id: string;
+  title: BilingualText;
+  body: BilingualText;
+  imageUrl?: string;
+  ctaLabel?: BilingualText;
+  ctaHref?: string;
+}
+
+export interface PageSectionVisibility {
+  heroImage?: boolean;
+  body?: boolean;
+  highlights?: boolean;
+  metrics?: boolean;
+  timeline?: boolean;
+  blocks?: boolean;
+  cta?: boolean;
+}
+
 export interface PageConfig {
   id: string;
   slug: string;
@@ -98,6 +120,18 @@ export interface PageConfig {
   seo: SEOConfig;
   createdAt: string;
   updatedAt: string;
+  // Phase 8 Task C: Extended optional fields for custom CMS pages, blocks, archive/trash & core protection
+  pageType?: CmsPageType;
+  layoutVariant?: PageLayoutVariant;
+  isCore?: boolean;
+  archived?: boolean;
+  archivedAt?: string;
+  accentColor?: string;
+  ctaLabel?: BilingualText;
+  ctaHref?: string;
+  additionalImages?: string[];
+  blocks?: PageContentBlock[];
+  sectionVisibility?: PageSectionVisibility;
 }
 
 export interface ProjectComparisonRow {

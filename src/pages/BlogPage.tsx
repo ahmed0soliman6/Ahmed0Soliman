@@ -1,351 +1,459 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { usePlatform } from '../context/PlatformContext';
 import { LayoutResolver } from '../components/layouts/LayoutResolver';
 import { SEOHead } from '../components/common/SEOHead';
 import { OptimizedImage } from '../components/common/OptimizedImage';
-import { BookOpen, ArrowUpRight, Search, Clock, CheckCircle2 } from 'lucide-react';
+import { ArrowUpRight, Search, Clock, Sun, Moon, Calendar, X } from 'lucide-react';
+
+function formatEditorialDate(isoDate: string | undefined, locale: 'ar' | 'en'): string {
+  if (!isoDate) return '';
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date);
+}
 
 export const BlogPage: React.FC = () => {
-  const { locale, navigate, db } = usePlatform();
+  const { locale, theme, toggleTheme, navigate, db } = usePlatform();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('all');
 
-  const publishedArticles = db.articles
-    .filter((a) => a.published)
-    .sort((a, b) => a.order - b.order);
+  const isAr = locale === 'ar';
 
-  const uniqueCategories = Array.from(
-    new Set(publishedArticles.map((a) => a.category[locale]))
-  );
+  const publishedArticles = useMemo(() => {
+    return db.articles
+      .filter((a) => a.published)
+      .sort((a, b) => a.order - b.order);
+  }, [db.articles]);
 
-  const filteredArticles = publishedArticles.filter((art) => {
-    const matchesCat =
-      selectedCategory === 'all' || art.category[locale] === selectedCategory;
-    if (!matchesCat) return false;
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      art.title.ar.toLowerCase().includes(q) ||
-      art.title.en.toLowerCase().includes(q) ||
-      art.excerpt.ar.toLowerCase().includes(q) ||
-      art.excerpt.en.toLowerCase().includes(q) ||
-      art.tags.some((t) => t.toLowerCase().includes(q))
-    );
-  });
+  // Deduplicate categories by canonical key (en) so switching language preserves active filter
+  const categories = useMemo(() => {
+    const map = new Map<string, { key: string; ar: string; en: string }>();
+    publishedArticles.forEach((art) => {
+      const key = art.category.en || art.category.ar;
+      if (!map.has(key)) {
+        map.set(key, { key, ar: art.category.ar, en: art.category.en });
+      }
+    });
+    return Array.from(map.values());
+  }, [publishedArticles]);
 
-  const leadArticle = filteredArticles[0] || publishedArticles[0];
-  const secondaryArticle = filteredArticles[1] || publishedArticles[1] || leadArticle;
-  const thirdArticle = filteredArticles[2] || publishedArticles[2] || leadArticle;
+  const filteredArticles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return publishedArticles.filter((art) => {
+      const catKey = art.category.en || art.category.ar;
+      const matchesCat = selectedCategoryKey === 'all' || catKey === selectedCategoryKey;
+      if (!matchesCat) return false;
+      if (!q) return true;
+      return (
+        art.title.ar.toLowerCase().includes(q) ||
+        art.title.en.toLowerCase().includes(q) ||
+        art.excerpt.ar.toLowerCase().includes(q) ||
+        art.excerpt.en.toLowerCase().includes(q) ||
+        art.category.ar.toLowerCase().includes(q) ||
+        art.category.en.toLowerCase().includes(q) ||
+        art.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    });
+  }, [publishedArticles, selectedCategoryKey, searchQuery]);
+
+  const isFiltering = selectedCategoryKey !== 'all' || searchQuery.trim().length > 0;
+
+  const featuredArticle = useMemo(() => {
+    if (isFiltering) return null;
+    return publishedArticles.find((a) => a.featured) || publishedArticles[0] || null;
+  }, [publishedArticles, isFiltering]);
+
+  const remainingMagazineArticles = useMemo(() => {
+    if (isFiltering) return filteredArticles;
+    if (!featuredArticle) return publishedArticles;
+    return publishedArticles.filter((a) => a.id !== featuredArticle.id);
+  }, [isFiltering, filteredArticles, publishedArticles, featuredArticle]);
+
+  const latestSortedArticles = useMemo(() => {
+    return [...publishedArticles].sort((a, b) => {
+      const tA = new Date(a.createdAt || 0).getTime();
+      const tB = new Date(b.createdAt || 0).getTime();
+      if (tB !== tA) return tB - tA;
+      return a.order - b.order;
+    });
+  }, [publishedArticles]);
 
   return (
     <LayoutResolver pageWorld="blog-magazine" adminQuickEditPath="/admin/blog">
       <SEOHead
         locale={locale}
         fallbackTitle={
-          locale === 'ar'
-            ? 'مساحة المقالات والمعرفة | أحمد سليمان'
-            : 'Blog Articles & Knowledge Hub | Ahmed Soliman'
+          isAr
+            ? 'المدونة والمقالات التحريرية | أحمد سليمان'
+            : 'Editorial Blog & Knowledge Hub | Ahmed Soliman'
         }
         fallbackDescription={
-          locale === 'ar'
-            ? 'مقالات تقنية وطبية، شروحات ومشروعات جديدة، خبرات وتجارب عملية، وأخبار وتحديثات المشروعات.'
-            : 'Technical and medical articles, new project walkthroughs, practical ICU & software experience, and platform updates.'
+          isAr
+            ? 'مقالات تقنية وطبية، هندسة الأنظمة الصحية، تجارب العناية المركزة، وتطوير العيادات والمجمعات الطبية.'
+            : 'Technical and clinical essays on healthcare systems engineering, critical care workflows, and medical software design.'
         }
         pathname={`/${locale}/blog`}
       />
 
-      {/* =================================================================== */}
-      {/* 1. SCREENSHOT 3.4 WARM DAYLIGHT MAGAZINE BENTO SPREAD               */}
-      {/* =================================================================== */}
-      <section className="py-12 lg:py-18 px-4 sm:px-8 bg-[#F5F4EF] text-[#18181B]">
+      <section className="min-h-screen bg-[#F5F4EF] dark:bg-[#111413] text-[#18181B] dark:text-[#EDEAE2] transition-colors duration-300 pt-16 sm:pt-14 pb-20 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto space-y-12">
-          {/* Top Magazine Bento Grid matching Screenshot 3.4 */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            {/* LEFT 5 COLS: "Blog Articles" White Card + "Browse in lists" Soft Gray Card */}
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              {/* Top Left Card: Blog Articles Intro + Lead Essay Card */}
-              <div className="rounded-3xl bg-white border border-stone-200/90 p-6 sm:p-8 space-y-6 shadow-xs flex-1 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-800">
-                      {locale === 'ar' ? 'مساحة المقالات والمعرفة' : 'KNOWLEDGE HUB'}
-                    </span>
-                    <span className="text-xs font-mono-tabular text-stone-400">
-                      {publishedArticles.length} {locale === 'ar' ? 'مقالات' : 'Articles'}
-                    </span>
-                  </div>
-
-                  <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-stone-950">
-                    {locale === 'ar' ? 'المقالات والمعرفة' : 'Blog Articles'}
-                  </h1>
-
-                  {/* 4 Knowledge Pillars from User Screenshot 3.4 */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs text-stone-700">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span>{locale === 'ar' ? 'مقالات تقنية وطبية' : 'Medical & Tech Essays'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span>
-                        {locale === 'ar' ? 'شروحات ومشروعات جديدة' : 'Project Walkthroughs'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span>{locale === 'ar' ? 'خبرات وتجارب عملية' : 'Field Experiences'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span>{locale === 'ar' ? 'أخبار وتحديثات مشروعاتك' : 'System Updates'}</span>
-                    </div>
-                  </div>
+          {/* ================================================================= */}
+          {/* 1. EDITORIAL MASTHEAD & READER CONTROLS                           */}
+          {/* ================================================================= */}
+          <header className="border-b border-stone-300/80 dark:border-stone-800 pb-8 space-y-8">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+              <div className="space-y-3 max-w-3xl">
+                <div className="flex flex-wrap items-center gap-2.5 text-xs font-semibold text-[#16382E] dark:text-[#6EE7B7]">
+                  <span>{isAr ? 'المدونة التحريرية والمعرفة' : 'Editorial Essays & Field Notes'}</span>
+                  <span aria-hidden="true" className="text-stone-400 dark:text-stone-600">
+                    ·
+                  </span>
+                  <span className="font-mono-tabular text-stone-600 dark:text-stone-400">
+                    {publishedArticles.length}{' '}
+                    {isAr ? 'مقالات منشورة' : 'Published Articles'}
+                  </span>
                 </div>
 
-                {/* Highlighted Sub-Card inside Blog Articles (matching Screenshot 3.4 top-left) */}
-                {secondaryArticle && (
-                  <div
-                    onClick={() => navigate(`/${locale}/blog/${secondaryArticle.slug}`)}
-                    className="cursor-pointer group rounded-2xl bg-[#F8F7F3] border border-stone-200 p-4 grid grid-cols-12 gap-4 items-center hover:border-stone-400 transition-colors"
+                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-stone-950 dark:text-[#F5F3EE] leading-[1.15]">
+                  {isAr ? 'مساحة المقالات والأفكار' : 'Writing on Care & Systems'}
+                </h1>
+
+                <p className="text-sm sm:text-base text-stone-600 dark:text-stone-300 leading-relaxed max-w-2xl">
+                  {isAr
+                    ? 'قراءات ميدانية وهندسية في تصميم أنظمة العيادات، جودة الرعاية الحرجة، وبناء المنصات الصحية العربية.'
+                    : 'Field observations and engineering essays on clinic architecture, critical care workflows, and Arabic healthcare software.'}
+                </p>
+              </div>
+
+              {/* Reader Theme Switcher (Daylight Ivory <-> Night Reading) */}
+              <div className="flex items-center gap-3 self-start lg:self-end shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  aria-label={
+                    theme === 'dark'
+                      ? isAr
+                        ? 'التبديل إلى الوضع النهاري'
+                        : 'Switch to Daylight Mode'
+                      : isAr
+                      ? 'التبديل إلى الوضع الليلي'
+                      : 'Switch to Night Reading Mode'
+                  }
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white dark:bg-[#191E1C] border border-stone-300/90 dark:border-stone-700 text-stone-800 dark:text-stone-200 hover:border-[#16382E] dark:hover:border-[#6EE7B7] transition-colors cursor-pointer min-h-[42px]"
+                >
+                  {theme === 'dark' ? (
+                    <>
+                      <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>{isAr ? 'الوضع النهاري' : 'Daylight Mode'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="w-4 h-4 text-[#16382E] shrink-0" />
+                      <span>{isAr ? 'الوضع الليلي' : 'Night Mode'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Category Tabs & Live Search Controls */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2">
+              <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label={isAr ? 'تصنيفات المقالات' : 'Article Categories'}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedCategoryKey === 'all'}
+                  onClick={() => setSelectedCategoryKey('all')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer min-h-[38px] ${
+                    selectedCategoryKey === 'all'
+                      ? 'bg-[#16382E] text-white dark:bg-[#6EE7B7] dark:text-[#0F1715]'
+                      : 'bg-white/80 dark:bg-[#181C1B] text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-600'
+                  }`}
+                >
+                  {isAr ? 'جميع الموضوعات' : 'All Topics'}
+                </button>
+
+                {categories.map((cat) => {
+                  const active = selectedCategoryKey === cat.key;
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setSelectedCategoryKey(cat.key)}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer min-h-[38px] ${
+                        active
+                          ? 'bg-[#16382E] text-white dark:bg-[#6EE7B7] dark:text-[#0F1715]'
+                          : 'bg-white/80 dark:bg-[#181C1B] text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-600'
+                      }`}
+                    >
+                      {cat[locale]}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative w-full md:w-72 shrink-0">
+                <Search className="w-4 h-4 text-stone-500 dark:text-stone-400 absolute top-1/2 -translate-y-1/2 start-3.5 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={isAr ? 'ابحث في المقالات والوسوم...' : 'Search essays and tags...'}
+                  aria-label={isAr ? 'بحث في المقالات' : 'Search articles'}
+                  className="w-full ps-10 pe-9 py-2.5 rounded-xl text-xs bg-white dark:bg-[#181C1B] border border-stone-300/90 dark:border-stone-800 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:border-[#16382E] dark:focus:border-[#6EE7B7] min-h-[42px]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label={isAr ? 'مسح البحث' : 'Clear search'}
+                    className="absolute top-1/2 -translate-y-1/2 end-2.5 p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer"
                   >
-                    <div className="col-span-5 h-28 rounded-xl overflow-hidden bg-stone-900">
-                      <OptimizedImage
-                        src={secondaryArticle.coverImage}
-                        alt={secondaryArticle.title[locale]}
-                        containerClassName="w-full h-full"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
-                    <div className="col-span-7 space-y-1.5">
-                      <div className="text-[11px] font-bold text-emerald-800">
-                        {secondaryArticle.category[locale]}
-                      </div>
-                      <h3 className="text-sm font-extrabold text-stone-900 group-hover:text-emerald-800 transition-colors line-clamp-2 leading-snug">
-                        {secondaryArticle.title[locale]}
-                      </h3>
-                      <div className="text-[11px] text-stone-500 font-mono-tabular">
-                        {secondaryArticle.readingTimeMinutes}{' '}
-                        {locale === 'ar' ? 'دقائق قراءة' : 'min read'}
-                      </div>
-                    </div>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {/* ================================================================= */}
+          {/* 2. FEATURED COVER STORY (PROMINENT EDITORIAL HERO)                */}
+          {/* ================================================================= */}
+          {featuredArticle && (
+            <motion.article
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              onClick={() => navigate(`/${locale}/blog/${featuredArticle.slug}`)}
+              className="cursor-pointer group rounded-3xl overflow-hidden bg-[#16382E] dark:bg-[#162722] text-white border border-[#16382E]/20 dark:border-emerald-900/50 grid grid-cols-1 lg:grid-cols-12 items-stretch shadow-sm"
+            >
+              {/* Cover Visual */}
+              <div className="lg:col-span-7 relative min-h-[260px] sm:min-h-[340px] lg:min-h-[420px] bg-stone-900 overflow-hidden">
+                <OptimizedImage
+                  src={featuredArticle.coverImage}
+                  alt={featuredArticle.title[locale]}
+                  containerClassName="w-full h-full"
+                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
+                />
+              </div>
+
+              {/* Editorial Summary */}
+              <div className="lg:col-span-5 p-7 sm:p-10 lg:p-12 flex flex-col justify-between gap-8">
+                <div className="space-y-5">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-emerald-200/95">
+                    <span>{isAr ? 'المقال الرئيسي' : 'Featured Essay'}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{featuredArticle.category[locale]}</span>
                   </div>
+
+                  <h2 className="text-2xl sm:text-3xl lg:text-[2rem] font-black leading-snug text-white group-hover:text-emerald-200 transition-colors">
+                    {featuredArticle.title[locale]}
+                  </h2>
+
+                  <p className="text-sm sm:text-[15px] text-emerald-50/85 leading-relaxed line-clamp-4">
+                    {featuredArticle.excerpt[locale]}
+                  </p>
+                </div>
+
+                <div className="space-y-5 pt-4 border-t border-white/15">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-emerald-100/80">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>{formatEditorialDate(featuredArticle.createdAt, locale)}</span>
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1.5 font-mono-tabular">
+                      <Clock className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>
+                        {featuredArticle.readingTimeMinutes}{' '}
+                        {isAr ? 'دقائق قراءة' : 'min read'}
+                      </span>
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>{featuredArticle.authorName[locale]}</span>
+                  </div>
+
+                  <div className="inline-flex items-center gap-2 text-sm font-bold text-emerald-300 group-hover:text-white transition-colors">
+                    <span>{isAr ? 'اقرأ المقال كاملاً' : 'Read Cover Story'}</span>
+                    <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </div>
+                </div>
+              </div>
+            </motion.article>
+          )}
+
+          {/* ================================================================= */}
+          {/* 3. STAGGERED MAGAZINE GRID & LATEST ARTICLES                      */}
+          {/* ================================================================= */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Primary Staggered Editorial Grid (8 cols on desktop) */}
+            <div className="lg:col-span-8 space-y-6">
+              <div className="flex items-center justify-between border-b border-stone-300/70 dark:border-stone-800 pb-3">
+                <h2 className="text-xl sm:text-2xl font-extrabold text-stone-950 dark:text-[#F5F3EE]">
+                  {isFiltering
+                    ? isAr
+                      ? `نتائج البحث والتصفية (${filteredArticles.length})`
+                      : `Filtered Essays (${filteredArticles.length})`
+                    : isAr
+                    ? 'قراءات ومقالات مختارة'
+                    : 'Selected Dispatches'}
+                </h2>
+                {isFiltering && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategoryKey('all');
+                      setSearchQuery('');
+                    }}
+                    className="text-xs font-bold text-[#16382E] dark:text-[#6EE7B7] hover:underline cursor-pointer"
+                  >
+                    {isAr ? 'إعادة ضبط التصفية' : 'Reset filters'}
+                  </button>
                 )}
               </div>
 
-              {/* Bottom Left Card: "Browse in lists" Soft Cool-Stone Card (Screenshot 3.4 bottom-left) */}
-              <div className="rounded-3xl bg-[#E8ECF2] border border-slate-300/80 p-6 sm:p-8 space-y-5">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-extrabold text-slate-900">
-                    {locale === 'ar' ? 'تصفح حسب الموضوع' : 'Browse in lists'}
-                  </h2>
-                  <div className="relative w-44">
-                    <Search className="w-3.5 h-3.5 text-slate-500 absolute top-1/2 -translate-y-1/2 start-3" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder={locale === 'ar' ? 'بحث سريع...' : 'Search...'}
-                      className="w-full ps-8 pe-3 py-1.5 rounded-full text-xs bg-white border border-slate-300 text-slate-900 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Category Filter Pills */}
-                <div className="flex flex-wrap gap-2">
+              {remainingMagazineArticles.length === 0 ? (
+                <div className="p-12 rounded-2xl bg-white dark:bg-[#171B1A] border border-stone-200 dark:border-stone-800 text-center space-y-3">
+                  <p className="text-sm text-stone-600 dark:text-stone-400">
+                    {isAr
+                      ? 'لا توجد مقالات مطابقة لمعايير البحث الحالية.'
+                      : 'No published articles match your current filter.'}
+                  </p>
                   <button
                     type="button"
-                    onClick={() => setSelectedCategory('all')}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer ${
-                      selectedCategory === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white text-slate-700 hover:bg-slate-200'
-                    }`}
+                    onClick={() => {
+                      setSelectedCategoryKey('all');
+                      setSearchQuery('');
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-bold bg-[#16382E] text-white dark:bg-[#6EE7B7] dark:text-[#0F1715] cursor-pointer"
                   >
-                    {locale === 'ar' ? 'الكل' : 'All'}
+                    {isAr ? 'عرض جميع المقالات' : 'Show all articles'}
                   </button>
-                  {uniqueCategories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer ${
-                        selectedCategory === cat
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
                 </div>
-
-                {/* Compact Numbered Reading List */}
-                <div className="space-y-2.5 pt-1">
-                  {publishedArticles.slice(0, 3).map((item, idx) => (
-                    <div
-                      key={item.id}
-                      onClick={() => navigate(`/${locale}/blog/${item.slug}`)}
-                      className="cursor-pointer p-3 rounded-2xl bg-white/90 hover:bg-white border border-slate-200/80 flex items-center justify-between gap-3 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-[11px] font-mono-tabular font-bold flex items-center justify-center shrink-0">
-                          {idx + 1}
-                        </span>
-                        <span className="text-xs font-bold text-slate-900 truncate">
-                          {item.title[locale]}
-                        </span>
-                      </div>
-                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT 7 COLS: Deep Forest Green Cover Story Banner + Bottom Editorial Card */}
-            <div className="lg:col-span-7 flex flex-col gap-6">
-              {/* Top Right Card: Deep Forest Green Editorial Feature (Screenshot 3.4 top-right) */}
-              {leadArticle && (
-                <motion.article
-                  whileHover={{ y: -3 }}
-                  transition={{ duration: 0.18 }}
-                  onClick={() => navigate(`/${locale}/blog/${leadArticle.slug}`)}
-                  className="cursor-pointer group rounded-3xl bg-[#16382E] text-white p-6 sm:p-10 grid grid-cols-1 md:grid-cols-12 gap-6 items-center shadow-lg"
-                >
-                  <div className="md:col-span-6 space-y-4">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-400/20 text-emerald-200 text-[11px] font-bold">
-                      <span>{leadArticle.category[locale]}</span>
-                    </div>
-
-                    <h2 className="text-2xl sm:text-3xl font-extrabold leading-snug group-hover:text-emerald-300 transition-colors">
-                      {leadArticle.title[locale]}
-                    </h2>
-
-                    <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed line-clamp-3">
-                      {leadArticle.excerpt[locale]}
-                    </p>
-
-                    <div className="pt-2 flex items-center gap-3 text-xs font-bold text-emerald-300">
-                      <span>{locale === 'ar' ? 'اقرأ المقال الرئيس' : 'Read Cover Story'}</span>
-                      <ArrowUpRight className="w-4 h-4" />
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-6 h-56 sm:h-64 rounded-2xl overflow-hidden border-2 border-emerald-400/30 bg-stone-950">
-                    <OptimizedImage
-                      src={leadArticle.coverImage}
-                      alt={leadArticle.title[locale]}
-                      containerClassName="w-full h-full"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-                </motion.article>
-              )}
-
-              {/* Bottom Right Card: Large White Magazine Feature Card (Screenshot 3.4 bottom-right) */}
-              {thirdArticle && (
-                <motion.article
-                  whileHover={{ y: -3 }}
-                  transition={{ duration: 0.18 }}
-                  onClick={() => navigate(`/${locale}/blog/${thirdArticle.slug}`)}
-                  className="cursor-pointer group rounded-3xl bg-white border border-stone-200/90 p-6 sm:p-8 flex-1 flex flex-col justify-between gap-6 shadow-xs"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs text-stone-500">
-                      <span className="font-bold text-emerald-800">
-                        {thirdArticle.category[locale]}
-                      </span>
-                      <span className="inline-flex items-center gap-1 font-mono-tabular">
-                        <Clock className="w-3.5 h-3.5" />
-                        {thirdArticle.readingTimeMinutes}{' '}
-                        {locale === 'ar' ? 'دقائق قراءة' : 'min read'}
-                      </span>
-                    </div>
-
-                    <h3 className="text-xl sm:text-2xl font-extrabold text-stone-950 group-hover:text-emerald-800 transition-colors">
-                      {thirdArticle.title[locale]}
-                    </h3>
-
-                    <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                      {thirdArticle.excerpt[locale]}
-                    </p>
-                  </div>
-
-                  <div className="h-52 rounded-2xl overflow-hidden bg-stone-900 border border-stone-200">
-                    <OptimizedImage
-                      src={thirdArticle.coverImage}
-                      alt={thirdArticle.title[locale]}
-                      containerClassName="w-full h-full"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-                </motion.article>
-              )}
-            </div>
-          </div>
-
-          {/* All Filtered Articles Grid Below Bento */}
-          <div className="pt-6 border-t border-stone-300 space-y-6">
-            <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900">
-              {locale === 'ar' ? 'جميع المقالات المنشورة' : 'All Published Essays'}
-            </h2>
-
-            {filteredArticles.length === 0 ? (
-              <div className="p-12 rounded-3xl bg-white border border-stone-200 text-center text-sm text-stone-500">
-                {locale === 'ar'
-                  ? 'لا توجد مقالات مطابقة لبحثك حالياً.'
-                  : 'No articles match your search query.'}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {filteredArticles.map((art) => (
-                  <motion.article
-                    key={art.id}
-                    whileHover={{ y: -3 }}
-                    transition={{ duration: 0.18 }}
-                    onClick={() => navigate(`/${locale}/blog/${art.slug}`)}
-                    className="cursor-pointer group rounded-3xl bg-white border border-stone-200/90 hover:border-stone-900 transition-colors overflow-hidden flex flex-col justify-between shadow-2xs"
-                  >
-                    <div>
-                      <div className="h-44 bg-stone-900 overflow-hidden border-b border-stone-100">
-                        <OptimizedImage
-                          src={art.coverImage}
-                          alt={art.title[locale]}
-                          containerClassName="w-full h-full"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      </div>
-
-                      <div className="p-6 space-y-2.5">
-                        <div className="flex items-center justify-between text-xs text-stone-500">
-                          <span className="inline-flex items-center gap-1 font-bold text-emerald-800">
-                            <BookOpen className="w-3.5 h-3.5" />
-                            <span>{art.category[locale]}</span>
-                          </span>
-                          <span className="font-mono-tabular">
-                            {art.readingTimeMinutes} min
-                          </span>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {remainingMagazineArticles.map((art, index) => {
+                    // Asymmetric editorial rhythm: first secondary card spans full 2 columns on desktop when multiple exist
+                    const isWideLead = index === 0 && remainingMagazineArticles.length >= 2;
+                    return (
+                      <motion.article
+                        key={art.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: Math.min(index * 0.05, 0.2) }}
+                        onClick={() => navigate(`/${locale}/blog/${art.slug}`)}
+                        className={`cursor-pointer group rounded-2xl bg-white dark:bg-[#171B1A] border border-stone-200/90 dark:border-stone-800/90 hover:border-stone-400 dark:hover:border-stone-600 transition-colors overflow-hidden flex ${
+                          isWideLead
+                            ? 'sm:col-span-2 flex-col md:flex-row'
+                            : 'flex-col justify-between'
+                        }`}
+                      >
+                        <div
+                          className={`bg-stone-900 overflow-hidden shrink-0 ${
+                            isWideLead
+                              ? 'md:w-1/2 h-56 md:h-auto md:min-h-[260px]'
+                              : 'w-full h-48 border-b border-stone-100 dark:border-stone-800'
+                          }`}
+                        >
+                          <OptimizedImage
+                            src={art.coverImage}
+                            alt={art.title[locale]}
+                            containerClassName="w-full h-full"
+                            className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
+                          />
                         </div>
 
-                        <h3 className="text-lg font-extrabold text-stone-950 group-hover:text-emerald-800 transition-colors leading-snug">
-                          {art.title[locale]}
-                        </h3>
+                        <div className="p-6 sm:p-7 flex flex-col justify-between gap-5 flex-1">
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+                              <span className="font-bold text-[#16382E] dark:text-[#6EE7B7]">
+                                {art.category[locale]}
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span>{formatEditorialDate(art.createdAt, locale)}</span>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono-tabular">
+                                {art.readingTimeMinutes}{' '}
+                                {isAr ? 'د قراءة' : 'min read'}
+                              </span>
+                            </div>
 
-                        <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
-                          {art.excerpt[locale]}
-                        </p>
-                      </div>
+                            <h3
+                              className={`font-extrabold text-stone-950 dark:text-[#F5F3EE] group-hover:text-[#16382E] dark:group-hover:text-[#6EE7B7] transition-colors leading-snug ${
+                                isWideLead ? 'text-xl sm:text-2xl' : 'text-lg'
+                              }`}
+                            >
+                              {art.title[locale]}
+                            </h3>
+
+                            <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed line-clamp-3">
+                              {art.excerpt[locale]}
+                            </p>
+                          </div>
+
+                          <div className="pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-stone-900 dark:text-stone-100">
+                            <span className="text-stone-500 dark:text-stone-400 font-normal">
+                              {art.authorName[locale]}
+                            </span>
+                            <span className="inline-flex items-center gap-1 group-hover:text-[#16382E] dark:group-hover:text-[#6EE7B7] transition-colors">
+                              <span>{isAr ? 'قراءة المقال' : 'Read Essay'}</span>
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+                        </div>
+                      </motion.article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Latest Articles Chronological Column (4 cols on desktop) */}
+            <aside className="lg:col-span-4 rounded-2xl bg-[#ECEAE2] dark:bg-[#171B1A] border border-stone-300/80 dark:border-stone-800 p-6 sm:p-7 space-y-6 lg:sticky lg:top-20">
+              <div className="flex items-center justify-between border-b border-stone-300/80 dark:border-stone-800 pb-3">
+                <h2 className="text-lg font-extrabold text-stone-950 dark:text-[#F5F3EE]">
+                  {isAr ? 'أحدث المقالات' : 'Latest Articles'}
+                </h2>
+                <span className="text-xs font-mono-tabular text-stone-500 dark:text-stone-400">
+                  {latestSortedArticles.length}
+                </span>
+              </div>
+
+              <div className="divide-y divide-stone-300/70 dark:divide-stone-800">
+                {latestSortedArticles.map((item, idx) => (
+                  <article
+                    key={item.id}
+                    onClick={() => navigate(`/${locale}/blog/${item.slug}`)}
+                    className="py-4 first:pt-1 last:pb-1 cursor-pointer group space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-stone-500 dark:text-stone-400">
+                      <span className="font-bold text-[#16382E] dark:text-[#6EE7B7] truncate">
+                        {String(idx + 1).padStart(2, '0')}. {item.category[locale]}
+                      </span>
+                      <span className="font-mono-tabular shrink-0">
+                        {item.readingTimeMinutes} {isAr ? 'د' : 'min'}
+                      </span>
                     </div>
 
-                    <div className="px-6 py-4 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-stone-900">
-                      <span>{locale === 'ar' ? 'قراءة المقال' : 'Read Article'}</span>
-                      <ArrowUpRight className="w-4 h-4" />
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 group-hover:text-[#16382E] dark:group-hover:text-[#6EE7B7] transition-colors leading-snug">
+                      {item.title[locale]}
+                    </h3>
+
+                    <div className="flex items-center justify-between text-[11px] text-stone-500 dark:text-stone-400">
+                      <span>{formatEditorialDate(item.createdAt, locale)}</span>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-[#16382E] dark:group-hover:text-[#6EE7B7] transition-colors" />
                     </div>
-                  </motion.article>
+                  </article>
                 ))}
               </div>
-            )}
+            </aside>
           </div>
         </div>
       </section>
