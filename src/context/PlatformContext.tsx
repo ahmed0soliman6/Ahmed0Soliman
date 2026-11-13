@@ -229,7 +229,10 @@ async function safeFetchJson(
   init?: RequestInit
 ): Promise<{ ok: boolean; status: number; data: any } | null> {
   try {
-    const res = await fetch(url, init);
+    const res = await fetch(url, {
+      cache: 'no-store',
+      ...init,
+    });
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
       return null;
@@ -263,7 +266,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Never trust localStorage alone on initial mount; keep adminSession null until server verifies token
   const [adminSession, setAdminSession] = useState<AdminUserSession | null>(null);
 
-  const [db, setDb] = useState<PlatformDatabase>(() => loadLocalDbSnapshot(false));
+  const [db, setDb] = useState<PlatformDatabase>(() =>
+    loadLocalDbSnapshot(Boolean(readCandidateAdminSession()))
+  );
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -412,16 +417,23 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const refreshData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const hasVerifiedAdmin = Boolean(adminSession?.token);
+    const activeCandidate = adminSession || readCandidateAdminSession();
+    let verifiedAdmin = false;
+
     try {
       let baseData: Partial<PlatformDatabase> | null = null;
 
-      if (hasVerifiedAdmin && adminSession?.token) {
+      if (activeCandidate?.token) {
         const adminRes = await safeFetchJson('/api/cms/admin', {
-          headers: { Authorization: `Bearer ${adminSession.token}` },
+          headers: { Authorization: `Bearer ${activeCandidate.token}` },
+          cache: 'no-store',
         });
         if (adminRes && adminRes.ok && adminRes.data) {
           baseData = adminRes.data;
+          verifiedAdmin = true;
+          setAdminSession((prev) =>
+            prev && prev.token === activeCandidate.token ? prev : activeCandidate
+          );
         } else if (adminRes && (adminRes.status === 401 || adminRes.status === 403)) {
           setAdminSession(null);
           localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
@@ -430,11 +442,13 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (!baseData) {
         // Public Visitor Flow: Read from published snapshot API or static /data/public-snapshot.json (0 Firestore reads)
-        const pubRes = await safeFetchJson('/api/cms/public');
+        const pubRes = await safeFetchJson('/api/cms/public', { cache: 'no-store' });
         if (pubRes && pubRes.ok && pubRes.data) {
           baseData = stripDraftRecords(pubRes.data as PlatformDatabase);
         } else {
-          const staticSnapRes = await safeFetchJson('/data/public-snapshot.json');
+          const staticSnapRes = await safeFetchJson('/data/public-snapshot.json', {
+            cache: 'no-store',
+          });
           if (staticSnapRes && staticSnapRes.ok && staticSnapRes.data) {
             baseData = stripDraftRecords(staticSnapRes.data as PlatformDatabase);
           }
@@ -444,7 +458,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (baseData) {
         setDb((prev) => {
           const combined = { ...prev, ...baseData } as PlatformDatabase;
-          const sanitized = hasVerifiedAdmin ? combined : stripDraftRecords(combined);
+          const sanitized = verifiedAdmin ? combined : stripDraftRecords(combined);
           saveLocalDbSnapshot(sanitized);
           return sanitized;
         });
@@ -558,6 +572,14 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const saveSiteSettings = useCallback(
     async (settings: SiteSettings) => {
       if (!adminSession) throw new Error('Admin session required');
+      let previousDb: PlatformDatabase | null = null;
+
+      // Instant optimistic UI update
+      setDb((prev) => {
+        previousDb = prev;
+        return { ...prev, siteSettings: { ...prev.siteSettings, ...settings } };
+      });
+
       const apiRes = await safeFetchJson('/api/cms/siteSettings', {
         method: 'PUT',
         headers: {
@@ -568,6 +590,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       if (!apiRes || !apiRes.ok) {
+        if (previousDb) {
+          setDb(previousDb);
+        }
         const msg =
           apiRes?.data?.error ||
           (locale === 'ar'
@@ -588,7 +613,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       invalidateFirestoreCache();
-      await refreshData();
 
       if (!publishedSnapshot) {
         const warnMsg =
@@ -610,7 +634,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         'success'
       );
     },
-    [adminSession, locale, refreshData, showToast]
+    [adminSession, locale, showToast]
   );
 
   const upsertRecord = useCallback(
@@ -626,6 +650,23 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       record: Record<string, any>
     ) => {
       if (!adminSession) throw new Error('Admin session required');
+      let previousDb: PlatformDatabase | null = null;
+
+      // Instant optimistic UI update when record has an existing id
+      if (record.id) {
+        setDb((prev) => {
+          previousDb = prev;
+          const list = [...((prev as any)[collectionName] || [])];
+          const idx = list.findIndex((item: any) => item.id === record.id);
+          if (idx >= 0) {
+            list[idx] = { ...list[idx], ...record, updatedAt: new Date().toISOString() };
+          } else {
+            list.push({ ...record, updatedAt: new Date().toISOString() });
+          }
+          return { ...prev, [collectionName]: list };
+        });
+      }
+
       const apiRes = await safeFetchJson(`/api/cms/${collectionName}`, {
         method: 'POST',
         headers: {
@@ -636,6 +677,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       if (!apiRes || !apiRes.ok) {
+        if (previousDb) {
+          setDb(previousDb);
+        }
         const msg =
           apiRes?.data?.error ||
           (locale === 'ar'
@@ -663,7 +707,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       invalidateFirestoreCache();
-      await refreshData();
 
       if (!publishedSnapshot) {
         const warnMsg =
@@ -686,7 +729,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       );
       return savedRecord;
     },
-    [adminSession, locale, refreshData, showToast]
+    [adminSession, locale, showToast]
   );
 
   const deleteRecord = useCallback(
@@ -702,6 +745,14 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: string
     ) => {
       if (!adminSession) throw new Error('Admin session required');
+      let previousDb: PlatformDatabase | null = null;
+
+      setDb((prev) => {
+        previousDb = prev;
+        const list = ((prev as any)[collectionName] || []).filter((item: any) => item.id !== id);
+        return { ...prev, [collectionName]: list };
+      });
+
       const apiRes = await safeFetchJson(`/api/cms/${collectionName}/${id}`, {
         method: 'DELETE',
         headers: {
@@ -710,6 +761,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       if (!apiRes || !apiRes.ok) {
+        if (previousDb) {
+          setDb(previousDb);
+        }
         const msg =
           apiRes?.data?.error ||
           (locale === 'ar'
@@ -730,7 +784,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       invalidateFirestoreCache();
-      await refreshData();
 
       if (!publishedSnapshot) {
         const warnMsg =
@@ -750,7 +803,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         'success'
       );
     },
-    [adminSession, locale, refreshData, showToast]
+    [adminSession, locale, showToast]
   );
 
   const reorderRecords = useCallback(
@@ -759,6 +812,20 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       orderedIds: string[]
     ) => {
       if (!adminSession) throw new Error('Admin session required');
+      let previousDb: PlatformDatabase | null = null;
+
+      setDb((prev) => {
+        previousDb = prev;
+        const list = [...((prev as any)[collectionName] || [])];
+        const reordered = list
+          .map((item: any) => {
+            const idx = orderedIds.indexOf(item.id);
+            return { ...item, order: idx >= 0 ? idx + 1 : item.order };
+          })
+          .sort((a: any, b: any) => (a.order ?? 99) - (b.order ?? 99));
+        return { ...prev, [collectionName]: reordered };
+      });
+
       const apiRes = await safeFetchJson(`/api/cms/${collectionName}/reorder`, {
         method: 'PATCH',
         headers: {
@@ -769,6 +836,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       if (!apiRes || !apiRes.ok) {
+        if (previousDb) {
+          setDb(previousDb);
+        }
         const msg =
           apiRes?.data?.error ||
           (locale === 'ar'
@@ -795,7 +865,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
 
       invalidateFirestoreCache();
-      await refreshData();
 
       if (!publishedSnapshot) {
         showToast(
@@ -812,7 +881,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         'success'
       );
     },
-    [adminSession, locale, refreshData, showToast]
+    [adminSession, locale, showToast]
   );
 
   const seedBaselineDatabase = useCallback(async () => {
@@ -839,7 +908,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     saveLocalDbSnapshot(freshDb);
 
     invalidateFirestoreCache();
-    await refreshData();
 
     if (apiRes.data.publishedSnapshot === false) {
       showToast(
@@ -857,7 +925,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         : 'Database initialized in Firestore and public snapshot published',
       'success'
     );
-  }, [adminSession, locale, refreshData, showToast]);
+  }, [adminSession, locale, showToast]);
 
   const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(() =>
     Boolean(getSavedFirebaseConfig())

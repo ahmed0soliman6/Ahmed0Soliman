@@ -1387,6 +1387,16 @@ export function validateSnapshotStructure(input: unknown): input is PublicConten
   );
 }
 
+let latestPublishedVercelManifest: {
+  manifest: PublicSnapshotManifest;
+  etag?: string;
+} | null = null;
+
+function parseManifestRevisionFromPath(pathname: string): number {
+  const match = String(pathname || '').match(/snapshots\/manifest-v(\d+)-/);
+  return match ? Number(match[1]) || 0 : 0;
+}
+
 export function createVercelBlobSnapshotAdapter(
   tokenOverride?: string
 ): PersistentSnapshotStorageAdapter {
@@ -1394,6 +1404,27 @@ export function createVercelBlobSnapshotAdapter(
     typeof tokenOverride === 'string'
       ? cleanEnvValue(tokenOverride)
       : cleanEnvValue(process.env.BLOB_READ_WRITE_TOKEN);
+
+  const readBlobText = async (urlOrPathname: string, token: string): Promise<{ text: string; etag?: string } | null> => {
+    const { get, BlobNotFoundError } = await import('@vercel/blob');
+    try {
+      const res = await get(urlOrPathname, {
+        access: 'public',
+        useCache: false,
+        token,
+      });
+      if (!res || res.statusCode !== 200 || !res.stream) {
+        return null;
+      }
+      const text = await new globalThis.Response(res.stream).text();
+      return { text, etag: res.blob?.etag };
+    } catch (err: any) {
+      if (err instanceof BlobNotFoundError || err?.name === 'BlobNotFoundError') {
+        return null;
+      }
+      throw err;
+    }
+  };
 
   return {
     isConfigured: () => Boolean(resolveToken()),
@@ -1418,73 +1449,159 @@ export function createVercelBlobSnapshotAdapter(
       if (!token) {
         throw new Error('BLOB_READ_WRITE_TOKEN is not configured.');
       }
-      const { get, BlobNotFoundError } = await import('@vercel/blob');
-      try {
-        const res = await get(urlOrPathname, {
-          access: 'public',
-          useCache: false,
-          token,
-        });
-        if (!res || res.statusCode !== 200 || !res.stream) {
-          return null;
-        }
-        return await new globalThis.Response(res.stream).text();
-      } catch (err: any) {
-        if (err instanceof BlobNotFoundError || err?.name === 'BlobNotFoundError') {
-          return null;
-        }
-        throw err;
-      }
+      const res = await readBlobText(urlOrPathname, token);
+      return res ? res.text : null;
     },
     readCurrentManifest: async () => {
       const token = resolveToken();
       if (!token) {
         throw new Error('BLOB_READ_WRITE_TOKEN is not configured.');
       }
-      const { get, BlobNotFoundError } = await import('@vercel/blob');
-      try {
-        const res = await get(SNAPSHOT_MANIFEST_PATHNAME, {
-          access: 'public',
-          useCache: false,
+      const { list } = await import('@vercel/blob');
+
+      const [directOutcome, listOutcome] = await Promise.allSettled([
+        readBlobText(SNAPSHOT_MANIFEST_PATHNAME, token),
+        list({
+          prefix: 'snapshots/manifest-v',
+          limit: 25,
           token,
-        });
-        if (!res || res.statusCode !== 200 || !res.stream) {
-          return { manifest: null };
+        }),
+      ]);
+
+      let bestManifest: PublicSnapshotManifest | null = null;
+      let bestEtag: string | undefined;
+
+      if (directOutcome.status === 'fulfilled' && directOutcome.value) {
+        try {
+          const parsed = JSON.parse(directOutcome.value.text) as PublicSnapshotManifest;
+          if (
+            parsed &&
+            typeof parsed.revision === 'number' &&
+            typeof parsed.contentHash === 'string' &&
+            typeof parsed.snapshotPathname === 'string'
+          ) {
+            bestManifest = parsed;
+            bestEtag = directOutcome.value.etag;
+          }
+        } catch {
+          // ignore malformed manifest
         }
-        const raw = await new globalThis.Response(res.stream).text();
-        const parsed = JSON.parse(raw) as PublicSnapshotManifest;
-        if (
-          !parsed ||
-          typeof parsed.revision !== 'number' ||
-          typeof parsed.contentHash !== 'string' ||
-          typeof parsed.snapshotPathname !== 'string'
-        ) {
-          return { manifest: null };
-        }
-        return { manifest: parsed, etag: res.blob?.etag };
-      } catch (err: any) {
-        if (err instanceof BlobNotFoundError || err?.name === 'BlobNotFoundError') {
-          return { manifest: null };
-        }
-        throw err;
       }
+
+      // Check strongly-consistent Blob metadata list() for immutable versioned manifests
+      // to bypass the 60-second Vercel Blob CDN cache on overwritten snapshots/manifest.json
+      if (listOutcome.status === 'fulfilled' && Array.isArray(listOutcome.value?.blobs)) {
+        let highestBlob: { pathname: string; url: string; rev: number } | null = null;
+        for (const item of listOutcome.value.blobs) {
+          const rev = parseManifestRevisionFromPath(item.pathname);
+          if (rev > 0 && (!highestBlob || rev > highestBlob.rev)) {
+            highestBlob = { pathname: item.pathname, url: item.url, rev };
+          }
+        }
+
+        if (highestBlob && highestBlob.rev > (bestManifest?.revision || 0)) {
+          if (
+            latestPublishedVercelManifest &&
+            latestPublishedVercelManifest.manifest.revision === highestBlob.rev
+          ) {
+            bestManifest = latestPublishedVercelManifest.manifest;
+            bestEtag = latestPublishedVercelManifest.etag;
+          } else {
+            const versionedRead = await readBlobText(
+              highestBlob.url || highestBlob.pathname,
+              token
+            ).catch(() => null);
+            if (versionedRead) {
+              try {
+                const parsedVer = JSON.parse(versionedRead.text) as PublicSnapshotManifest;
+                if (
+                  parsedVer &&
+                  typeof parsedVer.revision === 'number' &&
+                  typeof parsedVer.contentHash === 'string' &&
+                  typeof parsedVer.snapshotPathname === 'string' &&
+                  parsedVer.revision >= highestBlob.rev
+                ) {
+                  bestManifest = parsedVer;
+                  bestEtag = versionedRead.etag;
+                }
+              } catch {
+                // ignore malformed versioned manifest
+              }
+            }
+          }
+        }
+      }
+
+      if (
+        latestPublishedVercelManifest &&
+        latestPublishedVercelManifest.manifest.revision > (bestManifest?.revision || 0)
+      ) {
+        bestManifest = latestPublishedVercelManifest.manifest;
+        bestEtag = latestPublishedVercelManifest.etag;
+      }
+
+      if (!bestManifest && directOutcome.status === 'rejected') {
+        throw directOutcome.reason;
+      }
+
+      return { manifest: bestManifest, etag: bestEtag };
     },
-    writeCurrentManifest: async (manifest: PublicSnapshotManifest, options?: { ifMatchEtag?: string }) => {
+    writeCurrentManifest: async (manifest: PublicSnapshotManifest) => {
       const token = resolveToken();
       if (!token) {
         throw new Error('BLOB_READ_WRITE_TOKEN is not configured.');
       }
-      const { put } = await import('@vercel/blob');
-      const res = await put(SNAPSHOT_MANIFEST_PATHNAME, JSON.stringify(manifest, null, 2), {
-        access: 'public',
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: 'application/json',
-        cacheControlMaxAge: 60,
-        ...(options?.ifMatchEtag ? { ifMatch: options.ifMatchEtag } : {}),
-        token,
-      });
-      return { url: res.url, etag: (res as any).etag };
+      const { put, list, del } = await import('@vercel/blob');
+      const serialized = JSON.stringify(manifest, null, 2);
+      const versionedManifestPathname = `snapshots/manifest-v${String(manifest.revision).padStart(
+        8,
+        '0'
+      )}-${manifest.contentHash.slice(0, 12)}.json`;
+
+      const [mainRes, versionedRes] = await Promise.all([
+        put(SNAPSHOT_MANIFEST_PATHNAME, serialized, {
+          access: 'public',
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType: 'application/json',
+          cacheControlMaxAge: 60,
+          token,
+        }),
+        put(versionedManifestPathname, serialized, {
+          access: 'public',
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType: 'application/json',
+          cacheControlMaxAge: 31536000,
+          token,
+        }),
+      ]);
+
+      const resultEtag = (mainRes as any).etag || (versionedRes as any).etag;
+      latestPublishedVercelManifest = {
+        manifest,
+        etag: resultEtag,
+      };
+
+      // Background cleanup of older versioned manifests (keep newest 5)
+      void (async () => {
+        try {
+          const listed = await list({ prefix: 'snapshots/manifest-v', limit: 30, token });
+          if (Array.isArray(listed?.blobs) && listed.blobs.length > 5) {
+            const sorted = [...listed.blobs].sort(
+              (a, b) => parseManifestRevisionFromPath(b.pathname) - parseManifestRevisionFromPath(a.pathname)
+            );
+            const staleUrls = sorted.slice(5).map((b) => b.url);
+            if (staleUrls.length > 0) {
+              await del(staleUrls, { token });
+            }
+          }
+        } catch {
+          // non-fatal cleanup
+        }
+      })();
+
+      return { url: mainRes.url || versionedRes.url, etag: resultEtag };
     },
   };
 }
@@ -1506,6 +1623,7 @@ export function setCustomSnapshotStorageAdapter(
   customSnapshotStorageAdapter = adapter;
   defaultInstanceSnapshotCache = null;
   cachedPublishedSnapshot = null;
+  latestPublishedVercelManifest = null;
 }
 
 export function setForceProductionSnapshotMode(enabled: boolean): void {
@@ -1515,6 +1633,7 @@ export function setForceProductionSnapshotMode(enabled: boolean): void {
 export function clearLocalInstanceSnapshotMemory(): void {
   defaultInstanceSnapshotCache = null;
   cachedPublishedSnapshot = null;
+  latestPublishedVercelManifest = null;
 }
 
 function isProductionEnvironment(strictOverride?: boolean): boolean {
@@ -1676,17 +1795,6 @@ export async function publishPublicSnapshot(
       };
     }
 
-    // Re-check manifest right before pointer update to guard against concurrent newer publications
-    const { manifest: latestManifest, etag: latestEtag } = await adapter.readCurrentManifest();
-    if (latestManifest && latestManifest.revision >= nextRevision) {
-      return {
-        published: false,
-        snapshot,
-        code: 'CONCURRENT_NEWER_SNAPSHOT',
-        error: `A newer snapshot (revision ${latestManifest.revision}) was published concurrently; skipping older revision ${nextRevision}.`,
-      };
-    }
-
     const nextManifest: PublicSnapshotManifest = {
       version: verifiedSnapshot.version,
       revision: nextRevision,
@@ -1697,18 +1805,25 @@ export async function publishPublicSnapshot(
       updatedAt: new Date().toISOString(),
     };
 
-    await adapter.writeCurrentManifest(nextManifest, {
-      ifMatchEtag: latestEtag || initialEtag,
+    const writeManifestResult = await adapter.writeCurrentManifest(nextManifest, {
+      ifMatchEtag: initialEtag,
     });
-
-    // Confirm the manifest pointer is updated and readable
-    const { manifest: confirmedManifest } = await adapter.readCurrentManifest();
-    if (!confirmedManifest || confirmedManifest.revision < nextRevision) {
+    if (!writeManifestResult || !writeManifestResult.url) {
       return {
         published: false,
         snapshot,
         code: 'MANIFEST_VERIFICATION_FAILED',
         error: 'Failed to confirm updated public snapshot manifest pointer.',
+      };
+    }
+
+    const { manifest: confirmedManifest } = await adapter.readCurrentManifest();
+    if (confirmedManifest && confirmedManifest.revision > nextRevision) {
+      return {
+        published: false,
+        snapshot,
+        code: 'CONCURRENT_NEWER_SNAPSHOT',
+        error: `A newer snapshot (revision ${confirmedManifest.revision}) was published concurrently; skipping older revision ${nextRevision}.`,
       };
     }
 
@@ -2323,7 +2438,7 @@ export function createExpressApp(options?: ServerInstanceOptions): express.Expre
       const readsDelta = serverFirestoreReadOpsCount - readsBefore;
       res.setHeader(
         'Cache-Control',
-        'public, max-age=0, s-maxage=1, stale-while-revalidate=5'
+        'no-store, no-cache, must-revalidate, max-age=0'
       );
       res.setHeader('X-Data-Source', 'public-snapshot');
       if (readsDelta === 0) {
@@ -2351,7 +2466,7 @@ export function createExpressApp(options?: ServerInstanceOptions): express.Expre
       const readsDelta = serverFirestoreReadOpsCount - readsBefore;
       res.setHeader(
         'Cache-Control',
-        'public, max-age=0, s-maxage=1, stale-while-revalidate=5'
+        'no-store, no-cache, must-revalidate, max-age=0'
       );
       res.setHeader('X-Data-Source', 'public-snapshot');
       if (readsDelta === 0) {
@@ -3557,7 +3672,7 @@ export function createExpressApp(options?: ServerInstanceOptions): express.Expre
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urlEntries}
 </urlset>`;
 
-    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=1, stale-while-revalidate=5');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     if (readsDelta === 0) {
       res.setHeader('X-Firestore-Reads', '0');
     }

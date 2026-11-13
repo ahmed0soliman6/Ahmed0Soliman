@@ -949,6 +949,100 @@ async function runPhase8_3Tests() {
     );
   }
 
+  // Test 2.18: Eventual consistency on manifest read after write does NOT cause false-negative MANIFEST_VERIFICATION_FAILED, and page hide -> show immediately updates public snapshot with no-store Cache-Control
+  {
+    const baseSim = createSharedBlobStorageSimulator({ configured: true });
+    // First publish revision 1
+    const first = await publishPublicSnapshot(sharedFirestoreDb, { adapter: baseSim.adapter });
+    assert.equal(first.published, true);
+    assert.equal(first.manifest?.revision, 1);
+
+    // Simulate Vercel Blob 60s overwrite CDN cache returning revision 1 right after writeCurrentManifest(rev 2) succeeds
+    let simulateStalePostWriteRead = true;
+    const delayedManifestReadAdapter: PersistentSnapshotStorageAdapter = {
+      ...baseSim.adapter,
+      readCurrentManifest: async () => {
+        const res = await baseSim.adapter.readCurrentManifest();
+        if (simulateStalePostWriteRead && res.manifest && res.manifest.revision > 1) {
+          return {
+            manifest: { ...res.manifest, revision: 1 },
+            etag: res.etag,
+          };
+        }
+        return res;
+      },
+    };
+
+    const second = await publishPublicSnapshot(sharedFirestoreDb, {
+      adapter: delayedManifestReadAdapter,
+    });
+    assert.equal(
+      second.published,
+      true,
+      'publishPublicSnapshot must not fail with false-negative MANIFEST_VERIFICATION_FAILED when writeCurrentManifest succeeded'
+    );
+    simulateStalePostWriteRead = false;
+
+    // Also test hide -> reload -> show -> reload cycle on public endpoint with no-store header
+    const app = createExpressApp({
+      authDepsResolver: createAuthResolver(),
+      hmacSecret: VALID_TEST_SECRET,
+      snapshotAdapter: baseSim.adapter,
+      strictProductionMode: true,
+    });
+    const srv = await startTestServer(app);
+    try {
+      const loginRes = await requestJson(srv.baseUrl, '/api/auth/admin-login', {
+        method: 'POST',
+        body: { idToken: 'valid-owner-firebase-id-token' },
+      });
+      const token = loginRes.data.token as string;
+      const clinicsPage = sharedFirestoreDb.pages.find((p) => p.id === 'clinics')!;
+
+      // Hide clinics page
+      const hideRes = await requestJson(srv.baseUrl, '/api/cms/pages', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: { ...clinicsPage, published: false },
+      });
+      assert.equal(hideRes.status, 200);
+      assert.equal(hideRes.data.publishedSnapshot, true);
+
+      const pubAfterHide = await requestJson(srv.baseUrl, '/api/cms/public');
+      assert.equal(pubAfterHide.status, 200);
+      assert.ok(
+        pubAfterHide.headers.get('cache-control')?.includes('no-store'),
+        '/api/cms/public must return Cache-Control: no-store for immediate F5 reload reflection'
+      );
+      assert.ok(
+        !pubAfterHide.data.pages.some((p: any) => p.id === 'clinics'),
+        'Hidden clinics page must immediately disappear from /api/cms/public'
+      );
+
+      // Re-publish clinics page
+      const showRes = await requestJson(srv.baseUrl, '/api/cms/pages', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: { ...clinicsPage, published: true },
+      });
+      assert.equal(showRes.status, 200);
+      assert.equal(showRes.data.publishedSnapshot, true);
+
+      const pubAfterShow = await requestJson(srv.baseUrl, '/api/cms/public');
+      assert.equal(pubAfterShow.status, 200);
+      assert.ok(
+        pubAfterShow.data.pages.some((p: any) => p.id === 'clinics'),
+        'Re-published clinics page must immediately reappear in /api/cms/public on reload'
+      );
+
+      recordPass(
+        'Test 2.18: Eventual consistency on manifest read never causes false-negative error, and Hide -> Show page cycle reflects immediately with no-store Cache-Control'
+      );
+    } finally {
+      await srv.close();
+    }
+  }
+
   console.log('\n================================================================');
   console.log(`🎉 ALL ${passed} PHASE 8.3 RELIABILITY & SECURITY SUITES PASSED!`);
   console.log('================================================================');

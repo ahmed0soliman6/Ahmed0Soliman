@@ -66,6 +66,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
     searchParams,
     navigate,
     db,
+    loading,
     adminSession,
     loginAsOwnerAdmin,
     logoutAdmin,
@@ -957,18 +958,24 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       {/* Main Content (Protected against hidden pages for unauthenticated visitors) */}
       <main className="flex-1">
         {isCurrentPageHidden && !adminSession ? (
-          <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
-            <h1 className="text-2xl font-black">
-              {locale === 'ar'
-                ? 'هذه الصفحة مخفية حالياً من قِبل إدارة المنصة'
-                : 'This Page is Currently Hidden'}
-            </h1>
-            <p className="text-xs sm:text-sm opacity-75 max-w-md">
-              {locale === 'ar'
-                ? 'تم إخفاء هذا القسم مؤقتاً من العرض العام.'
-                : 'This section has been temporarily hidden from public view.'}
-            </p>
-          </div>
+          loading ? (
+            <div className="min-h-[60vh] flex items-center justify-center p-6">
+              <div className="w-7 h-7 rounded-full border-2 border-current border-t-transparent animate-spin opacity-50" />
+            </div>
+          ) : (
+            <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <h1 className="text-2xl font-black">
+                {locale === 'ar'
+                  ? 'هذه الصفحة مخفية حالياً من قِبل إدارة المنصة'
+                  : 'This Page is Currently Hidden'}
+              </h1>
+              <p className="text-xs sm:text-sm opacity-75 max-w-md">
+                {locale === 'ar'
+                  ? 'تم إخفاء هذا القسم مؤقتاً من العرض العام.'
+                  : 'This section has been temporarily hidden from public view.'}
+              </p>
+            </div>
+          )
         ) : (
           children
         )}
