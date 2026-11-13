@@ -58,7 +58,8 @@
       "canonicalSlug": "/",
       "structuredDataType": "Person"
     },
-    "updatedAt": "2026-11-11T12:00:00.000Z"
+    "updatedAt": "2026-11-11T12:00:00.000Z",
+    "hideVisitorHeaderNav": true
   },
   "pages": [
     {
@@ -690,7 +691,7 @@
         "ar": "أنظمة إدارة العيادات",
         "en": "Clinic Management Systems"
       },
-      "coverImage": "https://solimedical.vercel.app/assets/images/dashboard.webp",
+      "coverImage": "/assets/solimedical/dashboard.svg",
       "logoImage": "/assets/aistudio/logo_ae3842b8.png",
       "videoUrl": "https://www.youtube.com/watch?v=l90OUlLJT-I",
       "youtubeId": "l90OUlLJT-I",
@@ -734,7 +735,7 @@
             "ar": "نظرة سريعة على نشاط اليوم: الكشوفات، قائمة الانتظار، المواعيد المؤكدة، والإيراد اليومي.",
             "en": "Instant overview of today’s clinical activity: consultations, waiting queue, confirmed bookings, and daily revenue."
           },
-          "imageUrl": "https://solimedical.vercel.app/assets/images/dashboard.webp"
+          "imageUrl": "/assets/solimedical/dashboard.svg"
         },
         {
           "id": "screen-appointments",
@@ -746,7 +747,7 @@
             "ar": "إدارة واضحة لحركة المرضى من التسجيل إلى الدخول على الطبيب وتحديث الحالة لحظياً.",
             "en": "Streamlined reception workflow for patient check-in and real-time status synchronization with the doctor."
           },
-          "imageUrl": "https://solimedical.vercel.app/assets/images/booking.webp"
+          "imageUrl": "/assets/solimedical/booking.svg"
         },
         {
           "id": "screen-patients",
@@ -758,7 +759,7 @@
             "ar": "معلومات المريض والزيارات السابقة والملاحظات والروشتة في سياق عملي واحد.",
             "en": "Complete patient history, clinical notes, and printable prescriptions organized in one view."
           },
-          "imageUrl": "https://solimedical.vercel.app/assets/images/emr.webp"
+          "imageUrl": "/assets/solimedical/emr.svg"
         }
       ],
       "comparisonTable": [
@@ -1119,7 +1120,7 @@
             "ar": "رؤية موحدة لجميع العيادات والوحدات المالية والتشغيلية في شاشة واحدة.",
             "en": "Unified operational oversight across all active clinics and financial desks."
           },
-          "imageUrl": "https://solimedical.vercel.app/assets/images/complex.webp"
+          "imageUrl": "/assets/solimedical/complex.svg"
         }
       ],
       "featured": true,
@@ -1802,7 +1803,7 @@
         "Clinic Management",
         "Medical Complex"
       ],
-      "coverImage": "https://solimedical.vercel.app/assets/images/dashboard.webp",
+      "coverImage": "/assets/solimedical/dashboard.svg",
       "readingTimeMinutes": 4,
       "authorName": {
         "ar": "أحمد سليمان",
@@ -2011,6 +2012,48 @@
         "en": "Al-Noor Specialized Medical Complex Reception"
       },
       "category": "clinic",
+      "createdAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "media-soli-dashboard-screen",
+      "publicId": "local/soli-dashboard-screen",
+      "secureUrl": "/assets/solimedical/dashboard.svg",
+      "format": "svg",
+      "width": 1200,
+      "height": 720,
+      "alt": {
+        "ar": "شاشة لوحة التحكم الرئيسية لنظام Soli Medical",
+        "en": "Soli Medical Command Dashboard Screen"
+      },
+      "category": "project",
+      "createdAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "media-soli-booking-screen",
+      "publicId": "local/soli-booking-screen",
+      "secureUrl": "/assets/solimedical/booking.svg",
+      "format": "svg",
+      "width": 1200,
+      "height": 720,
+      "alt": {
+        "ar": "شاشة الحجوزات والطابور في نظام Soli Medical",
+        "en": "Soli Medical Queue & Appointments Screen"
+      },
+      "category": "project",
+      "createdAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "media-soli-emr-screen",
+      "publicId": "local/soli-emr-screen",
+      "secureUrl": "/assets/solimedical/emr.svg",
+      "format": "svg",
+      "width": 1200,
+      "height": 720,
+      "alt": {
+        "ar": "شاشة الملف الطبي الإلكتروني والروشتة في Soli Medical",
+        "en": "Soli Medical Cloud EMR & E-Prescription Screen"
+      },
+      "category": "project",
       "createdAt": "2026-11-11T12:00:00.000Z"
     }
   ]

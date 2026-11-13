@@ -38,8 +38,11 @@ export const HomePage: React.FC = () => {
 
   const isPageVisible = (slugId: string) => {
     const found = db.pages.find((p) => p.slug === slugId || p.id === slugId);
-    return found ? found.published !== false : true;
+    return found ? found.published !== false && found.archived !== true : false;
   };
+
+  const hideVisitorHeaderNav =
+    settings.hideVisitorHeaderNav !== false || Boolean(homePage?.standaloneByDefault);
 
   const [activeTab, setActiveTab] = useState<StudioDockTab>('projects');
   const [whatsAppQuickMsg, setWhatsAppQuickMsg] = useState('');
@@ -99,12 +102,14 @@ export const HomePage: React.FC = () => {
 
   const dockItems = allDockItems.filter((item) => isPageVisible(item.pageSlug));
 
-  const headerNavLinks = [
-    { id: 'about', labelAr: 'من أنا', labelEn: 'About', href: `/${locale}/about` },
-    { id: 'projects', labelAr: 'المشروعات', labelEn: 'Projects', href: `/${locale}/projects` },
-    { id: 'clinics', labelAr: 'العيادات', labelEn: 'Clinics', href: `/${locale}/clinics` },
-    { id: 'blog', labelAr: 'المقالات', labelEn: 'Articles', href: `/${locale}/blog` },
-  ].filter((item) => isPageVisible(item.id));
+  const headerNavLinks = hideVisitorHeaderNav
+    ? []
+    : [
+        { id: 'about', labelAr: 'من أنا', labelEn: 'About', href: `/${locale}/about` },
+        { id: 'projects', labelAr: 'المشروعات', labelEn: 'Projects', href: `/${locale}/projects` },
+        { id: 'clinics', labelAr: 'العيادات', labelEn: 'Clinics', href: `/${locale}/clinics` },
+        { id: 'blog', labelAr: 'المقالات', labelEn: 'Articles', href: `/${locale}/blog` },
+      ].filter((item) => isPageVisible(item.id));
 
   const handleOpenAdmin = () => {
     if (adminSession) {

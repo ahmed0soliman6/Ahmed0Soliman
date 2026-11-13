@@ -71,8 +71,44 @@ const STORAGE_THEME_KEY = 'ahmed_soliman_theme_pref';
 const STORAGE_ADMIN_SESSION_KEY = 'ahmed_soliman_admin_session_v1';
 const STORAGE_LOCAL_CMS_DB_KEY = 'ahmed_soliman_cms_db_snapshot_v1';
 
+const CLIENT_LEGACY_IMAGE_MAP: Record<string, string> = {
+  'https://solimedical.vercel.app/assets/images/dashboard.webp': '/assets/solimedical/dashboard.svg',
+  'https://solimedical.vercel.app/assets/images/booking.webp': '/assets/solimedical/booking.svg',
+  'https://solimedical.vercel.app/assets/images/appointments.webp': '/assets/solimedical/booking.svg',
+  'https://solimedical.vercel.app/assets/images/emr.webp': '/assets/solimedical/emr.svg',
+  'https://solimedical.vercel.app/assets/images/complex.webp': '/assets/solimedical/complex.svg',
+};
+
+function healClientImageUrl(url: string | undefined): string | undefined {
+  if (!url || typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  return CLIENT_LEGACY_IMAGE_MAP[trimmed] || url;
+}
+
 export function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
-  const publishedClinics = (rawDb.clinics || []).filter((item) => item.published === true);
+  const publishedPages = (rawDb.pages || []).filter(
+    (item) => item.published === true && item.archived !== true
+  );
+
+  const isCoreSectionOpen = (slug: string) => {
+    const foundInRaw = (rawDb.pages || []).find(
+      (p) => p.slug === slug || p.id === slug || p.id === `page-${slug}`
+    );
+    if (foundInRaw) {
+      return foundInRaw.published === true && foundInRaw.archived !== true;
+    }
+    return publishedPages.some(
+      (p) => p.slug === slug || p.id === slug || p.id === `page-${slug}`
+    );
+  };
+
+  const projectsOpen = isCoreSectionOpen('projects');
+  const clinicsOpen = isCoreSectionOpen('clinics');
+  const blogOpen = isCoreSectionOpen('blog');
+
+  const publishedClinics = clinicsOpen
+    ? (rawDb.clinics || []).filter((item) => item.published === true)
+    : [];
   const publishedClinicIds = new Set(publishedClinics.map((c) => c.id));
 
   return {
@@ -81,18 +117,40 @@ export function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
       rawDb.siteSettings && rawDb.siteSettings.published !== false
         ? rawDb.siteSettings
         : INITIAL_PLATFORM_DATA.siteSettings,
-    pages: (rawDb.pages || []).filter((item) => item.published === true && item.archived !== true),
-    projects: (rawDb.projects || []).filter((item) => item.published === true),
+    pages: publishedPages,
+    projects: projectsOpen
+      ? (rawDb.projects || [])
+          .filter((item) => item.published === true)
+          .map((proj) => ({
+            ...proj,
+            coverImage: healClientImageUrl(proj.coverImage) || proj.coverImage,
+            screens: Array.isArray(proj.screens)
+              ? proj.screens.map((s) => ({
+                  ...s,
+                  imageUrl: healClientImageUrl(s.imageUrl) || s.imageUrl,
+                }))
+              : [],
+          }))
+      : [],
     clinics: publishedClinics,
-    doctors: (rawDb.doctors || []).filter(
-      (item) => item.published === true && publishedClinicIds.has(item.clinicId)
-    ),
-    services: (rawDb.services || []).filter(
-      (item) => item.published === true && publishedClinicIds.has(item.clinicId)
-    ),
-    articles: (rawDb.articles || []).filter(
-      (item) => item.published === true && item.archived !== true
-    ),
+    doctors: clinicsOpen
+      ? (rawDb.doctors || []).filter(
+          (item) => item.published === true && publishedClinicIds.has(item.clinicId)
+        )
+      : [],
+    services: clinicsOpen
+      ? (rawDb.services || []).filter(
+          (item) => item.published === true && publishedClinicIds.has(item.clinicId)
+        )
+      : [],
+    articles: blogOpen
+      ? (rawDb.articles || [])
+          .filter((item) => item.published === true && item.archived !== true)
+          .map((art) => ({
+            ...art,
+            coverImage: healClientImageUrl(art.coverImage) || art.coverImage,
+          }))
+      : [],
   };
 }
 
@@ -101,9 +159,26 @@ function loadLocalDbSnapshot(includeDrafts = false): PlatformDatabase {
     const raw = localStorage.getItem(STORAGE_LOCAL_CMS_DB_KEY);
     if (!raw) return includeDrafts ? INITIAL_PLATFORM_DATA : stripDraftRecords(INITIAL_PLATFORM_DATA);
     const parsed = JSON.parse(raw) as PlatformDatabase;
+    let mergedPages = Array.isArray(parsed.pages) ? [...parsed.pages] : [...INITIAL_PLATFORM_DATA.pages];
+    if (includeDrafts) {
+      for (const seedPage of INITIAL_PLATFORM_DATA.pages) {
+        if (
+          !mergedPages.some(
+            (p) =>
+              p.id === seedPage.id ||
+              p.slug === seedPage.slug ||
+              p.id === `page-${seedPage.id}`
+          )
+        ) {
+          mergedPages.push(seedPage);
+        }
+      }
+      mergedPages.sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+    }
     const merged: PlatformDatabase = {
       ...INITIAL_PLATFORM_DATA,
       ...parsed,
+      pages: mergedPages,
       siteSettings: {
         ...INITIAL_PLATFORM_DATA.siteSettings,
         ...(parsed.siteSettings || {}),

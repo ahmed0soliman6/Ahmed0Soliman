@@ -84,18 +84,34 @@ export const SoliMedicalShowcasePage: React.FC = () => {
     },
   ];
 
+  const resolveScreenImage = (candidate: string | undefined, fallback: string) => {
+    if (!candidate || candidate.includes('solimedical.vercel.app/assets/images/')) {
+      return fallback;
+    }
+    return candidate;
+  };
+
   const screenShots = {
     dashboard: {
       label: locale === 'ar' ? 'صورة لوحة التحكم' : 'Dashboard Screen',
-      image: 'https://solimedical.vercel.app/assets/images/dashboard.webp',
+      image: resolveScreenImage(
+        soliProject?.screens?.[0]?.imageUrl,
+        '/assets/solimedical/dashboard.svg'
+      ),
     },
     booking: {
       label: locale === 'ar' ? 'صورة الحجوزات والطابور' : 'Queue & Booking Screen',
-      image: 'https://solimedical.vercel.app/assets/images/booking.webp',
+      image: resolveScreenImage(
+        soliProject?.screens?.[1]?.imageUrl,
+        '/assets/solimedical/booking.svg'
+      ),
     },
     emr: {
       label: locale === 'ar' ? 'صورة الملف الطبي EMR' : 'Cloud EMR Screen',
-      image: 'https://solimedical.vercel.app/assets/images/emr.webp',
+      image: resolveScreenImage(
+        soliProject?.screens?.[2]?.imageUrl,
+        '/assets/solimedical/emr.svg'
+      ),
     },
   };
 

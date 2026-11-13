@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050D14"/>
+      <stop offset="100%" stop-color="#0E1D30"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" rx="24" fill="url(#bg4)"/>
+  <rect x="16" y="16" width="1168" height="688" rx="18" fill="none" stroke="#1E3A5F" stroke-width="2"/>
+  <rect x="36" y="36" width="1128" height="64" rx="14" fill="#0B1826" stroke="#1E3A5F" stroke-width="1.5"/>
+  <text x="1136" y="75" text-anchor="end" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#F8FAFC">منظومة إدارة المجمعات الطبية والمستشفيات التخصصية (Multi-Clinic ERP)</text>
+  <rect x="36" y="124" width="360" height="556" rx="16" fill="#0D1E30" stroke="#1E3A5F"/>
+  <text x="372" y="168" text-anchor="end" font-family="system-ui, sans-serif" font-size="17" font-weight="800" fill="#00D4FF">الأقسام والعيادات النشطة (12 عيادة)</text>
+  <text x="372" y="216" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" fill="#E2E8F0">• عيادة الباطنة والقلب (نشط)</text>
+  <text x="372" y="256" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" fill="#E2E8F0">• عيادة طب الأطفال وحديثي الولادة</text>
+  <text x="372" y="296" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" fill="#E2E8F0">• عيادة العظام والعمود الفقري</text>
+  <text x="372" y="336" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" fill="#E2E8F0">• قسم الطوارئ والرعاية الحرجة</text>
+  <text x="372" y="376" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" fill="#E2E8F0">• المعمل المركزي والأشعة التشخيصية</text>
+  <text x="372" y="416" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" fill="#34D399">• الخزينة المركزية وحسابات التعاقدات</text>
+
+  <rect x="416" y="124" width="748" height="556" rx="16" fill="#0D1E30" stroke="#1E3A5F"/>
+  <text x="1136" y="168" text-anchor="end" font-family="system-ui, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">مؤشرات التشغيل والرقابة المالية للمجمع الطبي</text>
+  <rect x="444" y="196" width="330" height="140" rx="14" fill="#091522" stroke="#00D4FF" stroke-opacity="0.35"/>
+  <text x="750" y="236" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#94A3B8">إجمالي زيارات المجمع اليوم</text>
+  <text x="750" y="294" text-anchor="end" font-family="monospace" font-size="42" font-weight="800" fill="#00D4FF">186 زيارة</text>
+
+  <rect x="804" y="196" width="330" height="140" rx="14" fill="#091522" stroke="#34D399" stroke-opacity="0.35"/>
+  <text x="1110" y="236" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#94A3B8">نسبة التزام الجودة ومكافحة العدوى</text>
+  <text x="1110" y="294" text-anchor="end" font-family="monospace" font-size="42" font-weight="800" fill="#34D399">99.2%</text>
+
+  <rect x="444" y="360" width="690" height="290" rx="14" fill="#091522" stroke="#1E3A5F"/>
+  <text x="1110" y="404" text-anchor="end" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#F8FAFC">ربط الاستقبال المركزي بالعيادات والمعمل والخزينة برقم مريض موحد (UHID)</text>
+  <text x="1110" y="450" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">✓ توزيع تلقائي لنسب الأطباء وحسابات شركات التأمين والتعاقدات</text>
+  <text x="1110" y="490" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">✓ تقارير ورديات الاستقبال والخزينة التفصيلية لحظة بلحظة</text>
+  <text x="1110" y="530" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">✓ صلاحيات متعددة المستويات (مدير طبي، طبيب، استقبال، محاسب، تمريض)</text>
+</svg>

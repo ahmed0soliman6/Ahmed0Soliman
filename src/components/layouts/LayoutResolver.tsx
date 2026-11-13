@@ -88,8 +88,10 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
   const settings = db.siteSettings;
 
   const isPagePublished = (slugId: string) => {
-    const found = db.pages.find((p) => p.slug === slugId || p.id === slugId);
-    return found ? found.published !== false && found.archived !== true : true;
+    const found = db.pages.find(
+      (p) => p.slug === slugId || p.id === slugId || p.id === `page-${slugId}`
+    );
+    return found ? found.published !== false && found.archived !== true : false;
   };
 
   const cleanRoutePath = pathname.replace(/^\/(ar|en)(?=\/|$)/, '') || '/';
@@ -123,7 +125,18 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
     !adminBypassStandalone &&
     (forceStandalone || isStandaloneQuery || isPageStandaloneByDefault);
 
-  const isCurrentPageHidden = !isAdminRoute && !isPagePublished(currentRoutePageSlug);
+  const hideVisitorNav =
+    !isAdminRoute &&
+    !adminBypassStandalone &&
+    (settings.hideVisitorHeaderNav !== false ||
+      forceStandalone ||
+      isStandaloneQuery ||
+      isPageStandaloneByDefault);
+
+  const isSoliProjectRouteHidden =
+    cleanRoutePath.includes('/projects/soli-medical') && !isPagePublished('solimedical');
+  const isCurrentPageHidden =
+    !isAdminRoute && (!isPagePublished(currentRoutePageSlug) || isSoliProjectRouteHidden);
 
   const allNavItems = [
     {
@@ -178,7 +191,11 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
     const nextParams = new URLSearchParams(window.location.search);
     nextParams.delete('standalone');
     nextParams.delete('mode');
-    if (forceStandalone || isPageStandaloneByDefault) {
+    if (
+      forceStandalone ||
+      isPageStandaloneByDefault ||
+      settings.hideVisitorHeaderNav !== false
+    ) {
       nextParams.set('preview_nav', '1');
     } else {
       nextParams.delete('preview_nav');
@@ -415,31 +432,33 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
             <div className="flex items-center gap-6">
               <button
                 type="button"
-                onClick={() => navigate(`/${locale}`)}
+                onClick={() => navigate(hideVisitorNav ? `/${locale}/about` : `/${locale}`)}
                 className="text-sm font-black tracking-tight text-zinc-900 hover:opacity-70 transition-opacity whitespace-nowrap shrink-0"
               >
                 {locale === 'ar' ? 'أحمد سليمان' : 'AHMED SOLIMAN'}
               </button>
 
-              <nav className="hidden md:flex items-center gap-5">
-                {navItems.map((item) => {
-                  const active = item.match(pathname);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => navigate(item.href)}
-                      className={`text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                        active
-                          ? 'text-zinc-950 underline underline-offset-8 decoration-2'
-                          : 'text-zinc-500 hover:text-zinc-900'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </nav>
+              {!hideVisitorNav && (
+                <nav className="hidden md:flex items-center gap-5">
+                  {navItems.map((item) => {
+                    const active = item.match(pathname);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => navigate(item.href)}
+                        className={`text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                          active
+                            ? 'text-zinc-950 underline underline-offset-8 decoration-2'
+                            : 'text-zinc-500 hover:text-zinc-900'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </nav>
+              )}
             </div>
 
             {/* Right: Language Switcher + Admin CMS (verified admin only) + Circular Black Home Icon */}
@@ -463,23 +482,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => navigate(`/${locale}`)}
-                title={locale === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
-                className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors shadow-sm cursor-pointer"
-              >
-                <Home className="w-4 h-4" />
-              </button>
+              {!hideVisitorNav && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/${locale}`)}
+                    title={locale === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
+                    className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors shadow-sm cursor-pointer"
+                  >
+                    <Home className="w-4 h-4" />
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
-                className="md:hidden p-2 rounded-full border border-zinc-300 text-zinc-900 cursor-pointer"
-              >
-                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                    className="md:hidden p-2 rounded-full border border-zinc-300 text-zinc-900 cursor-pointer"
+                  >
+                    {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -493,7 +516,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
           <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
             <button
               type="button"
-              onClick={() => navigate(`/${locale}`)}
+              onClick={() => navigate(hideVisitorNav ? `/${locale}/projects` : `/${locale}`)}
               className="text-base sm:text-lg font-black tracking-wider text-white whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer"
             >
               <span className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-xs font-mono-tabular text-white">
@@ -502,25 +525,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               <span>{locale === 'ar' ? 'أحمد سليمان · المشروعات' : 'AHMED.PORTFOLIO'}</span>
             </button>
 
-            <nav className="hidden md:flex items-center gap-1.5 p-1 rounded-full bg-[#121631] border border-indigo-500/25">
-              {navItems.map((item) => {
-                const active = item.match(pathname);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.href)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                      active
-                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm'
-                        : 'text-indigo-200/75 hover:text-white'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
+            {!hideVisitorNav && (
+              <nav className="hidden md:flex items-center gap-1.5 p-1 rounded-full bg-[#121631] border border-indigo-500/25">
+                {navItems.map((item) => {
+                  const active = item.match(pathname);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.href)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                        active
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm'
+                          : 'text-indigo-200/75 hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
 
             <div className="flex items-center gap-2.5 shrink-0">
               <button
@@ -542,14 +567,16 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
-                className="md:hidden p-2 rounded-lg border border-indigo-500/30 text-white cursor-pointer"
-              >
-                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </button>
+              {!hideVisitorNav && (
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                  className="md:hidden p-2 rounded-lg border border-indigo-500/30 text-white cursor-pointer"
+                >
+                  {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -585,25 +612,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </span>
             </button>
 
-            <nav className="hidden md:flex items-center gap-6">
-              {navItems.map((item) => {
-                const active = item.match(pathname);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.href)}
-                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                      active
-                        ? 'text-[#0D9488] underline underline-offset-8 decoration-2'
-                        : 'text-slate-600 hover:text-[#0D9488]'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
+            {!hideVisitorNav && (
+              <nav className="hidden md:flex items-center gap-6">
+                {navItems.map((item) => {
+                  const active = item.match(pathname);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.href)}
+                      className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                        active
+                          ? 'text-[#0D9488] underline underline-offset-8 decoration-2'
+                          : 'text-slate-600 hover:text-[#0D9488]'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
 
             <div className="flex items-center gap-2.5 shrink-0">
               <button
@@ -625,14 +654,16 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
-                className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-800 cursor-pointer"
-              >
-                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </button>
+              {!hideVisitorNav && (
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                  className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-800 cursor-pointer"
+                >
+                  {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -655,25 +686,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </span>
             </button>
 
-            <nav className="hidden md:flex items-center gap-6">
-              {navItems.map((item) => {
-                const active = item.match(pathname);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.href)}
-                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                      active
-                        ? 'text-stone-950 dark:text-[#0F1715] bg-white dark:bg-[#6EE7B7] px-3.5 py-1.5 rounded-lg border border-stone-300 dark:border-transparent'
-                        : 'text-stone-600 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
+            {!hideVisitorNav && (
+              <nav className="hidden md:flex items-center gap-6">
+                {navItems.map((item) => {
+                  const active = item.match(pathname);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.href)}
+                      className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                        active
+                          ? 'text-stone-950 dark:text-[#0F1715] bg-white dark:bg-[#6EE7B7] px-3.5 py-1.5 rounded-lg border border-stone-300 dark:border-transparent'
+                          : 'text-stone-600 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
 
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -708,14 +741,16 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
-                className="md:hidden p-2 rounded-full border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 cursor-pointer"
-              >
-                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </button>
+              {!hideVisitorNav && (
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                  className="md:hidden p-2 rounded-full border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 cursor-pointer"
+                >
+                  {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -729,7 +764,15 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
           <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
             <button
               type="button"
-              onClick={() => navigate(`/${locale}`)}
+              onClick={() =>
+                navigate(
+                  hideVisitorNav
+                    ? cleanRoutePath.includes('/projects/')
+                      ? `/${locale}/projects`
+                      : `/${locale}/solimedical`
+                    : `/${locale}`
+                )
+              }
               className="flex items-center gap-3 text-white font-extrabold text-sm sm:text-base whitespace-nowrap shrink-0 cursor-pointer"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-[#00D4FF] shadow-[0_0_12px_#00D4FF]" />
@@ -740,23 +783,25 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </span>
             </button>
 
-            <nav className="hidden md:flex items-center gap-6" aria-label="Primary Navigation">
-              {navItems.map((item) => {
-                const active = item.match(pathname);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.href)}
-                    className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                      active ? 'text-[#00D4FF]' : 'text-slate-300 hover:text-[#00D4FF]'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
+            {!hideVisitorNav && (
+              <nav className="hidden md:flex items-center gap-6" aria-label="Primary Navigation">
+                {navItems.map((item) => {
+                  const active = item.match(pathname);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.href)}
+                      className={`text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                        active ? 'text-[#00D4FF]' : 'text-slate-300 hover:text-[#00D4FF]'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
 
             <div className="flex items-center gap-2.5 shrink-0">
               <button
@@ -778,14 +823,16 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
-                className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-200 cursor-pointer"
-              >
-                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </button>
+              {!hideVisitorNav && (
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  aria-label={locale === 'ar' ? 'قائمة التنقل' : 'Navigation Menu'}
+                  className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-200 cursor-pointer"
+                >
+                  {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -826,7 +873,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       {renderWorldHeader()}
 
       {/* Mobile Navigation Drawer */}
-      {!isAdminRoute && !isStandalone && mobileMenuOpen && (
+      {!isAdminRoute && !isStandalone && !hideVisitorNav && mobileMenuOpen && (
         <div
           className={`md:hidden border-b px-4 py-4 space-y-2 z-40 ${
             pageWorld === 'about-editorial' || pageWorld === 'clinics-teal'
@@ -883,6 +930,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               </span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* Admin notice banner when viewing a currently hidden page/section */}
+      {isCurrentPageHidden && Boolean(adminSession) && (
+        <div className="bg-amber-950/90 border-b border-amber-700/70 px-4 py-2 text-xs text-amber-200 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              {locale === 'ar'
+                ? 'تنبيه للمدير: هذه الصفحة / القسم مخفي حالياً عن جميع الزوار (تظهر لك فقط لأنك مسجل الدخول كمدير).'
+                : 'Admin Notice: This page/section is currently hidden from all public visitors (visible to you as logged-in Admin).'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/pages')}
+            className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold shrink-0 cursor-pointer"
+          >
+            {locale === 'ar' ? 'إدارة الصفحات' : 'Manage Pages'}
+          </button>
         </div>
       )}
 

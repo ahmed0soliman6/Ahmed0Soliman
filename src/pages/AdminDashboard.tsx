@@ -203,7 +203,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [mediaCategoryFilter, setMediaCategoryFilter] = useState<'all' | MediaAsset['category']>('all');
   const [blogCategoryFilter, setBlogCategoryFilter] = useState<string>('all');
-  const PAGE_SIZE = 6;
+  const PAGE_SIZE = 12;
 
   // Clinic Sub-tab: 'clinics' | 'doctors' | 'services'
   const [clinicSubTab, setClinicSubTab] = useState<'clinics' | 'doctors' | 'services'>('clinics');
@@ -1978,6 +1978,77 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                     </div>
                   </div>
 
+                  {/* Visitor Header Navigation Isolation Control Bar */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                          {locale === 'ar'
+                            ? 'عزل الصفحات وإخفاء قائمة الهيدر العلوي للزوار'
+                            : 'Isolate Shared Pages & Hide Top Visitor Header Navigation'}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            db.siteSettings?.hideVisitorHeaderNav !== false
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {db.siteSettings?.hideVisitorHeaderNav !== false
+                            ? locale === 'ar'
+                              ? 'مفعّل — قائمة الهيدر مخفية للزوار'
+                              : 'Active — Visitor Nav Hidden'
+                            : locale === 'ar'
+                            ? 'غير مفعّل — قائمة الهيدر ظاهرة للزوار'
+                            : 'Inactive — Visitor Nav Visible'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'عند التفعيل، لا تظهر روابط التنقل العلوية (الرئيسية، من أنا، المشروعات، العيادات، المقالات) لأي زائر عند مشاركة رابط العيادات أو المقالات أو أي صفحة مستقلة.'
+                          : 'When enabled, visitors opening shared links (Clinics, Articles, Soli Medical, etc.) will not see top header links to other pages.'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nextVal = !(db.siteSettings?.hideVisitorHeaderNav !== false);
+                        const nextSettings = {
+                          ...db.siteSettings,
+                          hideVisitorHeaderNav: nextVal,
+                        };
+                        setSettingsForm(nextSettings);
+                        await saveSiteSettings(nextSettings);
+                      }}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold inline-flex items-center gap-2 shrink-0 cursor-pointer transition-colors ${
+                        db.siteSettings?.hideVisitorHeaderNav !== false
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
+                          : 'bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3]'
+                      }`}
+                    >
+                      {db.siteSettings?.hideVisitorHeaderNav !== false ? (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>
+                            {locale === 'ar'
+                              ? 'إظهار قائمة الهيدر للزوار'
+                              : 'Show Header Nav to Visitors'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>
+                            {locale === 'ar'
+                              ? 'إخفاء قائمة الهيدر عن الزوار'
+                              : 'Hide Header Nav from Visitors'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
                   {/* Unified Search, Status Filter (inc. Trash) & Sort Bar */}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="relative flex-1 min-w-[220px]">
@@ -2221,30 +2292,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                                     <div className="flex items-center justify-end gap-1.5 flex-wrap">
                                       {!page.archived ? (
                                         <>
-                                          {page.slug !== 'home' && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleTogglePublished('pages', page)}
-                                              className={`px-2.5 py-1.5 rounded-lg font-bold inline-flex items-center gap-1 transition-colors cursor-pointer ${
-                                                page.published
-                                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
-                                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
-                                              }`}
-                                              title={page.published ? 'Hide Page' : 'Publish Page'}
-                                            >
-                                              {page.published ? (
-                                                <>
-                                                  <EyeOff className="w-3.5 h-3.5" />
-                                                  <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <Eye className="w-3.5 h-3.5" />
-                                                  <span>{locale === 'ar' ? 'نشر' : 'Publish'}</span>
-                                                </>
-                                              )}
-                                            </button>
-                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleTogglePublished('pages', page)}
+                                            className={`px-2.5 py-1.5 rounded-lg font-bold inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                                              page.published
+                                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
+                                                : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                                            }`}
+                                            title={page.published ? 'Hide Page' : 'Publish Page'}
+                                          >
+                                            {page.published ? (
+                                              <>
+                                                <EyeOff className="w-3.5 h-3.5" />
+                                                <span>{locale === 'ar' ? 'إخفاء' : 'Hide'}</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Eye className="w-3.5 h-3.5" />
+                                                <span>{locale === 'ar' ? 'نشر' : 'Publish'}</span>
+                                              </>
+                                            )}
+                                          </button>
 
                                           <button
                                             type="button"
@@ -4446,6 +4515,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                         }
                         className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
                       />
+                    </div>
+                    <div className="sm:col-span-2 pt-2">
+                      <label className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-200 dark:border-slate-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settingsForm.hideVisitorHeaderNav !== false}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              hideVisitorHeaderNav: e.target.checked,
+                            })
+                          }
+                          className="mt-0.5 w-4 h-4 accent-[#00C2CB] rounded cursor-pointer"
+                        />
+                        <div className="space-y-0.5 text-xs">
+                          <div className="font-bold text-slate-900 dark:text-white">
+                            {locale === 'ar'
+                              ? 'إخفاء قائمة تنقل الصفحات في الهيدر العلوي عن الزوار (عزل الروابط المشتركة)'
+                              : 'Hide Top Header Page Navigation from Visitors (Isolate Shared Links)'}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {locale === 'ar'
+                              ? 'عند تفعيل هذا الخيار، لن يرى الزائر أزرار التنقل بين الصفحات في الهيدر العلوي عند فتح رابط العيادات أو المقالات أو سولي ميديكال.'
+                              : 'When enabled, visitors will not see cross-page navigation links in the top header.'}
+                          </div>
+                        </div>
+                      </label>
                     </div>
                   </div>
 

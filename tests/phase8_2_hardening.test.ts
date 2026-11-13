@@ -18,6 +18,8 @@ process.env.SKIP_SERVER_LISTEN = '1';
 import {
   createExpressApp,
   buildPublicSnapshot,
+  isCoreSectionPublished,
+  enrichDatabaseWithBaselineDefaults,
   resolveOrBootstrapAdminDocument,
   setCustomAuthDepsResolver,
   setCustomCmsHooks,
@@ -884,6 +886,133 @@ async function runPhase8_2HardeningTests() {
 
     recordPass(
       'Phase E E2E: Centralized session revocation (/adminSessions) and disabled admin account blocking work across stateless serverless instances'
+    );
+
+    // -------------------------------------------------------------------------
+    // Test 5.8: Permanent Static Default Images + 6 Core Pages Auto-Enrichment + Section Hiding
+    // -------------------------------------------------------------------------
+    const requiredPublicAssets = [
+      'public/src/assets/images/clinic_interior_reception_1794472515936.jpg',
+      'public/src/assets/images/project_icu_sync_dashboard_1794472511322.jpg',
+      'public/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg',
+      'public/src/assets/images/project_warehouse_quality_sys_1794472517145.jpg',
+      'public/assets/aistudio/logo_ae3842b8.png',
+      'public/assets/aistudio/1770146906397_16665dd0.png',
+      'public/assets/solimedical/dashboard.svg',
+      'public/assets/solimedical/booking.svg',
+      'public/assets/solimedical/emr.svg',
+      'public/assets/solimedical/complex.svg',
+    ];
+    for (const relPath of requiredPublicAssets) {
+      const fullPath = path.resolve(process.cwd(), relPath);
+      assert.ok(fs.existsSync(fullPath), `Static asset must exist in public/: ${relPath}`);
+      const stat = fs.statSync(fullPath);
+      assert.ok(stat.size > 100, `Static asset must be non-empty: ${relPath}`);
+    }
+
+    // Verify PNG header bytes for the two PNG assets (so X-Content-Type-Options: nosniff never fails)
+    const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    for (const pngRel of [
+      'public/assets/aistudio/logo_ae3842b8.png',
+      'public/assets/aistudio/1770146906397_16665dd0.png',
+    ]) {
+      const buf = fs.readFileSync(path.resolve(process.cwd(), pngRel));
+      assert.ok(
+        buf.subarray(0, 8).equals(pngSignature),
+        `${pngRel} must have valid binary PNG header bytes`
+      );
+    }
+
+    // Verify enrichDatabaseWithBaselineDefaults restores all 6 core pages when Firestore only had 2 pages (home & about)
+    const partialDb = {
+      ...JSON.parse(JSON.stringify(INITIAL_PLATFORM_DATA)),
+      pages: INITIAL_PLATFORM_DATA.pages.filter((p) => p.slug === 'home' || p.slug === 'about'),
+    };
+    partialDb.pages[0].heroImage =
+      'https://res.cloudinary.com/demo-cloud/image/upload/v17999999/custom-owner-portrait.jpg';
+    partialDb.projects[0].screens = [
+      'https://solimedical.vercel.app/assets/images/screen-dashboard.webp',
+      'https://res.cloudinary.com/demo-cloud/image/upload/v17999999/custom-screen.webp',
+    ];
+
+    const enrichedDb = enrichDatabaseWithBaselineDefaults(partialDb);
+    const coreSlugs = ['home', 'about', 'projects', 'solimedical', 'clinics', 'blog'];
+    for (const slug of coreSlugs) {
+      assert.ok(
+        enrichedDb.pages.some((p) => p.slug === slug),
+        `enrichDatabaseWithBaselineDefaults must include core page: ${slug}`
+      );
+    }
+    assert.equal(
+      enrichedDb.pages.find((p) => p.slug === 'home')?.heroImage,
+      'https://res.cloudinary.com/demo-cloud/image/upload/v17999999/custom-owner-portrait.jpg',
+      'Must preserve custom Cloudinary heroImage on existing pages'
+    );
+    assert.equal(
+      enrichedDb.projects[0].screens[0].imageUrl,
+      '/assets/solimedical/dashboard.svg',
+      'Must heal legacy broken solimedical.vercel.app URL to local SVG'
+    );
+    assert.equal(
+      enrichedDb.projects[0].screens[1].imageUrl,
+      'https://res.cloudinary.com/demo-cloud/image/upload/v17999999/custom-screen.webp',
+      'Must preserve custom Cloudinary screen URLs'
+    );
+    assert.equal(
+      enrichedDb.siteSettings.hideVisitorHeaderNav,
+      true,
+      'hideVisitorHeaderNav must default to true for visitor header isolation'
+    );
+
+    // Verify section-level hiding in buildPublicSnapshot and /sitemap.xml
+    const loginRes3 = await requestJson(baseUrl, '/api/auth/admin-login', {
+      method: 'POST',
+      body: { idToken: 'valid-firebase-id-token' },
+    });
+    assert.equal(loginRes3.status, 200);
+    const thirdToken = loginRes3.data.token;
+
+    const clinicsPage = firestoreSimulatedDb.pages.find((p) => p.slug === 'clinics')!;
+    const hideClinicsRes = await requestJson(baseUrl, '/api/cms/pages', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${thirdToken}` },
+      body: {
+        ...clinicsPage,
+        published: false,
+      },
+    });
+    assert.equal(hideClinicsRes.status, 200);
+    assert.equal(isCoreSectionPublished(firestoreSimulatedDb, 'clinics'), false);
+
+    const pubAfterHideClinics = await requestJson(baseUrl, '/api/cms/public');
+    assert.equal(
+      pubAfterHideClinics.data.clinics.length,
+      0,
+      'Unpublishing clinics page must hide all clinics from public snapshot'
+    );
+    assert.equal(
+      pubAfterHideClinics.data.doctors.length,
+      0,
+      'Unpublishing clinics page must hide all doctors from public snapshot'
+    );
+    assert.equal(
+      pubAfterHideClinics.data.services.length,
+      0,
+      'Unpublishing clinics page must hide all services from public snapshot'
+    );
+    assert.ok(
+      !pubAfterHideClinics.data.pages.some((p: any) => p.slug === 'clinics'),
+      'Unpublished clinics page must not appear in public snapshot pages'
+    );
+
+    const sitemapAfterHideClinics = await requestJson(baseUrl, '/sitemap.xml');
+    assert.ok(
+      !sitemapAfterHideClinics.text.includes('/clinics'),
+      'Unpublishing clinics page must remove /clinics and /clinics/:slug from /sitemap.xml'
+    );
+
+    recordPass(
+      'Permanent Default Assets, 6 Core Pages Auto-Enrichment, Section-Level Sub-Route Hiding, and Visitor Header Isolation verified'
     );
   } finally {
     setCustomAuthDepsResolver(null);

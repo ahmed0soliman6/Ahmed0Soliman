@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050D14"/>
+      <stop offset="100%" stop-color="#0B1928"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" rx="24" fill="url(#bg3)"/>
+  <rect x="16" y="16" width="1168" height="688" rx="18" fill="none" stroke="#1E3A5F" stroke-width="2"/>
+
+  <!-- Header -->
+  <rect x="36" y="36" width="1128" height="64" rx="14" fill="#0B1826" stroke="#1E3A5F" stroke-width="1.5"/>
+  <text x="1136" y="75" text-anchor="end" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#F8FAFC">Soli Medical · السجل الطبي الإلكتروني (Cloud EMR) والروشتة الذكية</text>
+  <rect x="56" y="50" width="180" height="36" rx="10" fill="#10B981"/>
+  <text x="146" y="73" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="800" fill="#041019">طباعة وإرسال الروشتة</text>
+
+  <!-- Patient Demographics & Vitals Card -->
+  <rect x="740" y="124" width="424" height="556" rx="16" fill="#0D1E30" stroke="#1E3A5F"/>
+  <text x="1136" y="166" text-anchor="end" font-family="system-ui, sans-serif" font-size="18" font-weight="800" fill="#00D4FF">بطاقة المريض والعلامات الحيوية</text>
+  <rect x="764" y="188" width="376" height="96" rx="12" fill="#091522" stroke="#1E3A5F"/>
+  <text x="1116" y="224" text-anchor="end" font-family="system-ui, sans-serif" font-size="17" font-weight="800" fill="#FFFFFF">المريض: محمد عبد الرحمن السيد (46 سنة)</text>
+  <text x="1116" y="256" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" fill="#94A3B8">الرقم الطبي: #SM-20489 · فصيلة الدم: O+ · حساسية: بنسلين</text>
+
+  <rect x="764" y="302" width="180" height="84" rx="12" fill="#091522" stroke="#00D4FF" stroke-opacity="0.35"/>
+  <text x="924" y="332" text-anchor="end" font-family="system-ui, sans-serif" font-size="12" fill="#94A3B8">ضغط الدم (BP)</text>
+  <text x="924" y="366" text-anchor="end" font-family="monospace" font-size="24" font-weight="800" fill="#00D4FF">125/80</text>
+
+  <rect x="960" y="302" width="180" height="84" rx="12" fill="#091522" stroke="#34D399" stroke-opacity="0.35"/>
+  <text x="1120" y="332" text-anchor="end" font-family="system-ui, sans-serif" font-size="12" fill="#94A3B8">النبض والأكسجين</text>
+  <text x="1120" y="366" text-anchor="end" font-family="monospace" font-size="24" font-weight="800" fill="#34D399">76 bpm · 98%</text>
+
+  <rect x="764" y="406" width="376" height="248" rx="12" fill="#091522" stroke="#1E3A5F"/>
+  <text x="1116" y="440" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#F8FAFC">التاريخ المرضي والزيارات السابقة:</text>
+  <text x="1116" y="478" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">• 12 أكتوبر: متابعة ضغط الدم وضبط الجرعة</text>
+  <text x="1116" y="514" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">• 04 سبتمبر: فحص إيكو ورسم قلب بالمجهود</text>
+  <text x="1116" y="550" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">• التحاليل المرفقة: HbA1c, Lipid Profile, CBC</text>
+  <text x="1116" y="596" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#34D399">✓ أرشفة سحابية مشفرة لجميع الزيارات</text>
+
+  <!-- E-Prescription & Clinical Notes -->
+  <rect x="36" y="124" width="684" height="556" rx="16" fill="#0D1E30" stroke="#1E3A5F"/>
+  <text x="692" y="166" text-anchor="end" font-family="system-ui, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">التشخيص السريري والروشتة الإلكترونية (E-Prescription)</text>
+  <line x1="60" y1="184" x2="696" y2="184" stroke="#1E3A5F" stroke-width="1.5"/>
+
+  <rect x="60" y="204" width="636" height="92" rx="12" fill="#091522" stroke="#1E3A5F"/>
+  <text x="674" y="236" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#00D4FF">التشخيص والملاحظات الإكلينيكية (Clinical Diagnosis):</text>
+  <text x="674" y="268" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#E2E8F0">Essential Hypertension (Controlled) — استقرار الحالة مع استمرار الخطة العلاجية</text>
+
+  <rect x="60" y="316" width="636" height="100" rx="12" fill="#091522" stroke="#00D4FF" stroke-opacity="0.4"/>
+  <text x="86" y="356" text-anchor="start" font-family="monospace" font-size="18" font-weight="800" fill="#00D4FF">Rx 1. Concor 5mg Tab</text>
+  <text x="674" y="388" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">قرص واحد صباحاً قبل الإفطار يومياً لمدة 30 يوماً</text>
+
+  <rect x="60" y="432" width="636" height="100" rx="12" fill="#091522" stroke="#1E3A5F"/>
+  <text x="86" y="472" text-anchor="start" font-family="monospace" font-size="18" font-weight="800" fill="#38BDF8">Rx 2. Ezapril 10mg Tab</text>
+  <text x="674" y="504" text-anchor="end" font-family="system-ui, sans-serif" font-size="14" fill="#CBD5E1">قرص واحد مساءً يومياً مع متابعة قياس الضغط أسبوعياً</text>
+
+  <rect x="60" y="552" width="636" height="96" rx="12" fill="#071320" stroke="#34D399" stroke-opacity="0.4"/>
+  <text x="674" y="592" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#34D399">موعد الاستشارة القادمة: بعد أسبوعين (تذكير تلقائي عبر واتساب)</text>
+  <text x="674" y="624" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" fill="#94A3B8">تم حفظ الزيارة وإصدار فاتورة الاستقبال تلقائياً</text>
+</svg>

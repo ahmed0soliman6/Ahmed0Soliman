@@ -684,36 +684,66 @@ export interface PublicContentSnapshot {
  * - any draft record (published !== true)
  * - any archived page or article (archived === true)
  * - any doctor or service belonging to an unpublished clinic
+ * - entire sections (projects, clinics, doctors, services, articles) when their parent core page is unpublished
  */
+export function isCoreSectionPublished(db: PlatformDatabase, sectionSlug: string): boolean {
+  const found = (db.pages || []).find(
+    (p) =>
+      p.slug === sectionSlug ||
+      p.id === sectionSlug ||
+      p.id === `page-${sectionSlug}`
+  );
+  if (found) {
+    return found.published === true && found.archived !== true;
+  }
+  return true;
+}
+
 export function buildPublicSnapshot(db: PlatformDatabase): PublicContentSnapshot {
-  const publishedClinics = (db.clinics || [])
-    .filter((c) => c.published === true)
-    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  const enriched = enrichDatabaseWithBaselineDefaults(JSON.parse(JSON.stringify(db)));
+
+  const projectsSectionPublished = isCoreSectionPublished(enriched, 'projects');
+  const clinicsSectionPublished = isCoreSectionPublished(enriched, 'clinics');
+  const blogSectionPublished = isCoreSectionPublished(enriched, 'blog');
+
+  const publishedClinics = clinicsSectionPublished
+    ? (enriched.clinics || [])
+        .filter((c) => c.published === true)
+        .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+    : [];
   const publishedClinicIds = new Set(publishedClinics.map((c) => c.id));
 
   return {
     version: '8.2.0',
     generatedAt: new Date().toISOString(),
     siteSettings:
-      db.siteSettings && db.siteSettings.published === true
-        ? db.siteSettings
+      enriched.siteSettings && enriched.siteSettings.published === true
+        ? enriched.siteSettings
         : INITIAL_PLATFORM_DATA.siteSettings,
-    pages: (db.pages || [])
+    pages: (enriched.pages || [])
       .filter((p) => p.published === true && p.archived !== true)
       .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
-    projects: (db.projects || [])
-      .filter((p) => p.published === true)
-      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
+    projects: projectsSectionPublished
+      ? (enriched.projects || [])
+          .filter((p) => p.published === true)
+          .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+      : [],
     clinics: publishedClinics,
-    doctors: (db.doctors || [])
-      .filter((d) => d.published === true && publishedClinicIds.has(d.clinicId))
-      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
-    services: (db.services || [])
-      .filter((s) => s.published === true && publishedClinicIds.has(s.clinicId))
-      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
-    articles: (db.articles || [])
-      .filter((a) => a.published === true && a.archived !== true)
-      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
+    doctors: clinicsSectionPublished
+      ? (enriched.doctors || [])
+          .filter((d) => d.published === true && publishedClinicIds.has(d.clinicId))
+          .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+      : [],
+    services: clinicsSectionPublished
+      ? (enriched.services || [])
+          .filter((s) => s.published === true && publishedClinicIds.has(s.clinicId))
+          .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+      : [],
+    articles: blogSectionPublished
+      ? (enriched.articles || [])
+          .filter((a) => a.published === true && a.archived !== true)
+          .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+      : [],
   };
 }
 
@@ -735,11 +765,36 @@ export function setCustomCmsHooks(hooks: CmsPersistenceHooks | null): void {
   cachedPublishedSnapshot = null;
 }
 
-function enrichDatabaseWithBaselineDefaults(parsed: PlatformDatabase): PlatformDatabase {
+const LEGACY_BROKEN_IMAGE_MAP: Record<string, string> = {
+  'https://solimedical.vercel.app/assets/images/dashboard.webp': '/assets/solimedical/dashboard.svg',
+  'https://solimedical.vercel.app/assets/images/screen-dashboard.webp': '/assets/solimedical/dashboard.svg',
+  'https://solimedical.vercel.app/assets/images/booking.webp': '/assets/solimedical/booking.svg',
+  'https://solimedical.vercel.app/assets/images/screen-booking.webp': '/assets/solimedical/booking.svg',
+  'https://solimedical.vercel.app/assets/images/appointments.webp': '/assets/solimedical/booking.svg',
+  'https://solimedical.vercel.app/assets/images/emr.webp': '/assets/solimedical/emr.svg',
+  'https://solimedical.vercel.app/assets/images/screen-emr.webp': '/assets/solimedical/emr.svg',
+  'https://solimedical.vercel.app/assets/images/complex.webp': '/assets/solimedical/complex.svg',
+};
+
+function healLegacyImageUrl(url: string | undefined): string | undefined {
+  if (!url || typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  if (LEGACY_BROKEN_IMAGE_MAP[trimmed]) {
+    return LEGACY_BROKEN_IMAGE_MAP[trimmed];
+  }
+  return url;
+}
+
+export function enrichDatabaseWithBaselineDefaults(parsed: PlatformDatabase): PlatformDatabase {
   for (const seedPage of INITIAL_PLATFORM_DATA.pages) {
-    const existingPage = parsed.pages?.find((p) => p.id === seedPage.id);
+    const existingPage = parsed.pages?.find(
+      (p) =>
+        p.id === seedPage.id ||
+        p.slug === seedPage.slug ||
+        p.id === `page-${seedPage.id}`
+    );
     if (!existingPage) {
-      parsed.pages = [...(parsed.pages || []), seedPage];
+      parsed.pages = [...(parsed.pages || []), JSON.parse(JSON.stringify(seedPage))];
     } else {
       if (!existingPage.qualifications && seedPage.qualifications) {
         existingPage.qualifications = seedPage.qualifications;
@@ -750,33 +805,71 @@ function enrichDatabaseWithBaselineDefaults(parsed: PlatformDatabase): PlatformD
       if (!existingPage.interests && seedPage.interests) {
         existingPage.interests = seedPage.interests;
       }
+      existingPage.heroImage = healLegacyImageUrl(existingPage.heroImage) || seedPage.heroImage;
     }
+  }
+
+  if (parsed.pages) {
+    parsed.pages.sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
   }
 
   for (const seedProj of INITIAL_PLATFORM_DATA.projects) {
     const existingProj = parsed.projects?.find((p) => p.id === seedProj.id);
     if (!existingProj) {
-      parsed.projects = [...(parsed.projects || []), seedProj];
+      parsed.projects = [...(parsed.projects || []), JSON.parse(JSON.stringify(seedProj))];
+    } else {
+      existingProj.coverImage =
+        healLegacyImageUrl(existingProj.coverImage) || seedProj.coverImage;
+      if (Array.isArray(existingProj.screens)) {
+        existingProj.screens = existingProj.screens.map((scr: any, idx: number) => {
+          if (typeof scr === 'string') {
+            return {
+              ...(seedProj.screens?.[idx] || {
+                id: `scr-${idx}`,
+                title: { ar: '', en: '' },
+                caption: { ar: '', en: '' },
+              }),
+              imageUrl:
+                healLegacyImageUrl(scr) ||
+                seedProj.screens?.[idx]?.imageUrl ||
+                '/assets/solimedical/dashboard.svg',
+            };
+          }
+          return {
+            ...scr,
+            imageUrl:
+              healLegacyImageUrl(scr.imageUrl) ||
+              seedProj.screens?.[idx]?.imageUrl ||
+              '/assets/solimedical/dashboard.svg',
+          };
+        });
+      }
     }
   }
 
   for (const seedClinic of INITIAL_PLATFORM_DATA.clinics) {
     const existingClinic = parsed.clinics?.find((c) => c.id === seedClinic.id);
     if (!existingClinic) {
-      parsed.clinics = [...(parsed.clinics || []), seedClinic];
+      parsed.clinics = [...(parsed.clinics || []), JSON.parse(JSON.stringify(seedClinic))];
+    } else {
+      existingClinic.coverImage =
+        healLegacyImageUrl(existingClinic.coverImage) || seedClinic.coverImage;
     }
   }
 
   for (const seedArt of INITIAL_PLATFORM_DATA.articles) {
     const existingArt = parsed.articles?.find((a) => a.id === seedArt.id);
     if (!existingArt) {
-      parsed.articles = [...(parsed.articles || []), seedArt];
+      parsed.articles = [...(parsed.articles || []), JSON.parse(JSON.stringify(seedArt))];
+    } else {
+      existingArt.coverImage =
+        healLegacyImageUrl(existingArt.coverImage) || seedArt.coverImage;
     }
   }
 
   for (const seedMedia of INITIAL_PLATFORM_DATA.media) {
     if (!parsed.media?.some((m) => m.id === seedMedia.id)) {
-      parsed.media = [...(parsed.media || []), seedMedia];
+      parsed.media = [...(parsed.media || []), JSON.parse(JSON.stringify(seedMedia))];
     }
   }
 
@@ -785,6 +878,9 @@ function enrichDatabaseWithBaselineDefaults(parsed: PlatformDatabase): PlatformD
     parsed.siteSettings.whatsappUrl = 'https://wa.me/Ahmed0soliman';
     parsed.siteSettings.facebookUrl = 'https://www.facebook.com/SoliMedical/';
     parsed.siteSettings.telegramBotUrl = 'https://t.me/SoliMedicalproBot';
+    if (typeof parsed.siteSettings.hideVisitorHeaderNav !== 'boolean') {
+      parsed.siteSettings.hideVisitorHeaderNav = true;
+    }
   }
 
   return parsed;
@@ -841,7 +937,11 @@ async function loadDatabaseFromFirestoreAdmin(adminDb: any): Promise<PlatformDat
     return JSON.parse(JSON.stringify(INITIAL_PLATFORM_DATA));
   }
 
-  return {
+  const existingPageIds = new Set(
+    (result.pages || []).flatMap((p: any) => [p.id, p.slug, `page-${p.id}`])
+  );
+
+  const assembled: PlatformDatabase = enrichDatabaseWithBaselineDefaults({
     siteSettings: result.siteSettings || INITIAL_PLATFORM_DATA.siteSettings,
     pages: result.pages && result.pages.length > 0 ? result.pages : INITIAL_PLATFORM_DATA.pages,
     projects:
@@ -866,7 +966,24 @@ async function loadDatabaseFromFirestoreAdmin(adminDb: any): Promise<PlatformDat
         : INITIAL_PLATFORM_DATA.articles,
     media: result.media && result.media.length > 0 ? result.media : INITIAL_PLATFORM_DATA.media,
     admins: result.admins || [],
-  };
+  });
+
+  // Backfill any missing core pages into Firestore pages collection so all 6 core pages persist
+  for (const corePage of assembled.pages) {
+    if (!existingPageIds.has(corePage.id) && !existingPageIds.has(corePage.slug)) {
+      try {
+        serverFirestoreWriteOpsCount += 1;
+        await adminDb
+          .collection('pages')
+          .doc(corePage.id)
+          .set(JSON.parse(JSON.stringify(corePage)), { merge: true });
+      } catch {
+        // non-fatal during read
+      }
+    }
+  }
+
+  return assembled;
 }
 
 /**
@@ -876,7 +993,8 @@ async function loadDatabaseFromFirestoreAdmin(adminDb: any): Promise<PlatformDat
  */
 export async function loadAdminDatabase(forceRefresh = false): Promise<PlatformDatabase> {
   if (customCmsHooks?.loadAdminDb) {
-    return customCmsHooks.loadAdminDb();
+    const raw = await customCmsHooks.loadAdminDb();
+    return enrichDatabaseWithBaselineDefaults(raw);
   }
 
   if (!forceRefresh && cachedAdminDatabase) {

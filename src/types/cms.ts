@@ -45,6 +45,7 @@ export interface SiteSettings {
   linkedinUrl: string;
   contactEmail: string;
   location: BilingualText;
+  hideVisitorHeaderNav?: boolean;
   published: boolean;
   seo: SEOConfig;
   updatedAt: string;

@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050D14"/>
+      <stop offset="100%" stop-color="#0B1928"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00D4FF"/>
+      <stop offset="100%" stop-color="#0099A3"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0F2133"/>
+      <stop offset="100%" stop-color="#0A1624"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" rx="24" fill="url(#bg)"/>
+  <rect x="16" y="16" width="1168" height="688" rx="18" fill="none" stroke="#1E3A5F" stroke-width="2"/>
+
+  <!-- Top Bar -->
+  <rect x="36" y="36" width="1128" height="64" rx="14" fill="#0B1826" stroke="#1E3A5F" stroke-width="1.5"/>
+  <circle cx="1126" cy="68" r="14" fill="url(#cyan)"/>
+  <text x="1095" y="75" text-anchor="end" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#F8FAFC">Soli Medical · لوحة التحكم التنفيذية</text>
+  <rect x="56" y="50" width="150" height="36" rx="10" fill="#00D4FF" fill-opacity="0.15" stroke="#00D4FF" stroke-opacity="0.4"/>
+  <text x="131" y="73" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#00D4FF">متصل سحابياً · Cloud</text>
+
+  <!-- Right RTL Sidebar -->
+  <rect x="944" y="120" width="220" height="560" rx="16" fill="#091522" stroke="#1E3A5F" stroke-width="1.5"/>
+  <rect x="962" y="144" width="184" height="44" rx="10" fill="url(#cyan)"/>
+  <text x="1126" y="172" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" font-weight="800" fill="#041019">01 · لوحة التحكم</text>
+  <rect x="962" y="200" width="184" height="44" rx="10" fill="#0E2135"/>
+  <text x="1126" y="228" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#94A3B8">02 · الحجوزات والطابور</text>
+  <rect x="962" y="256" width="184" height="44" rx="10" fill="#0E2135"/>
+  <text x="1126" y="284" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#94A3B8">03 · شاشة الكشف الطبي</text>
+  <rect x="962" y="312" width="184" height="44" rx="10" fill="#0E2135"/>
+  <text x="1126" y="340" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#94A3B8">04 · السجل الطبي EMR</text>
+  <rect x="962" y="368" width="184" height="44" rx="10" fill="#0E2135"/>
+  <text x="1126" y="396" text-anchor="end" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#94A3B8">05 · الخزينة والتقارير</text>
+
+  <!-- 4 Metric Cards -->
+  <rect x="716" y="120" width="208" height="126" rx="16" fill="url(#card)" stroke="#00D4FF" stroke-opacity="0.35"/>
+  <text x="900" y="154" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#94A3B8">حالات اليوم المسجلة</text>
+  <text x="900" y="204" text-anchor="end" font-family="monospace" font-size="38" font-weight="800" fill="#00D4FF">42</text>
+  <text x="900" y="228" text-anchor="end" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#34D399">+18% عن الأمس</text>
+
+  <rect x="490" y="120" width="208" height="126" rx="16" fill="url(#card)" stroke="#1E3A5F"/>
+  <text x="674" y="154" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#94A3B8">في قائمة الانتظار</text>
+  <text x="674" y="204" text-anchor="end" font-family="monospace" font-size="38" font-weight="800" fill="#FBBF24">07</text>
+  <text x="674" y="228" text-anchor="end" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#CBD5E1">تحديث لحظي مع الطبيب</text>
+
+  <rect x="264" y="120" width="208" height="126" rx="16" fill="url(#card)" stroke="#1E3A5F"/>
+  <text x="448" y="154" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#94A3B8">كشوفات مكتملة</text>
+  <text x="448" y="204" text-anchor="end" font-family="monospace" font-size="38" font-weight="800" fill="#34D399">35</text>
+  <text x="448" y="228" text-anchor="end" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#34D399">روشتة إلكترونية مطبوعة</text>
+
+  <rect x="36" y="120" width="210" height="126" rx="16" fill="url(#card)" stroke="#1E3A5F"/>
+  <text x="222" y="154" text-anchor="end" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#94A3B8">إيراد الخزينة اليومي</text>
+  <text x="222" y="204" text-anchor="end" font-family="monospace" font-size="30" font-weight="800" fill="#F8FAFC">18,450 EGP</text>
+  <text x="222" y="228" text-anchor="end" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#38BDF8">مطابق للتحصيل الفعلي</text>
+
+  <!-- Main Queue & Clinical Flow Table -->
+  <rect x="36" y="266" width="888" height="414" rx="16" fill="url(#card)" stroke="#1E3A5F"/>
+  <text x="896" y="306" text-anchor="end" font-family="system-ui, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">حركة العيادة وقائمة الانتظار الحية (Live Clinic Queue)</text>
+  <line x1="60" y1="324" x2="900" y2="324" stroke="#1E3A5F" stroke-width="1.5"/>
+
+  <!-- Rows -->
+  <rect x="60" y="344" width="840" height="64" rx="12" fill="#0B1826" stroke="#00D4FF" stroke-opacity="0.35"/>
+  <text x="876" y="382" text-anchor="end" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#F8FAFC">#104 · محمد عبد الرحمن — كشف باطنة وقلب</text>
+  <rect x="82" y="360" width="130" height="32" rx="8" fill="#00D4FF" fill-opacity="0.2"/>
+  <text x="147" y="381" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#00D4FF">داخل غرفة الكشف</text>
+
+  <rect x="60" y="422" width="840" height="64" rx="12" fill="#0B1826" stroke="#1E3A5F"/>
+  <text x="876" y="460" text-anchor="end" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#E2E8F0">#105 · سارة محمود علي — متابعة سونار وتحاليل</text>
+  <rect x="82" y="438" width="130" height="32" rx="8" fill="#FBBF24" fill-opacity="0.2"/>
+  <text x="147" y="459" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#FBBF24">في الانتظار (التالي)</text>
+
+  <rect x="60" y="500" width="840" height="64" rx="12" fill="#0B1826" stroke="#1E3A5F"/>
+  <text x="876" y="538" text-anchor="end" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#E2E8F0">#106 · أحمد كمال حسن — استشارة طبية</text>
+  <rect x="82" y="516" width="130" height="32" rx="8" fill="#34D399" fill-opacity="0.2"/>
+  <text x="147" y="537" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#34D399">تم الحجز عبر البوت</text>
+
+  <rect x="60" y="578" width="840" height="64" rx="12" fill="#0B1826" stroke="#1E3A5F"/>
+  <text x="876" y="616" text-anchor="end" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#E2E8F0">#107 · منى إبراهيم — كشف جديد + رسم قلب</text>
+  <rect x="82" y="594" width="130" height="32" rx="8" fill="#38BDF8" fill-opacity="0.2"/>
+  <text x="147" y="615" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#38BDF8">تم تأكيد الحضور</text>
+</svg>
