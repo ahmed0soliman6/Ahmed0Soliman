@@ -11,13 +11,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper: Is the authenticated user a verified Admin?
-    // Checks strictly that email is verified AND a document exists at /admins/{request.auth.uid}
-    // (First admin document /admins/{uid} is provisioned manually via Firebase Console)
+    // Helper: Is the authenticated user a verified, non-disabled Admin?
+    // Checks strictly that email is verified, a document exists at /admins/{request.auth.uid},
+    // and the admin account is NOT disabled (disabled != true).
     function isAdmin() {
       return isSignedIn() &&
         request.auth.token.email_verified == true &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('disabled', false) != true;
+    }
+
+    // Helper: Safely checks that a document is not archived (handles legacy docs without 'archived' field)
+    function isNotArchived(data) {
+      return data.get('archived', false) != true;
+    }
+
+    // Helper: Prevents archived documents from remaining published == true
+    function hasConsistentArchiveState(data) {
+      return !(data.get('archived', false) == true && data.published == true);
     }
 
     // Helper: Validate Document ID format (prevents ID poisoning)
@@ -45,12 +56,18 @@ service cloud.firestore {
     }
 
     // 1. Admins Collection (/admins/{adminUid})
-    // First admin is added manually via Firebase Console.
     // Client SDK users are strictly forbidden from creating, modifying, or deleting admin documents.
     match /admins/{adminUid} {
-      allow get: if isSignedIn() && (request.auth.uid == adminUid || isAdmin());
+      allow get: if isSignedIn() &&
+        ((request.auth.uid == adminUid && resource.data.get('disabled', false) != true) || isAdmin());
       allow list: if isAdmin();
       allow create, update, delete: if false;
+    }
+
+    // 1b. Server-Managed Admin Sessions (/adminSessions/{sessionId})
+    // Accessed exclusively by the server via Firebase Admin SDK.
+    match /adminSessions/{sessionId} {
+      allow read, write: if false;
     }
 
     // 2. Site Settings Collection (/siteSettings/{settingId})
@@ -65,9 +82,10 @@ service cloud.firestore {
     // 3. Pages Collection (/pages/{pageId})
     // Core system pages (home, about, projects, clinics, blog, solimedical, isCore) are strictly protected from deletion.
     match /pages/{pageId} {
-      allow get, list: if (resource.data.published == true && !('archived' in resource.data && resource.data.archived == true)) || isAdmin();
+      allow get, list: if (resource.data.published == true && isNotArchived(resource.data)) || isAdmin();
       allow create, update: if isValidId(pageId) && isAdmin() &&
         hasValidBaseContentFields(request.resource.data) &&
+        hasConsistentArchiveState(request.resource.data) &&
         isValidBilingual(request.resource.data.title, 300);
       allow delete: if isValidId(pageId) && isAdmin() &&
         !(pageId in ['home', 'about', 'projects', 'clinics', 'blog', 'solimedical', 'page-about']) &&
@@ -123,9 +141,10 @@ service cloud.firestore {
 
     // 8. Articles / Blog Collection (/articles/{articleId})
     match /articles/{articleId} {
-      allow get, list: if (resource.data.published == true && !('archived' in resource.data && resource.data.archived == true)) || isAdmin();
+      allow get, list: if (resource.data.published == true && isNotArchived(resource.data)) || isAdmin();
       allow create, update: if isValidId(articleId) && isAdmin() &&
         hasValidBaseContentFields(request.resource.data) &&
+        hasConsistentArchiveState(request.resource.data) &&
         request.resource.data.slug is string &&
         request.resource.data.slug.size() >= 1 &&
         request.resource.data.slug.size() <= 128 &&

@@ -7,9 +7,6 @@ import {
 } from '../types/cms';
 import { INITIAL_PLATFORM_DATA } from '../data/initialSeedData';
 import {
-  fetchFromExistingFirestore,
-  saveDocumentToExistingFirestore,
-  deleteDocumentFromExistingFirestore,
   signInWithExistingFirebaseGoogle,
   signOutFromExistingFirebase,
   getSavedFirebaseConfig,
@@ -74,15 +71,28 @@ const STORAGE_THEME_KEY = 'ahmed_soliman_theme_pref';
 const STORAGE_ADMIN_SESSION_KEY = 'ahmed_soliman_admin_session_v1';
 const STORAGE_LOCAL_CMS_DB_KEY = 'ahmed_soliman_cms_db_snapshot_v1';
 
-function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
+export function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
+  const publishedClinics = (rawDb.clinics || []).filter((item) => item.published === true);
+  const publishedClinicIds = new Set(publishedClinics.map((c) => c.id));
+
   return {
     ...rawDb,
-    pages: (rawDb.pages || []).filter((item) => item.published !== false && item.archived !== true),
-    projects: (rawDb.projects || []).filter((item) => item.published !== false),
-    clinics: (rawDb.clinics || []).filter((item) => item.published !== false),
-    doctors: (rawDb.doctors || []).filter((item) => item.published !== false),
-    services: (rawDb.services || []).filter((item) => item.published !== false),
-    articles: (rawDb.articles || []).filter((item) => item.published !== false && item.archived !== true),
+    siteSettings:
+      rawDb.siteSettings && rawDb.siteSettings.published !== false
+        ? rawDb.siteSettings
+        : INITIAL_PLATFORM_DATA.siteSettings,
+    pages: (rawDb.pages || []).filter((item) => item.published === true && item.archived !== true),
+    projects: (rawDb.projects || []).filter((item) => item.published === true),
+    clinics: publishedClinics,
+    doctors: (rawDb.doctors || []).filter(
+      (item) => item.published === true && publishedClinicIds.has(item.clinicId)
+    ),
+    services: (rawDb.services || []).filter(
+      (item) => item.published === true && publishedClinicIds.has(item.clinicId)
+    ),
+    articles: (rawDb.articles || []).filter(
+      (item) => item.published === true && item.archived !== true
+    ),
   };
 }
 
@@ -139,7 +149,10 @@ function saveLocalDbSnapshot(nextDb: PlatformDatabase): void {
   }
 }
 
-async function safeFetchJson(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: any } | null> {
+async function safeFetchJson(
+  url: string,
+  init?: RequestInit
+): Promise<{ ok: boolean; status: number; data: any } | null> {
   try {
     const res = await fetch(url, init);
     const contentType = res.headers.get('content-type') || '';
@@ -185,7 +198,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setToasts((prev) => [...prev, { id, text, type }]);
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4500);
+    }, 5000);
   }, []);
 
   const dismissToast = useCallback((id: string) => {
@@ -252,12 +265,20 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       let nextCleanPath: string;
-      if (currentPath === '/' || currentPath === '/ar' || currentPath === '/en' || currentPath === '/ar/' || currentPath === '/en/') {
+      if (
+        currentPath === '/' ||
+        currentPath === '/ar' ||
+        currentPath === '/en' ||
+        currentPath === '/ar/' ||
+        currentPath === '/en/'
+      ) {
         nextCleanPath = `/${newLocale}`;
       } else if (currentPath.startsWith('/ar/') || currentPath.startsWith('/en/')) {
         nextCleanPath = `/${newLocale}${currentPath.slice(3)}`;
       } else {
-        nextCleanPath = `/${newLocale}${currentPath.startsWith('/') ? currentPath : `/${currentPath}`}`;
+        nextCleanPath = `/${newLocale}${
+          currentPath.startsWith('/') ? currentPath : `/${currentPath}`
+        }`;
       }
 
       const nextUrl = `${nextCleanPath}${currentSearch}`;
@@ -307,96 +328,52 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [adminSession?.token]);
 
-  // Fetch data from existing Firestore (if configured) + Backend CMS API (or local snapshot)
+  /**
+   * Loads CMS data:
+   * - For public visitors: Reads strictly from the published static/CDN snapshot (/api/cms/public or /data/public-snapshot.json)
+   *   with ZERO Firestore reads.
+   * - For authenticated admins: Reads full CMS state from /api/cms/admin (backed by Firebase Admin SDK on the server).
+   */
   const refreshData = useCallback(async () => {
     setLoading(true);
     setError(null);
     const hasVerifiedAdmin = Boolean(adminSession?.token);
     try {
-      const endpoint = hasVerifiedAdmin ? '/api/cms/admin' : '/api/cms/public';
-      const headers: Record<string, string> = {};
+      let baseData: Partial<PlatformDatabase> | null = null;
+
       if (hasVerifiedAdmin && adminSession?.token) {
-        headers.Authorization = `Bearer ${adminSession.token}`;
+        const adminRes = await safeFetchJson('/api/cms/admin', {
+          headers: { Authorization: `Bearer ${adminSession.token}` },
+        });
+        if (adminRes && adminRes.ok && adminRes.data) {
+          baseData = adminRes.data;
+        } else if (adminRes && (adminRes.status === 401 || adminRes.status === 403)) {
+          setAdminSession(null);
+          localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
+        }
       }
 
-      let baseData: Partial<PlatformDatabase> = loadLocalDbSnapshot(hasVerifiedAdmin);
-      const apiRes = await safeFetchJson(endpoint, { headers });
-
-      if (apiRes && apiRes.ok && apiRes.data) {
-        baseData = hasVerifiedAdmin
-          ? apiRes.data
-          : stripDraftRecords(apiRes.data as PlatformDatabase);
-      } else if (apiRes && apiRes.status === 401 && hasVerifiedAdmin) {
-        setAdminSession(null);
-        localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
+      if (!baseData) {
+        // Public Visitor Flow: Read from published snapshot API or static /data/public-snapshot.json (0 Firestore reads)
         const pubRes = await safeFetchJson('/api/cms/public');
         if (pubRes && pubRes.ok && pubRes.data) {
           baseData = stripDraftRecords(pubRes.data as PlatformDatabase);
+        } else {
+          const staticSnapRes = await safeFetchJson('/data/public-snapshot.json');
+          if (staticSnapRes && staticSnapRes.ok && staticSnapRes.data) {
+            baseData = stripDraftRecords(staticSnapRes.data as PlatformDatabase);
+          }
         }
       }
 
-      // Also check if an existing Firebase project is configured
-      const fbConfig = getSavedFirebaseConfig();
-      if (fbConfig) {
-        const fbData = await fetchFromExistingFirestore(hasVerifiedAdmin, true);
-        if (fbData) {
-          const toMs = (iso?: string) => {
-            const t = iso ? Date.parse(iso) : 0;
-            return Number.isNaN(t) ? 0 : t;
-          };
-          const mergeByNewest = <T extends { id?: string; updatedAt?: string }>(
-            serverList: T[] = [],
-            fbList: T[] = []
-          ): T[] => {
-            const map = new Map<string, T>();
-            for (const item of serverList) {
-              if (item?.id) map.set(item.id, item);
-            }
-            for (const fbItem of fbList) {
-              if (!fbItem?.id) continue;
-              const existing = map.get(fbItem.id);
-              if (!existing || toMs(fbItem.updatedAt) > toMs(existing.updatedAt)) {
-                map.set(fbItem.id, fbItem);
-              }
-            }
-            return Array.from(map.values());
-          };
-
-          const serverSettingsTime = toMs((baseData.siteSettings as any)?.updatedAt);
-          const fbSettingsTime = toMs((fbData.siteSettings as any)?.updatedAt);
-          const resolvedSettings =
-            fbData.siteSettings && fbSettingsTime > serverSettingsTime
-              ? fbData.siteSettings
-              : baseData.siteSettings || fbData.siteSettings;
-
-          setDb((prev) => {
-            const combined: PlatformDatabase = {
-              ...prev,
-              ...baseData,
-              ...(resolvedSettings ? { siteSettings: resolvedSettings } : {}),
-              pages: mergeByNewest(baseData.pages, fbData.pages),
-              projects: mergeByNewest(baseData.projects, fbData.projects),
-              clinics: mergeByNewest(baseData.clinics, fbData.clinics),
-              doctors: mergeByNewest(baseData.doctors, fbData.doctors),
-              services: mergeByNewest(baseData.services, fbData.services),
-              articles: mergeByNewest(baseData.articles, fbData.articles),
-              media: mergeByNewest(baseData.media, fbData.media),
-            };
-            const sanitized = hasVerifiedAdmin ? combined : stripDraftRecords(combined);
-            saveLocalDbSnapshot(sanitized);
-            return sanitized;
-          });
-          setLoading(false);
-          return;
-        }
+      if (baseData) {
+        setDb((prev) => {
+          const combined = { ...prev, ...baseData } as PlatformDatabase;
+          const sanitized = hasVerifiedAdmin ? combined : stripDraftRecords(combined);
+          saveLocalDbSnapshot(sanitized);
+          return sanitized;
+        });
       }
-
-      setDb((prev) => {
-        const combined = { ...prev, ...baseData } as PlatformDatabase;
-        const sanitized = hasVerifiedAdmin ? combined : stripDraftRecords(combined);
-        saveLocalDbSnapshot(sanitized);
-        return sanitized;
-      });
     } catch (err: any) {
       console.error('Data load error:', err);
     } finally {
@@ -450,7 +427,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         throw new Error(
           locale === 'ar'
-            ? `تعذر الوصول إلى خادم التحقق (/api/auth/admin-login) — استجابة الخادم (HTTP ${resStatus}${resText ? `: ${resText}` : ''}). تأكد من نشر آخر تحديثات الخادم على Vercel.`
+            ? `تعذر الوصول إلى خادم التحقق (/api/auth/admin-login) — استجابة الخادم (HTTP ${resStatus}${
+                resText ? `: ${resText}` : ''
+              }). تأكد من نشر آخر تحديثات الخادم على Vercel.`
             : `Server verification failed (/api/auth/admin-login, HTTP ${resStatus}). Ensure latest server bundle is deployed.`
         );
       }
@@ -513,24 +492,46 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         body: JSON.stringify(settings),
       });
 
-      const savedSettings = apiRes && apiRes.ok ? apiRes.data : settings;
+      if (!apiRes || !apiRes.ok) {
+        const msg =
+          apiRes?.data?.error ||
+          (locale === 'ar'
+            ? 'فشل حفظ إعدادات الموقع في Firestore. لم يتم اعتماد التغييرات.'
+            : 'Failed to save site settings to Firestore. Changes were not persisted.');
+        showToast(msg, 'error');
+        throw new Error(msg);
+      }
+
+      const payload = apiRes.data?.record || apiRes.data;
+      const publishedSnapshot = apiRes.data?.publishedSnapshot !== false;
+      const snapshotError = apiRes.data?.snapshotError;
 
       setDb((prev) => {
-        const next = { ...prev, siteSettings: savedSettings };
+        const next = { ...prev, siteSettings: payload };
         saveLocalDbSnapshot(next);
         return next;
       });
 
-      if (getSavedFirebaseConfig()) {
-        await saveDocumentToExistingFirestore('siteSettings', 'global', savedSettings).catch(
-          () => {}
-        );
-      }
-
       invalidateFirestoreCache();
       await refreshData();
+
+      if (!publishedSnapshot) {
+        const warnMsg =
+          locale === 'ar'
+            ? `تم حفظ الإعدادات في Firestore، لكن فشل نشر نسخة العرض العامة (Snapshot): ${
+                snapshotError || 'خطأ في توليد النسخة المنشورة'
+              }`
+            : `Site settings saved to Firestore, but public snapshot publication failed: ${
+                snapshotError || 'Snapshot publish error'
+              }`;
+        showToast(warnMsg, 'error');
+        return;
+      }
+
       showToast(
-        locale === 'ar' ? 'تم حفظ إعدادات الموقع بنجاح' : 'Site settings saved and revalidated',
+        locale === 'ar'
+          ? 'تم حفظ إعدادات الموقع وتحديث النسخة المنشورة بنجاح'
+          : 'Site settings saved to Firestore and public snapshot updated',
         'success'
       );
     },
@@ -539,7 +540,14 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const upsertRecord = useCallback(
     async (
-      collectionName: 'pages' | 'projects' | 'clinics' | 'doctors' | 'services' | 'articles' | 'media',
+      collectionName:
+        | 'pages'
+        | 'projects'
+        | 'clinics'
+        | 'doctors'
+        | 'services'
+        | 'articles'
+        | 'media',
       record: Record<string, any>
     ) => {
       if (!adminSession) throw new Error('Admin session required');
@@ -552,16 +560,19 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         body: JSON.stringify(record),
       });
 
-      if (apiRes && !apiRes.ok) {
-        const msg = apiRes.data?.error || 'Failed to save changes';
+      if (!apiRes || !apiRes.ok) {
+        const msg =
+          apiRes?.data?.error ||
+          (locale === 'ar'
+            ? 'فشل حفظ السجل في Firestore. لم يتم حفظ التعديلات.'
+            : 'Failed to save record to Firestore. Changes were not persisted.');
         showToast(msg, 'error');
         throw new Error(msg);
       }
 
-      const savedRecord =
-        apiRes && apiRes.ok
-          ? apiRes.data
-          : { ...record, id: record.id || `${collectionName}-${Date.now()}` };
+      const savedRecord = apiRes.data?.record || apiRes.data;
+      const publishedSnapshot = apiRes.data?.publishedSnapshot !== false;
+      const snapshotError = apiRes.data?.snapshotError;
 
       setDb((prev) => {
         const list = [...((prev as any)[collectionName] || [])];
@@ -576,18 +587,26 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return next;
       });
 
-      if (getSavedFirebaseConfig()) {
-        await saveDocumentToExistingFirestore(collectionName, savedRecord.id, savedRecord).catch(
-          () => {}
-        );
-      }
-
       invalidateFirestoreCache();
       await refreshData();
+
+      if (!publishedSnapshot) {
+        const warnMsg =
+          locale === 'ar'
+            ? `تم حفظ المحتوى في Firestore، لكن فشل نشر التحديث للزوار (Public Snapshot): ${
+                snapshotError || 'خطأ في تحديث النسخة العامة'
+              }`
+            : `Content was saved to Firestore, but publishing the public snapshot failed: ${
+                snapshotError || 'Snapshot publish error'
+              }`;
+        showToast(warnMsg, 'error');
+        return savedRecord;
+      }
+
       showToast(
         locale === 'ar'
-          ? 'تم حفظ التعديلات وتحديث الموقع العام فوراً'
-          : 'Changes saved and reflected on live site immediately',
+          ? 'تم حفظ التعديلات في Firestore وتحديث النسخة المنشورة للزوار فوراً'
+          : 'Changes saved to Firestore and published to live snapshot immediately',
         'success'
       );
       return savedRecord;
@@ -597,7 +616,14 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const deleteRecord = useCallback(
     async (
-      collectionName: 'pages' | 'projects' | 'clinics' | 'doctors' | 'services' | 'articles' | 'media',
+      collectionName:
+        | 'pages'
+        | 'projects'
+        | 'clinics'
+        | 'doctors'
+        | 'services'
+        | 'articles'
+        | 'media',
       id: string
     ) => {
       if (!adminSession) throw new Error('Admin session required');
@@ -608,11 +634,18 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         },
       });
 
-      if (apiRes && !apiRes.ok) {
-        const msg = apiRes.data?.error || 'Deletion rejected by server';
+      if (!apiRes || !apiRes.ok) {
+        const msg =
+          apiRes?.data?.error ||
+          (locale === 'ar'
+            ? 'فشل حذف السجل من Firestore. لم يتم تنفيذ الحذف.'
+            : 'Failed to delete record from Firestore.');
         showToast(msg, 'error');
         throw new Error(msg);
       }
+
+      const publishedSnapshot = apiRes.data?.publishedSnapshot !== false;
+      const snapshotError = apiRes.data?.snapshotError;
 
       setDb((prev) => {
         const list = ((prev as any)[collectionName] || []).filter((item: any) => item.id !== id);
@@ -621,14 +654,24 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return next;
       });
 
-      if (getSavedFirebaseConfig()) {
-        await deleteDocumentFromExistingFirestore(collectionName, id).catch(() => {});
-      }
-
       invalidateFirestoreCache();
       await refreshData();
+
+      if (!publishedSnapshot) {
+        const warnMsg =
+          locale === 'ar'
+            ? `تم حذف السجل من Firestore، لكن فشل تحديث نسخة الزوار (Public Snapshot): ${
+                snapshotError || 'خطأ في تحديث النسخة العامة'
+              }`
+            : `Record deleted from Firestore, but updating the public snapshot failed: ${
+                snapshotError || 'Snapshot publish error'
+              }`;
+        showToast(warnMsg, 'error');
+        return;
+      }
+
       showToast(
-        locale === 'ar' ? 'تم الحذف بنجاح' : 'Item deleted successfully',
+        locale === 'ar' ? 'تم الحذف من Firestore وتحديث الموقع العام بنجاح' : 'Item deleted from Firestore and public snapshot updated',
         'success'
       );
     },
@@ -641,7 +684,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       orderedIds: string[]
     ) => {
       if (!adminSession) throw new Error('Admin session required');
-      await safeFetchJson(`/api/cms/${collectionName}/reorder`, {
+      const apiRes = await safeFetchJson(`/api/cms/${collectionName}/reorder`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -649,6 +692,19 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         },
         body: JSON.stringify({ orderedIds }),
       });
+
+      if (!apiRes || !apiRes.ok) {
+        const msg =
+          apiRes?.data?.error ||
+          (locale === 'ar'
+            ? 'فشل تحديث الترتيب في Firestore.'
+            : 'Failed to update order in Firestore.');
+        showToast(msg, 'error');
+        throw new Error(msg);
+      }
+
+      const publishedSnapshot = apiRes.data?.publishedSnapshot !== false;
+      const snapshotError = apiRes.data?.snapshotError;
 
       setDb((prev) => {
         const list = [...((prev as any)[collectionName] || [])];
@@ -665,6 +721,17 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       invalidateFirestoreCache();
       await refreshData();
+
+      if (!publishedSnapshot) {
+        showToast(
+          locale === 'ar'
+            ? `تم حفظ الترتيب في Firestore، لكن فشل تحديث نسخة العرض العامة: ${snapshotError || ''}`
+            : `Order saved to Firestore, but public snapshot update failed: ${snapshotError || ''}`,
+          'error'
+        );
+        return;
+      }
+
       showToast(
         locale === 'ar' ? 'تم تحديث الترتيب بنجاح' : 'Order updated successfully',
         'success'
@@ -682,30 +749,37 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       },
     });
 
-    const freshDb: PlatformDatabase =
-      apiRes && apiRes.ok && apiRes.data?.database
-        ? apiRes.data.database
-        : INITIAL_PLATFORM_DATA;
+    if (!apiRes || !apiRes.ok || !apiRes.data?.database) {
+      const msg =
+        apiRes?.data?.error ||
+        (locale === 'ar'
+          ? 'فشلت تهيئة قاعدة البيانات في Firestore.'
+          : 'Failed to initialize baseline database in Firestore.');
+      showToast(msg, 'error');
+      throw new Error(msg);
+    }
 
+    const freshDb: PlatformDatabase = apiRes.data.database;
     setDb(freshDb);
     saveLocalDbSnapshot(freshDb);
 
-    if (getSavedFirebaseConfig()) {
-      await saveDocumentToExistingFirestore('siteSettings', 'global', freshDb.siteSettings).catch(() => {});
-      for (const p of freshDb.pages) await saveDocumentToExistingFirestore('pages', p.id, p).catch(() => {});
-      for (const pr of freshDb.projects) await saveDocumentToExistingFirestore('projects', pr.id, pr).catch(() => {});
-      for (const c of freshDb.clinics) await saveDocumentToExistingFirestore('clinics', c.id, c).catch(() => {});
-      for (const d of freshDb.doctors) await saveDocumentToExistingFirestore('doctors', d.id, d).catch(() => {});
-      for (const s of freshDb.services) await saveDocumentToExistingFirestore('services', s.id, s).catch(() => {});
-      for (const a of freshDb.articles) await saveDocumentToExistingFirestore('articles', a.id, a).catch(() => {});
-    }
-
     invalidateFirestoreCache();
     await refreshData();
+
+    if (apiRes.data.publishedSnapshot === false) {
+      showToast(
+        locale === 'ar'
+          ? `تمت تهيئة Firestore، لكن فشل نشر النسخة العامة: ${apiRes.data.snapshotError || ''}`
+          : `Firestore seeded, but public snapshot publication failed: ${apiRes.data.snapshotError || ''}`,
+        'error'
+      );
+      return;
+    }
+
     showToast(
       locale === 'ar'
-        ? 'تمت تهيئة قاعدة البيانات بالبيانات الحقيقية بنجاح'
-        : 'Database initialized with authentic baseline content',
+        ? 'تمت تهيئة قاعدة البيانات في Firestore ونشر النسخة العامة بنجاح'
+        : 'Database initialized in Firestore and public snapshot published',
       'success'
     );
   }, [adminSession, locale, refreshData, showToast]);

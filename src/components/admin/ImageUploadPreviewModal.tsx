@@ -453,8 +453,8 @@ export const ImageUploadPreviewModal: React.FC<ImageUploadPreviewModalProps> = (
                   ? 'سيتم الرفع مباشرة إلى Cloudinary CDN عبر توقيع خادم آمن'
                   : 'Uploads compressed file directly to Cloudinary CDN via signed request'
                 : isAr
-                ? 'سيتم حفظ النسخة المضغوطة محلياً (أضف متغيرات Cloudinary للتخزين السحابي)'
-                : 'Saves compressed optimized asset cleanly'}
+                ? 'يتطلب الرفع ضبط متغيرات Cloudinary على الخادم (يُمنع تخزين Base64 في قاعدة البيانات)'
+                : 'Requires server Cloudinary configuration (Base64 database storage is blocked)'}
             </span>
           </div>
 

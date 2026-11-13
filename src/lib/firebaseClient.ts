@@ -8,29 +8,6 @@ import {
   Auth,
   User,
 } from 'firebase/auth';
-import {
-  getFirestore,
-  initializeFirestore,
-  setLogLevel,
-  disableNetwork,
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  query,
-  where,
-  Firestore,
-} from 'firebase/firestore';
-import { PlatformDatabase } from '../types/cms';
-
-// Silence noisy @firebase/firestore 10-second WebChannel timeout logs in iframe/offline states
-try {
-  setLogLevel('silent');
-} catch {
-  // ignore
-}
 
 export interface ExternalFirebaseConfig {
   apiKey: string;
@@ -42,35 +19,10 @@ export interface ExternalFirebaseConfig {
 }
 
 const STORAGE_KEY_FB_CONFIG = 'ahmed_soliman_existing_firebase_config_v1';
-export const OWNER_ADMIN_EMAIL =
-  import.meta.env.VITE_ADMIN_OWNER_EMAIL || 'ahmed0soliman6@gmail.com';
-export const OWNER_ADMIN_UID = import.meta.env.VITE_ADMIN_OWNER_UID || '';
 
-// In-memory read cache to protect Firestore Free Tier quota (PROMPT 4.3 & 4.5)
-let firestoreCache: {
-  timestamp: number;
-  isAdmin: boolean;
-  data: Partial<PlatformDatabase>;
-} | null = null;
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL, invalidated immediately on any mutation
-let firestoreBackendReachable = true;
-
-function withTimeout<T>(promise: Promise<T>, ms = 2500): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error('FIRESTORE_TIMEOUT'));
-    }, ms);
-    promise
-      .then((val) => {
-        clearTimeout(timer);
-        resolve(val);
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
-}
+// Phase F: Strictly read owner email/UID from environment variables with zero hardcoded email fallback
+export const OWNER_ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_OWNER_EMAIL || '').trim().toLowerCase();
+export const OWNER_ADMIN_UID = (import.meta.env.VITE_ADMIN_OWNER_UID || '').trim();
 
 function cleanConfigString(raw: unknown): string {
   if (typeof raw !== 'string') return '';
@@ -121,7 +73,8 @@ function normalizeFirebaseConfig(cfg: Partial<ExternalFirebaseConfig>): External
 }
 
 export function invalidateFirestoreCache(): void {
-  firestoreCache = null;
+  // Public visitors read from static/CDN snapshots (0 client Firestore reads).
+  // Admin mutations are persisted through the trusted Express + Firebase Admin SDK server.
 }
 
 export function getSavedFirebaseConfig(): ExternalFirebaseConfig | null {
@@ -157,10 +110,7 @@ export function getSavedFirebaseConfig(): ExternalFirebaseConfig | null {
 
 export function saveExternalFirebaseConfig(config: ExternalFirebaseConfig | null): void {
   cachedApp = null;
-  cachedDb = null;
   cachedAuth = null;
-  firestoreBackendReachable = true;
-  invalidateFirestoreCache();
   if (!config || !isValidExternalFirebaseConfig(config)) {
     localStorage.removeItem(STORAGE_KEY_FB_CONFIG);
     if (typeof window !== 'undefined') {
@@ -195,21 +145,21 @@ export async function hydrateFirebaseConfigFromServer(): Promise<ExternalFirebas
 }
 
 let cachedApp: FirebaseApp | null = null;
-let cachedDb: Firestore | null = null;
 let cachedAuth: Auth | null = null;
 
-export function getFirebaseInstances(requireFirestoreReachable = false): {
+/**
+ * Initializes Firebase Client App & Auth ONLY (Zero client-side Firestore SDK usage).
+ * All Firestore reads/writes occur exclusively on the server via Firebase Admin SDK.
+ */
+export function getFirebaseInstances(): {
   app: FirebaseApp;
-  db: Firestore;
   auth: Auth;
   config: ExternalFirebaseConfig;
 } | null {
-  if (requireFirestoreReachable && !firestoreBackendReachable) return null;
   const config = getSavedFirebaseConfig();
   if (!config) return null;
 
   try {
-    setLogLevel('silent');
     if (!cachedApp) {
       const existing = getApps();
       cachedApp =
@@ -222,49 +172,12 @@ export function getFirebaseInstances(requireFirestoreReachable = false): {
               appId: config.appId,
               messagingSenderId: config.messagingSenderId,
             });
-      try {
-        cachedDb =
-          config.databaseId && config.databaseId !== '(default)'
-            ? initializeFirestore(
-                cachedApp,
-                { experimentalAutoDetectLongPolling: true },
-                config.databaseId
-              )
-            : initializeFirestore(cachedApp, { experimentalAutoDetectLongPolling: true });
-      } catch {
-        cachedDb =
-          config.databaseId && config.databaseId !== '(default)'
-            ? getFirestore(cachedApp, config.databaseId)
-            : getFirestore(cachedApp);
-      }
       cachedAuth = getAuth(cachedApp);
     }
-    if (!cachedApp || !cachedDb || !cachedAuth) return null;
-    return { app: cachedApp, db: cachedDb, auth: cachedAuth, config };
+    if (!cachedApp || !cachedAuth) return null;
+    return { app: cachedApp, auth: cachedAuth, config };
   } catch {
     return null;
-  }
-}
-
-/**
- * Read-only check against Firestore /admins/{user.uid}.
- * Never writes or auto-creates /admins/{uid} documents from the client,
- * and never grants access based on email string matching alone.
- */
-export async function verifyFirebaseUserIsAdmin(user: User): Promise<boolean> {
-  if (!user || !user.uid || !user.emailVerified) {
-    return false;
-  }
-
-  const instances = getFirebaseInstances(false);
-  if (!instances) return false;
-
-  try {
-    const adminDocRef = doc(instances.db, 'admins', user.uid);
-    const adminSnap = await withTimeout(getDoc(adminDocRef), 2500);
-    return adminSnap.exists();
-  } catch {
-    return false;
   }
 }
 
@@ -275,10 +188,10 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
   photoURL: string;
   idToken: string;
 }> {
-  let instances = getFirebaseInstances(false);
+  let instances = getFirebaseInstances();
   if (!instances) {
     await hydrateFirebaseConfigFromServer();
-    instances = getFirebaseInstances(false);
+    instances = getFirebaseInstances();
   }
   if (!instances) {
     throw new Error('FIREBASE_NOT_CONFIGURED');
@@ -332,7 +245,6 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
     throw new Error('Authentication Failed: Could not obtain Firebase ID Token.');
   }
 
-  invalidateFirestoreCache();
   return {
     uid: user.uid,
     email: user.email || '',
@@ -343,116 +255,9 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
 }
 
 export async function signOutFromExistingFirebase(): Promise<void> {
-  invalidateFirestoreCache();
   const instances = getFirebaseInstances();
   if (instances) {
     await fbSignOut(instances.auth);
-  }
-}
-
-export async function fetchFromExistingFirestore(
-  isAdminUser: boolean,
-  forceRefresh = false
-): Promise<Partial<PlatformDatabase> | null> {
-  const instances = getFirebaseInstances(true);
-  if (!instances) return null;
-
-  if (
-    !forceRefresh &&
-    firestoreCache &&
-    firestoreCache.isAdmin === isAdminUser &&
-    Date.now() - firestoreCache.timestamp < CACHE_TTL_MS
-  ) {
-    return firestoreCache.data;
-  }
-
-  const { db } = instances;
-  const collectionsToLoad = [
-    'pages',
-    'projects',
-    'clinics',
-    'doctors',
-    'services',
-    'articles',
-  ] as const;
-
-  try {
-    const result: Partial<PlatformDatabase> = {};
-    const settingsSnap = await withTimeout(getDoc(doc(db, 'siteSettings', 'global')), 2500);
-    if (settingsSnap.exists()) {
-      const data = settingsSnap.data() as PlatformDatabase['siteSettings'];
-      if (isAdminUser || data.published) {
-        result.siteSettings = data;
-      }
-    }
-
-    for (const colName of collectionsToLoad) {
-      const colRef = collection(db, colName);
-      const q = isAdminUser ? colRef : query(colRef, where('published', '==', true));
-      const snap = await withTimeout(getDocs(q), 2500);
-      const list = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .sort((a: any, b: any) => (a.order ?? 99) - (b.order ?? 99));
-      (result as any)[colName] = list;
-    }
-
-    if (isAdminUser) {
-      const mediaSnap = await withTimeout(getDocs(collection(db, 'media')), 2500);
-      result.media = mediaSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
-      const adminsSnap = await withTimeout(getDocs(collection(db, 'admins')), 2500);
-      result.admins = adminsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
-    }
-
-    firestoreCache = {
-      timestamp: Date.now(),
-      isAdmin: isAdminUser,
-      data: result,
-    };
-
-    return result;
-  } catch {
-    firestoreBackendReachable = false;
-    disableNetwork(db).catch(() => {});
-    return null;
-  }
-}
-
-export async function saveDocumentToExistingFirestore(
-  collectionName: string,
-  docId: string,
-  payload: Record<string, any>
-): Promise<boolean> {
-  const instances = getFirebaseInstances(true);
-  if (!instances) return false;
-  try {
-    const cleanPayload = JSON.parse(JSON.stringify(payload || {}));
-    await withTimeout(
-      setDoc(doc(instances.db, collectionName, docId), cleanPayload, { merge: true }),
-      2500
-    );
-    invalidateFirestoreCache();
-    return true;
-  } catch {
-    firestoreBackendReachable = false;
-    disableNetwork(instances.db).catch(() => {});
-    return false;
-  }
-}
-
-export async function deleteDocumentFromExistingFirestore(
-  collectionName: string,
-  docId: string
-): Promise<boolean> {
-  const instances = getFirebaseInstances(true);
-  if (!instances) return false;
-  try {
-    await withTimeout(deleteDoc(doc(instances.db, collectionName, docId)), 2500);
-    invalidateFirestoreCache();
-    return true;
-  } catch {
-    firestoreBackendReachable = false;
-    disableNetwork(instances.db).catch(() => {});
-    return false;
   }
 }
 

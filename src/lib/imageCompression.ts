@@ -2,6 +2,7 @@ import { MediaAsset } from '../types/cms';
 import {
   slugifyText,
   validateImageUploadFile,
+  validateMediaAssetPayload,
   ValidationResult,
 } from './validationSchemas';
 
@@ -252,11 +253,12 @@ export interface UploadMediaParams {
   altEn: string;
   category: MediaAsset['category'];
   replacingAsset?: MediaAsset | null;
+  fetchImpl?: typeof fetch;
 }
 
 /**
- * Signs and uploads a compressed image directly to Cloudinary CDN (or returns compact optimized WebP fallback
- * if server Cloudinary credentials are not yet configured), returning a ready MediaAsset record.
+ * Signs and uploads a compressed image directly to Cloudinary CDN.
+ * Never falls back to Base64 Data URLs if Cloudinary is unconfigured or fails.
  */
 export async function uploadCompressedMediaToCloudinary({
   result,
@@ -265,6 +267,7 @@ export async function uploadCompressedMediaToCloudinary({
   altEn,
   category,
   replacingAsset,
+  fetchImpl = fetch,
 }: UploadMediaParams): Promise<{
   mediaRecord: MediaAsset;
   uploadedToCloudinary: boolean;
@@ -276,7 +279,7 @@ export async function uploadCompressedMediaToCloudinary({
     throw new Error(postCheck.errors.join(' '));
   }
 
-  const signRes = await fetch('/api/cloudinary/sign', {
+  const signRes = await fetchImpl('/api/cloudinary/sign', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -288,57 +291,40 @@ export async function uploadCompressedMediaToCloudinary({
     }),
   });
 
-  const signData = await signRes.json();
-  if (!signRes.ok) {
-    throw new Error(signData.error || 'Failed to obtain server upload signature');
-  }
-
-  let finalSecureUrl = '';
-  let finalPublicId = '';
-  let width = outputWidth;
-  let height = outputHeight;
-  let finalBytes = compressedFile.size;
-  let finalFormat = format.split('/')[1] || 'webp';
-  let uploadedToCloudinary = false;
-
-  if (signData.configured) {
-    const formData = new FormData();
-    formData.append('file', compressedFile);
-    formData.append('api_key', signData.apiKey);
-    formData.append('timestamp', String(signData.timestamp));
-    formData.append('signature', signData.signature);
-    formData.append('folder', signData.folder);
-
-    const uploadRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${signData.cloudName}/image/upload`,
-      {
-        method: 'POST',
-        body: formData,
-      }
+  const signData = await signRes.json().catch(() => ({}));
+  if (!signRes.ok || !signData?.configured) {
+    throw new Error(
+      signData?.error ||
+        signData?.message ||
+        'Cloudinary environment variables (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) are not configured on the server. Upload aborted to prevent Base64 storage.'
     );
-    const uploadJson = await uploadRes.json();
-    if (!uploadRes.ok) {
-      throw new Error(uploadJson?.error?.message || 'Cloudinary upload failed');
-    }
-    finalSecureUrl = uploadJson.secure_url;
-    finalPublicId = uploadJson.public_id;
-    width = uploadJson.width || outputWidth;
-    height = uploadJson.height || outputHeight;
-    finalBytes = uploadJson.bytes || compressedFile.size;
-    finalFormat = uploadJson.format || finalFormat;
-    uploadedToCloudinary = true;
-  } else {
-    // Compact WebP/JPEG data URL fallback only when Cloudinary env vars are not set yet
-    finalSecureUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error('Failed to read compressed file'));
-      reader.readAsDataURL(compressedFile);
-    });
-    finalPublicId = `local/${Date.now()}-${slugifyText(
-      compressedFile.name.replace(/\.[^.]+$/, '')
-    )}`;
   }
+
+  const formData = new FormData();
+  formData.append('file', compressedFile);
+  formData.append('api_key', signData.apiKey);
+  formData.append('timestamp', String(signData.timestamp));
+  formData.append('signature', signData.signature);
+  formData.append('folder', signData.folder);
+
+  const uploadRes = await fetchImpl(
+    `https://api.cloudinary.com/v1_1/${signData.cloudName}/image/upload`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  );
+  const uploadJson = await uploadRes.json().catch(() => ({}));
+  if (!uploadRes.ok) {
+    throw new Error(uploadJson?.error?.message || 'Cloudinary upload failed');
+  }
+
+  const finalSecureUrl = String(uploadJson.secure_url || '').trim();
+  const finalPublicId = String(uploadJson.public_id || '').trim();
+  const width = uploadJson.width || outputWidth;
+  const height = uploadJson.height || outputHeight;
+  const finalBytes = uploadJson.bytes || compressedFile.size;
+  const finalFormat = uploadJson.format || format.split('/')[1] || 'webp';
 
   const baseAltName = result.originalFile.name.replace(/\.[^.]+$/, '');
   const mediaRecord: MediaAsset = {
@@ -357,5 +343,11 @@ export async function uploadCompressedMediaToCloudinary({
     createdAt: replacingAsset?.createdAt || new Date().toISOString(),
   };
 
-  return { mediaRecord, uploadedToCloudinary };
+  const mediaValidation = validateMediaAssetPayload(mediaRecord);
+  if (!mediaValidation.valid) {
+    throw new Error(mediaValidation.errors.join(' '));
+  }
+
+  return { mediaRecord, uploadedToCloudinary: true };
 }
+
