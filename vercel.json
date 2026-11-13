@@ -55,7 +55,19 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/((?!api/|assets/|src/assets/|favicon.ico|robots.txt|sitemap.xml).*)",
+      "source": "/data/public-snapshot.json",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/((?!api/|data/public-snapshot\\.json|assets/|src/assets/|favicon\\.ico|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
   ]

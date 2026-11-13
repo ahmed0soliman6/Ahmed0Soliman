@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -45,6 +45,13 @@ export function cleanEnvValue(raw?: string): string {
     val = val.slice(1, -1).trim();
   }
   return val;
+}
+
+export interface ServerInstanceOptions {
+  snapshotAdapter?: PersistentSnapshotStorageAdapter;
+  authDepsResolver?: () => Promise<AdminServiceResolution> | AdminServiceResolution;
+  hmacSecret?: string;
+  strictProductionMode?: boolean;
 }
 
 export interface DecodedAdminToken {
@@ -426,7 +433,7 @@ export async function getFirebaseAdminVerificationServices(): Promise<AdminServi
 }
 
 // ============================================================================
-// PHASE E: CENTRALIZED ADMIN SESSION MANAGEMENT & REVOCATION
+// PHASE B (8.3) & PHASE E: STRICT FAIL-CLOSED CENTRALIZED ADMIN SESSION SECURITY
 // ============================================================================
 export interface AdminSession {
   token: string;
@@ -436,62 +443,170 @@ export interface AdminSession {
   expiresAt: number;
 }
 
+// Non-authoritative local caches (never used to bypass central Firestore session verification)
 export const activeSessions = new Map<string, AdminSession>();
 export const revokedSessionTokens = new Set<string>();
-const centralSessionFallbackStore = new Map<string, CentralSessionRecord>();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+const MIN_HMAC_SECRET_BYTES = 32;
+
+let customHmacSecretOverride: string | null = null;
+
+export function setCustomHmacSecretForTesting(secret: string | null): void {
+  customHmacSecretOverride = secret;
+}
 
 export function hashSessionToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function getServerHmacSecret(): string {
-  const sa = cleanEnvValue(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  const uid =
-    cleanEnvValue(process.env.ADMIN_OWNER_UID) ||
-    cleanEnvValue(process.env.VITE_ADMIN_OWNER_UID);
-  const email = (
-    cleanEnvValue(process.env.ADMIN_OWNER_EMAIL) ||
-    cleanEnvValue(process.env.VITE_ADMIN_OWNER_EMAIL)
-  ).toLowerCase();
-  const ownerIdentifier = uid || email;
-  if (sa && ownerIdentifier) {
-    return crypto.createHash('sha256').update(`${sa}:${ownerIdentifier}`).digest('hex');
+export function getValidAdminSessionSecret(secretOverride?: string):
+  | { valid: true; secret: string }
+  | { valid: false; code: string; error: string } {
+  const rawSecret =
+    typeof secretOverride === 'string'
+      ? cleanEnvValue(secretOverride)
+      : customHmacSecretOverride !== null
+      ? cleanEnvValue(customHmacSecretOverride)
+      : cleanEnvValue(process.env.ADMIN_SESSION_SECRET);
+
+  if (!rawSecret) {
+    return {
+      valid: false,
+      code: 'ADMIN_SESSION_SECRET_NOT_CONFIGURED',
+      error:
+        'Server secret ADMIN_SESSION_SECRET is not configured. Please add a cryptographically random secret (minimum 32 bytes) in Vercel environment variables.',
+    };
   }
-  return 'local-dev-hmac-secret-ahmed-soliman-platform';
+
+  if (Buffer.byteLength(rawSecret, 'utf-8') < MIN_HMAC_SECRET_BYTES) {
+    return {
+      valid: false,
+      code: 'ADMIN_SESSION_SECRET_TOO_SHORT',
+      error:
+        'Server secret ADMIN_SESSION_SECRET must be at least 32 bytes in length.',
+    };
+  }
+
+  return { valid: true, secret: rawSecret };
 }
 
-export function createSignedAdminSessionToken(payload: Omit<AdminSession, 'token'>): string {
-  const secret = getServerHmacSecret();
+export function createSignedAdminSessionToken(
+  payload: Omit<AdminSession, 'token'>,
+  secretOverride?: string
+): string {
+  const secretCheck = getValidAdminSessionSecret(secretOverride);
+  if (!secretCheck.valid) {
+    throw new Error(secretCheck.error);
+  }
   const encoded = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');
-  const sig = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
+  const sig = crypto
+    .createHmac('sha256', secretCheck.secret)
+    .update(encoded)
+    .digest('base64url');
   return `v1.${encoded}.${sig}`;
 }
 
-export function verifySignedAdminSessionToken(token: string): AdminSession | null {
-  if (revokedSessionTokens.has(token)) return null;
-  const secret = getServerHmacSecret();
-  if (!secret || !token.startsWith('v1.')) return null;
+export function verifySignedAdminSessionToken(
+  token: string,
+  secretOverride?: string
+):
+  | { valid: true; session: AdminSession }
+  | {
+      valid: false;
+      status: 401 | 503;
+      code: string;
+      error: string;
+    } {
+  const secretCheck = getValidAdminSessionSecret(secretOverride);
+  if (!secretCheck.valid) {
+    return {
+      valid: false,
+      status: 503,
+      code: secretCheck.code,
+      error: secretCheck.error,
+    };
+  }
+
+  if (!token || typeof token !== 'string' || !token.startsWith('v1.')) {
+    return {
+      valid: false,
+      status: 401,
+      code: 'INVALID_SESSION_TOKEN',
+      error: 'Unauthorized: Malformed admin session token.',
+    };
+  }
+
   const parts = token.split('.');
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3) {
+    return {
+      valid: false,
+      status: 401,
+      code: 'INVALID_SESSION_TOKEN',
+      error: 'Unauthorized: Malformed admin session token structure.',
+    };
+  }
+
   const [, encoded, sig] = parts;
-  const expectedSig = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
-  if (sig !== expectedSig) return null;
+  if (!encoded || !sig) {
+    return {
+      valid: false,
+      status: 401,
+      code: 'INVALID_SESSION_TOKEN',
+      error: 'Unauthorized: Incomplete admin session token.',
+    };
+  }
+
+  const expectedSig = crypto
+    .createHmac('sha256', secretCheck.secret)
+    .update(encoded)
+    .digest('base64url');
+
+  const sigBuf = Buffer.from(sig, 'utf-8');
+  const expectedBuf = Buffer.from(expectedSig, 'utf-8');
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return {
+      valid: false,
+      status: 401,
+      code: 'INVALID_SESSION_SIGNATURE',
+      error: 'Unauthorized: Invalid admin session HMAC signature.',
+    };
+  }
+
   try {
     const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
-    if (!parsed || typeof parsed.uid !== 'string' || typeof parsed.expiresAt !== 'number') {
-      return null;
+    if (!parsed || typeof parsed.uid !== 'string' || !parsed.uid.trim() || typeof parsed.expiresAt !== 'number') {
+      return {
+        valid: false,
+        status: 401,
+        code: 'INVALID_SESSION_PAYLOAD',
+        error: 'Unauthorized: Invalid session token payload.',
+      };
     }
-    if (Date.now() > parsed.expiresAt) return null;
+    if (Date.now() > parsed.expiresAt) {
+      return {
+        valid: false,
+        status: 401,
+        code: 'SESSION_EXPIRED',
+        error: 'Unauthorized: Signed admin session token has expired.',
+      };
+    }
     return {
-      token,
-      uid: parsed.uid,
-      email: parsed.email || '',
-      name: parsed.name || 'Ahmed Soliman',
-      expiresAt: parsed.expiresAt,
+      valid: true,
+      session: {
+        token,
+        uid: parsed.uid,
+        email: parsed.email || '',
+        name: parsed.name || 'Ahmed Soliman',
+        expiresAt: parsed.expiresAt,
+      },
     };
   } catch {
-    return null;
+    return {
+      valid: false,
+      status: 401,
+      code: 'INVALID_SESSION_PAYLOAD',
+      error: 'Unauthorized: Failed to decode admin session payload.',
+    };
   }
 }
 
@@ -521,9 +636,15 @@ async function resolveActiveAuthDeps(): Promise<AdminServiceResolution> {
   return getFirebaseAdminVerificationServices();
 }
 
+/**
+ * Strict fail-closed centralized admin session verification (Phase 8.3).
+ * Enforces all 10 mandatory verification checks on every protected admin request.
+ * Never authorizes a request based on local memory or HMAC signature alone.
+ */
 export async function verifyAdminSessionCentralized(
   req: Request,
-  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = resolveActiveAuthDeps
+  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = resolveActiveAuthDeps,
+  secretOverride?: string
 ): Promise<{
   authenticated: boolean;
   session?: AdminSession;
@@ -542,96 +663,185 @@ export async function verifyAdminSessionCentralized(
   }
 
   const token = authHeader.slice(7).trim();
-  if (!token || revokedSessionTokens.has(token)) {
+  if (!token) {
     return {
       authenticated: false,
       status: 401,
-      code: 'SESSION_REVOKED',
-      error: 'Unauthorized: Admin session has been revoked.',
+      code: 'ADMIN_AUTH_REQUIRED',
+      error: 'Unauthorized: Empty Bearer token.',
     };
   }
 
-  const signedSession = verifySignedAdminSessionToken(token);
-  const memSession = activeSessions.get(token);
-  const candidate = signedSession || memSession;
-
-  if (!candidate || Date.now() > candidate.expiresAt) {
+  // Check 1 & 2: Valid ADMIN_SESSION_SECRET, valid HMAC signature, and non-expired signed token
+  const tokenVerification = verifySignedAdminSessionToken(token, secretOverride);
+  if (!tokenVerification.valid) {
     activeSessions.delete(token);
     return {
       authenticated: false,
-      status: 401,
-      code: 'SESSION_EXPIRED',
-      error: 'Unauthorized: Admin session expired or invalid.',
+      status: tokenVerification.status,
+      code: tokenVerification.code,
+      error: tokenVerification.error,
+    };
+  }
+
+  const signedSession = tokenVerification.session;
+
+  // Check 3: Firebase Admin verification services are ready (Fail-Closed 503 if unavailable)
+  let serviceResolution: AdminServiceResolution;
+  try {
+    serviceResolution = await resolveDeps();
+  } catch (err: any) {
+    return {
+      authenticated: false,
+      status: 503,
+      code: 'FIREBASE_SERVICES_UNAVAILABLE',
+      error: err?.message || 'Firebase Admin verification services are unavailable.',
+    };
+  }
+
+  if (!serviceResolution || !serviceResolution.ready) {
+    return {
+      authenticated: false,
+      status: 503,
+      code: serviceResolution?.code || 'FIREBASE_SERVICES_UNAVAILABLE',
+      error:
+        serviceResolution?.error ||
+        'Firebase Admin verification services are not ready.',
+    };
+  }
+
+  const { deps } = serviceResolution;
+
+  // Check 4: The central session lookup function exists (Fail-Closed 503 if missing)
+  if (typeof deps.getSessionRecord !== 'function') {
+    return {
+      authenticated: false,
+      status: 503,
+      code: 'CENTRAL_SESSION_STORE_UNAVAILABLE',
+      error: 'Centralized Firestore session lookup service is unavailable.',
     };
   }
 
   const sessionId = hashSessionToken(token);
 
-  // Check central session store (Firestore adminSessions/{sessionId} or test/fallback central store)
-  const fallbackRecord = centralSessionFallbackStore.get(sessionId);
-  if (fallbackRecord && fallbackRecord.revoked) {
+  // Check 5: Query central session record in Firestore adminSessions/{sessionId}
+  let centralRec: CentralSessionRecord | null = null;
+  try {
+    centralRec = await deps.getSessionRecord(sessionId);
+  } catch {
+    return {
+      authenticated: false,
+      status: 503,
+      code: 'CENTRAL_SESSION_READ_FAILED',
+      error: 'Failed to read central admin session record from Firestore.',
+    };
+  }
+
+  if (!centralRec) {
+    activeSessions.delete(token);
+    return {
+      authenticated: false,
+      status: 401,
+      code: 'SESSION_NOT_FOUND',
+      error: 'Unauthorized: Central admin session record does not exist in Firestore.',
+    };
+  }
+
+  // Check 6: Central record UID must match the UID inside the signed token
+  if (!centralRec.uid || centralRec.uid !== signedSession.uid) {
+    activeSessions.delete(token);
+    revokedSessionTokens.add(token);
+    return {
+      authenticated: false,
+      status: 401,
+      code: 'SESSION_UID_MISMATCH',
+      error: 'Unauthorized: Central session record UID does not match signed token UID.',
+    };
+  }
+
+  // Check 7: Central record is not revoked
+  if (centralRec.revoked === true) {
     activeSessions.delete(token);
     revokedSessionTokens.add(token);
     return {
       authenticated: false,
       status: 401,
       code: 'SESSION_REVOKED',
-      error: 'Unauthorized: Session was revoked on another server instance.',
+      error: 'Unauthorized: Admin session has been centrally revoked.',
     };
   }
 
-  const serviceResolution = await resolveDeps();
-  if (serviceResolution.ready) {
-    const { deps } = serviceResolution;
-
-    if (deps.getSessionRecord) {
-      try {
-        const centralRec = await deps.getSessionRecord(sessionId);
-        if (centralRec && (centralRec.revoked || Date.now() > centralRec.expiresAt)) {
-          activeSessions.delete(token);
-          revokedSessionTokens.add(token);
-          return {
-            authenticated: false,
-            status: 401,
-            code: 'SESSION_REVOKED',
-            error: 'Unauthorized: Admin session has been centrally revoked.',
-          };
-        }
-      } catch {
-        return {
-          authenticated: false,
-          status: 503,
-          code: 'SESSION_CHECK_FAILED',
-          error: 'Failed to verify central admin session state.',
-        };
-      }
-    }
-
-    // Verify admin document still exists and disabled !== true
-    try {
-      const adminDoc = await deps.hasAdminDocument(candidate.uid);
-      if (!adminDoc.exists || adminDoc.disabled) {
-        activeSessions.delete(token);
-        revokedSessionTokens.add(token);
-        return {
-          authenticated: false,
-          status: 403,
-          code: 'ADMIN_DISABLED_OR_REVOKED',
-          error: 'Access Denied: Admin account is disabled or removed in Firestore /admins/{uid}.',
-        };
-      }
-    } catch {
-      return {
-        authenticated: false,
-        status: 503,
-        code: 'FIRESTORE_ADMIN_CHECK_FAILED',
-        error: 'Failed to verify admin account status in Firestore.',
-      };
-    }
+  // Check 8: Central record has not expired
+  if (typeof centralRec.expiresAt !== 'number' || Date.now() > centralRec.expiresAt) {
+    activeSessions.delete(token);
+    return {
+      authenticated: false,
+      status: 401,
+      code: 'SESSION_EXPIRED',
+      error: 'Unauthorized: Central admin session record has expired.',
+    };
   }
 
-  activeSessions.set(token, candidate);
-  return { authenticated: true, session: candidate };
+  // Check 9 & 10: Corresponding admins/{uid} document exists and is not disabled
+  if (typeof deps.hasAdminDocument !== 'function') {
+    return {
+      authenticated: false,
+      status: 503,
+      code: 'FIRESTORE_ADMIN_CHECK_FAILED',
+      error: 'Admin account verification function is unavailable.',
+    };
+  }
+
+  try {
+    const adminDoc = await deps.hasAdminDocument(signedSession.uid);
+    if (!adminDoc || !adminDoc.exists || adminDoc.disabled === true) {
+      activeSessions.delete(token);
+      revokedSessionTokens.add(token);
+      return {
+        authenticated: false,
+        status: 403,
+        code: 'ADMIN_DISABLED_OR_REVOKED',
+        error: 'Access Denied: Admin account is disabled or removed in Firestore /admins/{uid}.',
+      };
+    }
+  } catch {
+    return {
+      authenticated: false,
+      status: 503,
+      code: 'FIRESTORE_ADMIN_CHECK_FAILED',
+      error: 'Failed to verify admin account status in Firestore.',
+    };
+  }
+
+  activeSessions.set(token, signedSession);
+  return { authenticated: true, session: signedSession };
+}
+
+export function createRequireAdminMiddleware(
+  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = resolveActiveAuthDeps,
+  secretOverride?: string
+) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    verifyAdminSessionCentralized(req, resolveDeps, secretOverride)
+      .then((result) => {
+        if (!result.authenticated || !result.session) {
+          res.status(result.status || 401).json({
+            error:
+              result.error ||
+              'Unauthorized: Valid Admin session required. Session may have expired or been revoked.',
+            code: result.code || 'ADMIN_AUTH_REQUIRED',
+          });
+          return;
+        }
+        next();
+      })
+      .catch(() => {
+        res.status(503).json({
+          error: 'Service Unavailable: Session verification failed unexpectedly.',
+          code: 'SESSION_VERIFICATION_ERROR',
+        });
+      });
+  };
 }
 
 export function requireAdminMiddleware(
@@ -639,25 +849,7 @@ export function requireAdminMiddleware(
   res: Response,
   next: NextFunction
 ): void {
-  verifyAdminSessionCentralized(req)
-    .then((result) => {
-      if (!result.authenticated || !result.session) {
-        res.status(result.status || 401).json({
-          error:
-            result.error ||
-            'Unauthorized: Valid Admin session required. Session may have expired or been revoked.',
-          code: result.code || 'ADMIN_AUTH_REQUIRED',
-        });
-        return;
-      }
-      next();
-    })
-    .catch(() => {
-      res.status(401).json({
-        error: 'Unauthorized: Session verification failed.',
-        code: 'ADMIN_AUTH_REQUIRED',
-      });
-    });
+  createRequireAdminMiddleware()(req, res, next);
 }
 
 // ============================================================================
@@ -1117,37 +1309,432 @@ export async function persistAdminMutationToFirestore(params: {
   cachedAdminDatabase = JSON.parse(JSON.stringify(nextDb));
 }
 
+// ============================================================================
+// PHASE A (8.3): DURABLE & SHARED PUBLIC SNAPSHOT STORAGE (VERCEL BLOB)
+// ============================================================================
+export interface PublicSnapshotManifest {
+  version: string;
+  revision: number;
+  contentHash: string;
+  snapshotPathname: string;
+  snapshotUrl: string;
+  generatedAt: string;
+  updatedAt: string;
+}
+
+export interface PersistentSnapshotStorageAdapter {
+  isConfigured: () => boolean;
+  writeVersionedSnapshot: (
+    pathname: string,
+    serializedJson: string
+  ) => Promise<{ url: string; pathname: string }>;
+  readSnapshotByUrlOrPath: (urlOrPathname: string) => Promise<string | null>;
+  readCurrentManifest: () => Promise<{
+    manifest: PublicSnapshotManifest | null;
+    etag?: string;
+  }>;
+  writeCurrentManifest: (
+    manifest: PublicSnapshotManifest,
+    options?: { ifMatchEtag?: string }
+  ) => Promise<{ url: string; etag?: string }>;
+}
+
+export class PublicSnapshotUnavailableError extends Error {
+  public readonly status: number;
+  public readonly code: string;
+  constructor(message: string, code = 'PUBLIC_SNAPSHOT_UNAVAILABLE', status = 503) {
+    super(message);
+    this.name = 'PublicSnapshotUnavailableError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+const SNAPSHOT_MANIFEST_PATHNAME = 'snapshots/manifest.json';
+
+export function computeSnapshotContentHash(snapshot: PublicContentSnapshot): string {
+  const deterministicPayload = {
+    version: snapshot.version,
+    siteSettings: snapshot.siteSettings,
+    pages: snapshot.pages,
+    projects: snapshot.projects,
+    clinics: snapshot.clinics,
+    doctors: snapshot.doctors,
+    services: snapshot.services,
+    articles: snapshot.articles,
+  };
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify(deterministicPayload), 'utf-8')
+    .digest('hex');
+}
+
+export function validateSnapshotStructure(input: unknown): input is PublicContentSnapshot {
+  if (!input || typeof input !== 'object') return false;
+  const candidate = input as Record<string, any>;
+  return (
+    typeof candidate.version === 'string' &&
+    typeof candidate.generatedAt === 'string' &&
+    Boolean(candidate.siteSettings && typeof candidate.siteSettings === 'object') &&
+    Array.isArray(candidate.pages) &&
+    Array.isArray(candidate.projects) &&
+    Array.isArray(candidate.clinics) &&
+    Array.isArray(candidate.doctors) &&
+    Array.isArray(candidate.services) &&
+    Array.isArray(candidate.articles) &&
+    candidate.admins === undefined &&
+    candidate.media === undefined
+  );
+}
+
+export function createVercelBlobSnapshotAdapter(
+  tokenOverride?: string
+): PersistentSnapshotStorageAdapter {
+  const resolveToken = () =>
+    typeof tokenOverride === 'string'
+      ? cleanEnvValue(tokenOverride)
+      : cleanEnvValue(process.env.BLOB_READ_WRITE_TOKEN);
+
+  return {
+    isConfigured: () => Boolean(resolveToken()),
+    writeVersionedSnapshot: async (pathname: string, serializedJson: string) => {
+      const token = resolveToken();
+      if (!token) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured.');
+      }
+      const { put } = await import('@vercel/blob');
+      const res = await put(pathname, serializedJson, {
+        access: 'public',
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: 'application/json',
+        cacheControlMaxAge: 31536000,
+        token,
+      });
+      return { url: res.url, pathname: res.pathname || pathname };
+    },
+    readSnapshotByUrlOrPath: async (urlOrPathname: string) => {
+      const token = resolveToken();
+      if (!token) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured.');
+      }
+      const { get, BlobNotFoundError } = await import('@vercel/blob');
+      try {
+        const res = await get(urlOrPathname, {
+          access: 'public',
+          useCache: false,
+          token,
+        });
+        if (!res || res.statusCode !== 200 || !res.stream) {
+          return null;
+        }
+        return await new globalThis.Response(res.stream).text();
+      } catch (err: any) {
+        if (err instanceof BlobNotFoundError || err?.name === 'BlobNotFoundError') {
+          return null;
+        }
+        throw err;
+      }
+    },
+    readCurrentManifest: async () => {
+      const token = resolveToken();
+      if (!token) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured.');
+      }
+      const { get, BlobNotFoundError } = await import('@vercel/blob');
+      try {
+        const res = await get(SNAPSHOT_MANIFEST_PATHNAME, {
+          access: 'public',
+          useCache: false,
+          token,
+        });
+        if (!res || res.statusCode !== 200 || !res.stream) {
+          return { manifest: null };
+        }
+        const raw = await new globalThis.Response(res.stream).text();
+        const parsed = JSON.parse(raw) as PublicSnapshotManifest;
+        if (
+          !parsed ||
+          typeof parsed.revision !== 'number' ||
+          typeof parsed.contentHash !== 'string' ||
+          typeof parsed.snapshotPathname !== 'string'
+        ) {
+          return { manifest: null };
+        }
+        return { manifest: parsed, etag: res.blob?.etag };
+      } catch (err: any) {
+        if (err instanceof BlobNotFoundError || err?.name === 'BlobNotFoundError') {
+          return { manifest: null };
+        }
+        throw err;
+      }
+    },
+    writeCurrentManifest: async (manifest: PublicSnapshotManifest, options?: { ifMatchEtag?: string }) => {
+      const token = resolveToken();
+      if (!token) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured.');
+      }
+      const { put } = await import('@vercel/blob');
+      const res = await put(SNAPSHOT_MANIFEST_PATHNAME, JSON.stringify(manifest, null, 2), {
+        access: 'public',
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: 'application/json',
+        cacheControlMaxAge: 60,
+        ...(options?.ifMatchEtag ? { ifMatch: options.ifMatchEtag } : {}),
+        token,
+      });
+      return { url: res.url, etag: (res as any).etag };
+    },
+  };
+}
+
+let customSnapshotStorageAdapter: PersistentSnapshotStorageAdapter | null = null;
+let forceProductionSnapshotMode = false;
+
+interface InstanceSnapshotCacheEntry {
+  revision: number;
+  contentHash: string;
+  snapshot: PublicContentSnapshot;
+}
+
+let defaultInstanceSnapshotCache: InstanceSnapshotCacheEntry | null = null;
+
+export function setCustomSnapshotStorageAdapter(
+  adapter: PersistentSnapshotStorageAdapter | null
+): void {
+  customSnapshotStorageAdapter = adapter;
+  defaultInstanceSnapshotCache = null;
+  cachedPublishedSnapshot = null;
+}
+
+export function setForceProductionSnapshotMode(enabled: boolean): void {
+  forceProductionSnapshotMode = enabled;
+}
+
+export function clearLocalInstanceSnapshotMemory(): void {
+  defaultInstanceSnapshotCache = null;
+  cachedPublishedSnapshot = null;
+}
+
+function isProductionEnvironment(strictOverride?: boolean): boolean {
+  if (typeof strictOverride === 'boolean') return strictOverride;
+  return Boolean(
+    forceProductionSnapshotMode ||
+      process.env.VERCEL === '1' ||
+      process.env.VERCEL === 'true' ||
+      process.env.NODE_ENV === 'production'
+  );
+}
+
+function resolveSnapshotAdapter(
+  override?: PersistentSnapshotStorageAdapter
+): PersistentSnapshotStorageAdapter {
+  if (override) return override;
+  if (customSnapshotStorageAdapter) return customSnapshotStorageAdapter;
+  return createVercelBlobSnapshotAdapter();
+}
+
 /**
  * Publishes the filtered Public Content Snapshot after a successful Firestore write.
- * Never silently swallows publication errors: returns { published: true } or { published: false, error }.
+ * Sequence (Phase 8.3):
+ * 1. Generate filtered snapshot via buildPublicSnapshot(db).
+ * 2. Serialize and validate the generated snapshot.
+ * 3. Compute stable content hash & monotonic revision.
+ * 4. Upload immutable versioned snapshot to persistent storage.
+ * 5. Verify uploaded snapshot can be retrieved and parsed.
+ * 6. Update current-snapshot manifest pointer only after versioned snapshot is verified
+ *    and no newer concurrent revision exists.
+ * Never claims published: true for memory-only or unconfigured storage.
  */
 export async function publishPublicSnapshot(
-  db: PlatformDatabase
-): Promise<{ published: boolean; snapshot: PublicContentSnapshot; error?: string }> {
+  db: PlatformDatabase,
+  options?: {
+    revision?: number;
+    adapter?: PersistentSnapshotStorageAdapter;
+    instanceCacheRef?: { current: InstanceSnapshotCacheEntry | null };
+  }
+): Promise<{
+  published: boolean;
+  snapshot: PublicContentSnapshot;
+  manifest?: PublicSnapshotManifest;
+  code?: string;
+  error?: string;
+}> {
   const snapshot = buildPublicSnapshot(db);
 
   try {
-    if (customCmsHooks?.publishSnapshot) {
+    // Support Phase 8.2 legacy test hook if explicitly registered
+    if (customCmsHooks?.publishSnapshot && !options?.adapter && !customSnapshotStorageAdapter) {
       await customCmsHooks.publishSnapshot(snapshot);
       cachedPublishedSnapshot = snapshot;
       return { published: true, snapshot };
     }
 
-    // Write static snapshot file in non-Vercel environments (or build step)
-    if (!process.env.VERCEL) {
-      if (!fs.existsSync(PUBLIC_DATA_DIR)) {
-        fs.mkdirSync(PUBLIC_DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(PUBLIC_SNAPSHOT_FILE, JSON.stringify(snapshot, null, 2), 'utf-8');
+    const serialized = JSON.stringify(snapshot, null, 2);
+    const parsedCheck = JSON.parse(serialized);
+    if (!validateSnapshotStructure(parsedCheck)) {
+      return {
+        published: false,
+        snapshot,
+        code: 'INVALID_SNAPSHOT_STRUCTURE',
+        error: 'Generated public snapshot failed structural validation.',
+      };
     }
 
-    cachedPublishedSnapshot = snapshot;
-    return { published: true, snapshot };
+    const adapter = resolveSnapshotAdapter(options?.adapter);
+    if (!adapter.isConfigured()) {
+      // In local development, keep public/data/public-snapshot.json synced for local preview,
+      // but NEVER claim published: true when persistent Blob storage is unconfigured!
+      if (!isProductionEnvironment()) {
+        try {
+          if (!fs.existsSync(PUBLIC_DATA_DIR)) {
+            fs.mkdirSync(PUBLIC_DATA_DIR, { recursive: true });
+          }
+          fs.writeFileSync(PUBLIC_SNAPSHOT_FILE, serialized, 'utf-8');
+        } catch {
+          // ignore local disk write error
+        }
+      }
+      return {
+        published: false,
+        snapshot,
+        code: 'BLOB_NOT_CONFIGURED',
+        error:
+          'Persistent snapshot storage (BLOB_READ_WRITE_TOKEN) is not configured. Content was saved to Firestore, but public snapshot publication failed.',
+      };
+    }
+
+    const contentHash = computeSnapshotContentHash(snapshot);
+    const { manifest: currentManifest, etag: initialEtag } = await adapter.readCurrentManifest();
+
+    if (
+      typeof options?.revision === 'number' &&
+      currentManifest &&
+      options.revision <= currentManifest.revision
+    ) {
+      return {
+        published: false,
+        snapshot,
+        code: 'STALE_SNAPSHOT_REVISION',
+        error: `Snapshot revision ${options.revision} is older than or equal to current revision ${currentManifest.revision}.`,
+      };
+    }
+
+    const nextRevision =
+      typeof options?.revision === 'number'
+        ? options.revision
+        : (currentManifest?.revision || 0) + 1;
+
+    const versionedPathname = `snapshots/public-snapshot-v${nextRevision}-${contentHash.slice(0, 12)}.json`;
+
+    // Upload immutable versioned snapshot
+    const uploadResult = await adapter.writeVersionedSnapshot(versionedPathname, serialized);
+    if (!uploadResult || !uploadResult.url) {
+      return {
+        published: false,
+        snapshot,
+        code: 'SNAPSHOT_UPLOAD_FAILED',
+        error: 'Failed to upload versioned public snapshot to persistent storage.',
+      };
+    }
+
+    // Verify that the uploaded snapshot can be retrieved and parsed before updating manifest
+    const retrievedRaw = await adapter.readSnapshotByUrlOrPath(
+      uploadResult.url || uploadResult.pathname || versionedPathname
+    );
+    if (!retrievedRaw) {
+      return {
+        published: false,
+        snapshot,
+        code: 'SNAPSHOT_VERIFICATION_FAILED',
+        error: 'Uploaded versioned snapshot could not be retrieved for verification.',
+      };
+    }
+
+    let verifiedSnapshot: PublicContentSnapshot;
+    try {
+      verifiedSnapshot = JSON.parse(retrievedRaw) as PublicContentSnapshot;
+    } catch {
+      return {
+        published: false,
+        snapshot,
+        code: 'SNAPSHOT_VERIFICATION_CORRUPT',
+        error: 'Uploaded versioned snapshot returned invalid JSON during verification.',
+      };
+    }
+
+    if (
+      !validateSnapshotStructure(verifiedSnapshot) ||
+      computeSnapshotContentHash(verifiedSnapshot) !== contentHash
+    ) {
+      return {
+        published: false,
+        snapshot,
+        code: 'SNAPSHOT_HASH_MISMATCH',
+        error: 'Verified snapshot hash or structure did not match uploaded snapshot.',
+      };
+    }
+
+    // Re-check manifest right before pointer update to guard against concurrent newer publications
+    const { manifest: latestManifest, etag: latestEtag } = await adapter.readCurrentManifest();
+    if (latestManifest && latestManifest.revision >= nextRevision) {
+      return {
+        published: false,
+        snapshot,
+        code: 'CONCURRENT_NEWER_SNAPSHOT',
+        error: `A newer snapshot (revision ${latestManifest.revision}) was published concurrently; skipping older revision ${nextRevision}.`,
+      };
+    }
+
+    const nextManifest: PublicSnapshotManifest = {
+      version: verifiedSnapshot.version,
+      revision: nextRevision,
+      contentHash,
+      snapshotPathname: uploadResult.pathname || versionedPathname,
+      snapshotUrl: uploadResult.url,
+      generatedAt: verifiedSnapshot.generatedAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await adapter.writeCurrentManifest(nextManifest, {
+      ifMatchEtag: latestEtag || initialEtag,
+    });
+
+    // Confirm the manifest pointer is updated and readable
+    const { manifest: confirmedManifest } = await adapter.readCurrentManifest();
+    if (!confirmedManifest || confirmedManifest.revision < nextRevision) {
+      return {
+        published: false,
+        snapshot,
+        code: 'MANIFEST_VERIFICATION_FAILED',
+        error: 'Failed to confirm updated public snapshot manifest pointer.',
+      };
+    }
+
+    const cacheEntry: InstanceSnapshotCacheEntry = {
+      revision: nextRevision,
+      contentHash,
+      snapshot: verifiedSnapshot,
+    };
+    if (options?.instanceCacheRef) {
+      options.instanceCacheRef.current = cacheEntry;
+    } else {
+      defaultInstanceSnapshotCache = cacheEntry;
+    }
+    cachedPublishedSnapshot = verifiedSnapshot;
+
+    return {
+      published: true,
+      snapshot: verifiedSnapshot,
+      manifest: nextManifest,
+    };
   } catch (err: any) {
     console.error('Failed to publish public content snapshot:', err);
     return {
       published: false,
       snapshot,
+      code: 'SNAPSHOT_PUBLISH_ERROR',
       error: err?.message || 'Failed to publish public content snapshot.',
     };
   }
@@ -1155,13 +1742,124 @@ export async function publishPublicSnapshot(
 
 /**
  * Reads the published Public Content Snapshot for public visitors.
- * GUARANTEES ZERO FIRESTORE READS: never calls adminDb or Firebase SDK.
+ * GUARANTEES ZERO FIRESTORE READS: never calls adminDb, loadAdminDatabase, or Firebase SDK.
+ * In production, never falls back to INITIAL_PLATFORM_DATA or local data/cms-db.json.
  */
-export async function readPublishedPublicSnapshot(): Promise<PublicContentSnapshot> {
-  if (customCmsHooks?.readPublicSnapshot) {
+export async function readPublishedPublicSnapshot(options?: {
+  adapter?: PersistentSnapshotStorageAdapter;
+  instanceCacheRef?: { current: InstanceSnapshotCacheEntry | null };
+  strictProductionMode?: boolean;
+}): Promise<PublicContentSnapshot> {
+  if (customCmsHooks?.readPublicSnapshot && !options?.adapter && !customSnapshotStorageAdapter) {
     return customCmsHooks.readPublicSnapshot();
   }
 
+  const adapter = resolveSnapshotAdapter(options?.adapter);
+  const strictProd = isProductionEnvironment(options?.strictProductionMode);
+  const activeCache = options?.instanceCacheRef
+    ? options.instanceCacheRef.current
+    : defaultInstanceSnapshotCache;
+
+  if (adapter.isConfigured()) {
+    let manifestResult: { manifest: PublicSnapshotManifest | null; etag?: string };
+    try {
+      manifestResult = await adapter.readCurrentManifest();
+    } catch (err: any) {
+      throw new PublicSnapshotUnavailableError(
+        `Failed to read public snapshot manifest from persistent storage: ${err?.message || 'Unknown error'}`,
+        'MANIFEST_READ_FAILED',
+        503
+      );
+    }
+
+    const { manifest } = manifestResult;
+    if (!manifest) {
+      throw new PublicSnapshotUnavailableError(
+        'No published public snapshot exists in persistent storage. An administrator must publish the snapshot via /api/cms/publish-snapshot.',
+        'PUBLIC_SNAPSHOT_NOT_INITIALIZED',
+        503
+      );
+    }
+
+    if (
+      activeCache &&
+      activeCache.revision === manifest.revision &&
+      activeCache.contentHash === manifest.contentHash
+    ) {
+      return activeCache.snapshot;
+    }
+
+    let rawSnapshot: string | null = null;
+    try {
+      rawSnapshot = await adapter.readSnapshotByUrlOrPath(
+        manifest.snapshotUrl || manifest.snapshotPathname
+      );
+      if (!rawSnapshot && manifest.snapshotPathname && manifest.snapshotUrl !== manifest.snapshotPathname) {
+        rawSnapshot = await adapter.readSnapshotByUrlOrPath(manifest.snapshotPathname);
+      }
+    } catch (err: any) {
+      throw new PublicSnapshotUnavailableError(
+        `Failed to fetch versioned public snapshot from persistent storage: ${err?.message || 'Unknown error'}`,
+        'SNAPSHOT_READ_FAILED',
+        503
+      );
+    }
+
+    if (!rawSnapshot) {
+      throw new PublicSnapshotUnavailableError(
+        `Versioned snapshot referenced by manifest (${manifest.snapshotPathname}) was not found in persistent storage.`,
+        'SNAPSHOT_BLOB_NOT_FOUND',
+        503
+      );
+    }
+
+    let parsed: PublicContentSnapshot;
+    try {
+      parsed = JSON.parse(rawSnapshot) as PublicContentSnapshot;
+    } catch {
+      throw new PublicSnapshotUnavailableError(
+        'Persisted public snapshot JSON is corrupted.',
+        'SNAPSHOT_CORRUPTED',
+        503
+      );
+    }
+
+    if (
+      !validateSnapshotStructure(parsed) ||
+      computeSnapshotContentHash(parsed) !== manifest.contentHash
+    ) {
+      throw new PublicSnapshotUnavailableError(
+        'Persisted public snapshot failed integrity validation.',
+        'SNAPSHOT_INTEGRITY_FAILED',
+        503
+      );
+    }
+
+    const entry: InstanceSnapshotCacheEntry = {
+      revision: manifest.revision,
+      contentHash: manifest.contentHash,
+      snapshot: parsed,
+    };
+    if (options?.instanceCacheRef) {
+      options.instanceCacheRef.current = entry;
+    } else {
+      defaultInstanceSnapshotCache = entry;
+    }
+    cachedPublishedSnapshot = parsed;
+    return parsed;
+  }
+
+  // If adapter is NOT configured:
+  // In production, NEVER silently fall back to INITIAL_PLATFORM_DATA or local data/cms-db.json!
+  if (strictProd) {
+    throw new PublicSnapshotUnavailableError(
+      'Persistent public snapshot storage (BLOB_READ_WRITE_TOKEN) is not configured in production.',
+      'BLOB_NOT_CONFIGURED',
+      503
+    );
+  }
+
+  // Non-production local development preview only (still 0 Firestore reads):
   if (cachedPublishedSnapshot) {
     return cachedPublishedSnapshot;
   }
@@ -1170,29 +1868,18 @@ export async function readPublishedPublicSnapshot(): Promise<PublicContentSnapsh
     if (fs.existsSync(PUBLIC_SNAPSHOT_FILE)) {
       const raw = fs.readFileSync(PUBLIC_SNAPSHOT_FILE, 'utf-8');
       const parsed = JSON.parse(raw) as PublicContentSnapshot;
-      if (parsed && Array.isArray(parsed.pages) && Array.isArray(parsed.projects)) {
-        cachedPublishedSnapshot = buildPublicSnapshot(parsed as unknown as PlatformDatabase);
+      if (validateSnapshotStructure(parsed)) {
+        cachedPublishedSnapshot = parsed;
         return cachedPublishedSnapshot;
       }
     }
   } catch (err) {
-    console.error('Error reading static public-snapshot.json:', err);
+    console.error('Error reading local public-snapshot.json:', err);
   }
 
-  // Fallback to static baseline snapshot (still 0 Firestore reads)
   const fallbackDb = loadLocalDevelopmentDatabaseFile();
   const built = buildPublicSnapshot(fallbackDb);
   cachedPublishedSnapshot = built;
-  if (!process.env.VERCEL) {
-    try {
-      if (!fs.existsSync(PUBLIC_DATA_DIR)) {
-        fs.mkdirSync(PUBLIC_DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(PUBLIC_SNAPSHOT_FILE, JSON.stringify(built, null, 2), 'utf-8');
-    } catch {
-      // ignore
-    }
-  }
   return built;
 }
 
@@ -1201,7 +1888,12 @@ function cleanTemporaryChatAttachments(): void {
   try {
     const aistudioDir = path.resolve(process.cwd(), 'public', 'assets', 'aistudio');
     if (!fs.existsSync(aistudioDir)) return;
-    const allowedFiles = new Set(['1770146906397_16665dd0.png', 'logo_ae3842b8.png']);
+    const allowedFiles = new Set([
+      '1770146906397_16665dd0.png',
+      'logo_ae3842b8.png',
+      'owner_portrait.png',
+      'owner_portrait.webp',
+    ]);
     for (const file of fs.readdirSync(aistudioDir)) {
       if (!allowedFiles.has(file)) {
         try {
@@ -1243,7 +1935,8 @@ function escapeXml(unsafe: string): string {
 }
 
 export function createAdminLoginHandler(
-  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = resolveActiveAuthDeps
+  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = resolveActiveAuthDeps,
+  secretOverride?: string
 ) {
   return async (req: Request, res: Response): Promise<void> => {
     const clientIp = req.ip || 'local';
@@ -1251,6 +1944,16 @@ export function createAdminLoginHandler(
       res.status(429).json({
         error: 'Too many login attempts. Please wait before trying again.',
         code: 'RATE_LIMITED',
+      });
+      return;
+    }
+
+    // Mandatory Check: ADMIN_SESSION_SECRET must be configured and >= 32 bytes
+    const secretCheck = getValidAdminSessionSecret(secretOverride);
+    if (!secretCheck.valid) {
+      res.status(503).json({
+        error: secretCheck.error,
+        code: secretCheck.code,
       });
       return;
     }
@@ -1269,17 +1972,36 @@ export function createAdminLoginHandler(
       return;
     }
 
-    const serviceResolution = await resolveDeps();
-    if (!serviceResolution.ready) {
+    let serviceResolution: AdminServiceResolution;
+    try {
+      serviceResolution = await resolveDeps();
+    } catch (err: any) {
       res.status(503).json({
-        error: serviceResolution.error,
-        code: serviceResolution.code,
+        error: err?.message || 'Firebase Admin verification services are unavailable.',
+        code: 'FIREBASE_SERVICES_UNAVAILABLE',
+      });
+      return;
+    }
+
+    if (!serviceResolution || !serviceResolution.ready) {
+      res.status(503).json({
+        error: serviceResolution?.error || 'Firebase Admin verification services are not ready.',
+        code: serviceResolution?.code || 'FIREBASE_SERVICES_UNAVAILABLE',
       });
       return;
     }
 
     const { deps } = serviceResolution;
 
+    if (typeof deps.saveSessionRecord !== 'function' || typeof deps.getSessionRecord !== 'function') {
+      res.status(503).json({
+        error: 'Centralized Firestore session persistence is not available.',
+        code: 'CENTRAL_SESSION_STORE_UNAVAILABLE',
+      });
+      return;
+    }
+
+    // Step 1: Verify Firebase ID Token using Firebase Admin SDK with revocation checking
     let decoded: DecodedAdminToken;
     try {
       decoded = await deps.verifyIdToken(idToken);
@@ -1299,6 +2021,7 @@ export function createAdminLoginHandler(
       return;
     }
 
+    // Step 2: Preserve owner UID/email verification
     const normalizedOwnerUid = (deps.ownerUid || '').replace(/\.+$/, '').trim();
     const uidMatches =
       Boolean(normalizedOwnerUid) &&
@@ -1332,6 +2055,7 @@ export function createAdminLoginHandler(
       return;
     }
 
+    // Step 3: Verify admins/{uid} exists and is active
     try {
       const adminDoc = await deps.hasAdminDocument(decoded.uid);
       if (!adminDoc.exists || adminDoc.disabled) {
@@ -1351,15 +2075,19 @@ export function createAdminLoginHandler(
       return;
     }
 
+    // Step 4: Create signed session token
     const finalEmail = sanitizeText(decoded.email || '', 120).trim().toLowerCase();
     const finalName = sanitizeText(decoded.name || 'Ahmed Soliman', 120) || 'Ahmed Soliman';
     const expiresAt = Date.now() + SESSION_TTL_MS;
-    const token = createSignedAdminSessionToken({
-      uid: decoded.uid,
-      email: finalEmail,
-      name: finalName,
-      expiresAt,
-    });
+    const token = createSignedAdminSessionToken(
+      {
+        uid: decoded.uid,
+        email: finalEmail,
+        name: finalName,
+        expiresAt,
+      },
+      secretOverride
+    );
 
     const session: AdminSession = {
       token,
@@ -1368,8 +2096,8 @@ export function createAdminLoginHandler(
       name: finalName,
       expiresAt,
     };
-    activeSessions.set(token, session);
 
+    // Step 5 & 6: Create central adminSessions/{sessionId} record in Firestore and wait for write to succeed
     const sessionId = hashSessionToken(token);
     const centralRecord: CentralSessionRecord = {
       id: sessionId,
@@ -1380,10 +2108,21 @@ export function createAdminLoginHandler(
       revoked: false,
       createdAt: new Date().toISOString(),
     };
-    centralSessionFallbackStore.set(sessionId, centralRecord);
-    if (deps.saveSessionRecord) {
-      await deps.saveSessionRecord(centralRecord).catch(() => {});
+
+    try {
+      await deps.saveSessionRecord(centralRecord);
+    } catch (err: any) {
+      res.status(503).json({
+        error:
+          err?.message ||
+          'Failed to persist central admin session in Firestore. Login aborted.',
+        code: 'SESSION_CREATION_WRITE_FAILED',
+      });
+      return;
     }
+
+    // Step 7: Only after central Firestore write succeeds, cache locally and return session token
+    activeSessions.set(token, session);
 
     res.json({
       token,
@@ -1397,7 +2136,8 @@ export function createAdminLoginHandler(
 
 export function registerAuthRoutes(
   app: express.Express,
-  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = resolveActiveAuthDeps
+  resolveDeps: () => Promise<AdminServiceResolution> | AdminServiceResolution = resolveActiveAuthDeps,
+  secretOverride?: string
 ): void {
   app.get('/api/auth/firebase-config', (_req: Request, res: Response) => {
     const pubConfig = getPublicFirebaseClientConfigFromEnv();
@@ -1409,10 +2149,10 @@ export function registerAuthRoutes(
     });
   });
 
-  app.post('/api/auth/admin-login', createAdminLoginHandler(resolveDeps));
+  app.post('/api/auth/admin-login', createAdminLoginHandler(resolveDeps, secretOverride));
 
   app.get('/api/auth/session', async (req: Request, res: Response) => {
-    const result = await verifyAdminSessionCentralized(req, resolveDeps);
+    const result = await verifyAdminSessionCentralized(req, resolveDeps, secretOverride);
     if (!result.authenticated || !result.session) {
       res.status(result.status || 401).json({
         authenticated: false,
@@ -1432,38 +2172,99 @@ export function registerAuthRoutes(
 
   app.post('/api/auth/logout', async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.slice(7).trim();
-      const existing = activeSessions.get(token) || verifySignedAdminSessionToken(token);
-      activeSessions.delete(token);
-      revokedSessionTokens.add(token);
-
-      const sessionId = hashSessionToken(token);
-      const prevRec = centralSessionFallbackStore.get(sessionId);
-      centralSessionFallbackStore.set(sessionId, {
-        id: sessionId,
-        uid: existing?.uid || prevRec?.uid || '',
-        email: existing?.email || prevRec?.email || '',
-        name: existing?.name || prevRec?.name || '',
-        expiresAt: existing?.expiresAt || prevRec?.expiresAt || 0,
-        revoked: true,
-        createdAt: prevRec?.createdAt || new Date().toISOString(),
-        revokedAt: new Date().toISOString(),
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({
+        success: false,
+        code: 'ADMIN_AUTH_REQUIRED',
+        error: 'Unauthorized: Bearer session token is required to log out.',
       });
-
-      const resolved = await resolveDeps();
-      if (resolved.ready && resolved.deps.revokeSessionRecord) {
-        await resolved.deps.revokeSessionRecord(sessionId, existing?.uid).catch(() => {});
-      }
+      return;
     }
-    res.json({ success: true });
+
+    const token = authHeader.slice(7).trim();
+    const tokenVerification = verifySignedAdminSessionToken(token, secretOverride);
+    if (!tokenVerification.valid) {
+      res.status(tokenVerification.status).json({
+        success: false,
+        code: tokenVerification.code,
+        error: tokenVerification.error,
+      });
+      return;
+    }
+
+    let resolved: AdminServiceResolution;
+    try {
+      resolved = await resolveDeps();
+    } catch (err: any) {
+      res.status(503).json({
+        success: false,
+        code: 'FIREBASE_SERVICES_UNAVAILABLE',
+        error: err?.message || 'Firebase Admin services unavailable during logout.',
+      });
+      return;
+    }
+
+    if (
+      !resolved ||
+      !resolved.ready ||
+      typeof resolved.deps.revokeSessionRecord !== 'function'
+    ) {
+      res.status(503).json({
+        success: false,
+        code:
+          resolved && !resolved.ready && resolved.code
+            ? resolved.code
+            : 'CENTRAL_SESSION_STORE_UNAVAILABLE',
+        error: 'Centralized session revocation service is unavailable.',
+      });
+      return;
+    }
+
+    const sessionId = hashSessionToken(token);
+
+    try {
+      await resolved.deps.revokeSessionRecord(sessionId, tokenVerification.session.uid);
+      if (typeof resolved.deps.getSessionRecord === 'function') {
+        const afterRevoke = await resolved.deps.getSessionRecord(sessionId);
+        if (afterRevoke && afterRevoke.revoked !== true) {
+          res.status(503).json({
+            success: false,
+            code: 'SESSION_LOGOUT_VERIFICATION_FAILED',
+            error: 'Central session record did not confirm revoked: true.',
+          });
+          return;
+        }
+      }
+    } catch (err: any) {
+      res.status(503).json({
+        success: false,
+        code: 'SESSION_LOGOUT_REVOCATION_FAILED',
+        error: err?.message || 'Failed to revoke central admin session in Firestore.',
+      });
+      return;
+    }
+
+    activeSessions.delete(token);
+    revokedSessionTokens.add(token);
+    res.json({ success: true, revoked: true });
   });
 }
 
-export function createExpressApp(): express.Express {
+export function createExpressApp(options?: ServerInstanceOptions): express.Express {
   cleanTemporaryChatAttachments();
   const app = express();
   app.use(express.json({ limit: '6mb' }));
+
+  const instanceCacheRef: { current: InstanceSnapshotCacheEntry | null } = {
+    current: null,
+  };
+  const activeAuthResolver = options?.authDepsResolver || resolveActiveAuthDeps;
+  const activeHmacSecret = options?.hmacSecret;
+  const activeSnapshotAdapter = options?.snapshotAdapter;
+  const activeStrictProd = options?.strictProductionMode;
+  const adminMiddleware = options
+    ? createRequireAdminMiddleware(activeAuthResolver, activeHmacSecret)
+    : requireAdminMiddleware;
 
   // ---------------------------------------------------------------------------
   // 0. SECURITY HEADERS MIDDLEWARE
@@ -1478,7 +2279,7 @@ export function createExpressApp(): express.Express {
   // ---------------------------------------------------------------------------
   // 1. ADMIN AUTHENTICATION & FIREBASE ID TOKEN VERIFICATION ROUTES
   // ---------------------------------------------------------------------------
-  registerAuthRoutes(app);
+  registerAuthRoutes(app, activeAuthResolver, activeHmacSecret);
 
   // ---------------------------------------------------------------------------
   // 2. PUBLIC CONTACT / CONSULTATION FORM VALIDATION
@@ -1512,35 +2313,57 @@ export function createExpressApp(): express.Express {
   // 3. PUBLIC SNAPSHOT DELIVERY LAYER (ZERO FIRESTORE READS FOR PUBLIC VISITORS)
   // ---------------------------------------------------------------------------
   app.get('/api/cms/public', async (_req: Request, res: Response) => {
+    const readsBefore = serverFirestoreReadOpsCount;
     try {
-      const snapshot = await readPublishedPublicSnapshot();
+      const snapshot = await readPublishedPublicSnapshot({
+        adapter: activeSnapshotAdapter,
+        instanceCacheRef: options ? instanceCacheRef : undefined,
+        strictProductionMode: activeStrictProd,
+      });
+      const readsDelta = serverFirestoreReadOpsCount - readsBefore;
       res.setHeader(
         'Cache-Control',
-        'public, max-age=0, s-maxage=60, stale-while-revalidate=300'
+        'public, max-age=0, s-maxage=1, stale-while-revalidate=5'
       );
       res.setHeader('X-Data-Source', 'public-snapshot');
-      res.setHeader('X-Firestore-Reads', '0');
+      if (readsDelta === 0) {
+        res.setHeader('X-Firestore-Reads', '0');
+      }
       res.json(snapshot);
     } catch (err: any) {
-      res.status(500).json({
+      const status = err instanceof PublicSnapshotUnavailableError ? err.status : 503;
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      res.status(status).json({
         error: err?.message || 'Failed to read public content snapshot',
+        code: err?.code || 'PUBLIC_SNAPSHOT_UNAVAILABLE',
       });
     }
   });
 
   app.get('/data/public-snapshot.json', async (_req: Request, res: Response) => {
+    const readsBefore = serverFirestoreReadOpsCount;
     try {
-      const snapshot = await readPublishedPublicSnapshot();
+      const snapshot = await readPublishedPublicSnapshot({
+        adapter: activeSnapshotAdapter,
+        instanceCacheRef: options ? instanceCacheRef : undefined,
+        strictProductionMode: activeStrictProd,
+      });
+      const readsDelta = serverFirestoreReadOpsCount - readsBefore;
       res.setHeader(
         'Cache-Control',
-        'public, max-age=0, s-maxage=60, stale-while-revalidate=300'
+        'public, max-age=0, s-maxage=1, stale-while-revalidate=5'
       );
       res.setHeader('X-Data-Source', 'public-snapshot');
-      res.setHeader('X-Firestore-Reads', '0');
+      if (readsDelta === 0) {
+        res.setHeader('X-Firestore-Reads', '0');
+      }
       res.json(snapshot);
     } catch (err: any) {
-      res.status(500).json({
+      const status = err instanceof PublicSnapshotUnavailableError ? err.status : 503;
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      res.status(status).json({
         error: err?.message || 'Failed to read static public content snapshot',
+        code: err?.code || 'PUBLIC_SNAPSHOT_UNAVAILABLE',
       });
     }
   });
@@ -1548,7 +2371,7 @@ export function createExpressApp(): express.Express {
   // ---------------------------------------------------------------------------
   // 4. ADMIN CMS DATA ROUTES (FIRESTORE SINGLE SOURCE OF TRUTH + SNAPSHOT PUBLISH)
   // ---------------------------------------------------------------------------
-  app.get('/api/cms/admin', requireAdminMiddleware, async (_req: Request, res: Response) => {
+  app.get('/api/cms/admin', adminMiddleware, async (_req: Request, res: Response) => {
     try {
       const db = await loadAdminDatabase();
       res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -1564,14 +2387,18 @@ export function createExpressApp(): express.Express {
   // Manual Snapshot Republish Endpoint for Admin Recovery
   app.post(
     '/api/cms/publish-snapshot',
-    requireAdminMiddleware,
+    adminMiddleware,
     async (_req: Request, res: Response) => {
       try {
         const db = await loadAdminDatabase();
-        const pubResult = await publishPublicSnapshot(db);
+        const pubResult = await publishPublicSnapshot(db, {
+          adapter: activeSnapshotAdapter,
+          instanceCacheRef: options ? instanceCacheRef : undefined,
+        });
         if (!pubResult.published) {
           res.status(502).json({
             publishedSnapshot: false,
+            code: pubResult.code || 'SNAPSHOT_PUBLISH_FAILED',
             error: pubResult.error || 'Failed to publish public snapshot',
           });
           return;
@@ -1579,6 +2406,7 @@ export function createExpressApp(): express.Express {
         res.json({
           publishedSnapshot: true,
           generatedAt: pubResult.snapshot.generatedAt,
+          manifest: pubResult.manifest,
           snapshot: pubResult.snapshot,
         });
       } catch (err: any) {
@@ -1593,7 +2421,7 @@ export function createExpressApp(): express.Express {
   // Update Site Settings
   app.put(
     '/api/cms/siteSettings',
-    requireAdminMiddleware,
+    adminMiddleware,
     async (req: Request, res: Response) => {
       try {
         const db = await loadAdminDatabase();
@@ -1621,7 +2449,10 @@ export function createExpressApp(): express.Express {
           operation: { type: 'siteSettings', data: merged },
         });
 
-        const pubResult = await publishPublicSnapshot(nextDb);
+        const pubResult = await publishPublicSnapshot(nextDb, {
+          adapter: activeSnapshotAdapter,
+          instanceCacheRef: options ? instanceCacheRef : undefined,
+        });
         res.setHeader('X-Snapshot-Published', String(pubResult.published));
         res.json({
           ...merged,
@@ -1643,7 +2474,7 @@ export function createExpressApp(): express.Express {
   // Seed / Reset to authentic Soli Medical & Ahmed Soliman baseline data
   app.post(
     '/api/cms/seed-baseline',
-    requireAdminMiddleware,
+    adminMiddleware,
     async (_req: Request, res: Response) => {
       try {
         const fresh = JSON.parse(JSON.stringify(INITIAL_PLATFORM_DATA)) as PlatformDatabase;
@@ -1651,7 +2482,10 @@ export function createExpressApp(): express.Express {
           nextDb: fresh,
           operation: { type: 'fullReplace', database: fresh },
         });
-        const pubResult = await publishPublicSnapshot(fresh);
+        const pubResult = await publishPublicSnapshot(fresh, {
+          adapter: activeSnapshotAdapter,
+          instanceCacheRef: options ? instanceCacheRef : undefined,
+        });
         res.json({
           success: true,
           savedToFirestore: true,
@@ -1671,14 +2505,14 @@ export function createExpressApp(): express.Express {
   );
 
   // Export Full Platform Backup JSON
-  app.get('/api/cms/backup', requireAdminMiddleware, async (_req: Request, res: Response) => {
+  app.get('/api/cms/backup', adminMiddleware, async (_req: Request, res: Response) => {
     try {
       const db = await loadAdminDatabase();
       res.setHeader('Cache-Control', 'no-store, max-age=0');
       res.json({
         exportedAt: new Date().toISOString(),
         platform: 'Ahmed Soliman Digital Platform',
-        version: '8.2.0',
+        version: '8.3.0',
         database: db,
       });
     } catch (err: any) {
@@ -1689,7 +2523,7 @@ export function createExpressApp(): express.Express {
   });
 
   // Restore Full Platform Backup JSON
-  app.post('/api/cms/restore', requireAdminMiddleware, async (req: Request, res: Response) => {
+  app.post('/api/cms/restore', adminMiddleware, async (req: Request, res: Response) => {
     const incoming = req.body?.database || req.body;
     if (
       !incoming ||
@@ -1713,7 +2547,10 @@ export function createExpressApp(): express.Express {
         nextDb: sanitized,
         operation: { type: 'fullReplace', database: sanitized },
       });
-      const pubResult = await publishPublicSnapshot(sanitized);
+      const pubResult = await publishPublicSnapshot(sanitized, {
+        adapter: activeSnapshotAdapter,
+        instanceCacheRef: options ? instanceCacheRef : undefined,
+      });
 
       res.json({
         success: true,
@@ -1734,7 +2571,7 @@ export function createExpressApp(): express.Express {
   // Upsert (Create or Update) item in any collection
   app.post(
     '/api/cms/:collection',
-    requireAdminMiddleware,
+    adminMiddleware,
     async (req: Request, res: Response) => {
       const col = req.params.collection as keyof PlatformDatabase;
       const allowedCollections = [
@@ -1902,7 +2739,10 @@ export function createExpressApp(): express.Express {
           operation: { type: 'upsert', collection: col, id: safeId, record },
         });
 
-        const pubResult = await publishPublicSnapshot(nextDb);
+        const pubResult = await publishPublicSnapshot(nextDb, {
+          adapter: activeSnapshotAdapter,
+          instanceCacheRef: options ? instanceCacheRef : undefined,
+        });
         res.setHeader('X-Snapshot-Published', String(pubResult.published));
 
         res.json({
@@ -1925,7 +2765,7 @@ export function createExpressApp(): express.Express {
   // Batch Reorder items in a collection
   app.patch(
     '/api/cms/:collection/reorder',
-    requireAdminMiddleware,
+    adminMiddleware,
     async (req: Request, res: Response) => {
       const col = req.params.collection as keyof PlatformDatabase;
       const { orderedIds } = req.body as { orderedIds: string[] };
@@ -1957,7 +2797,10 @@ export function createExpressApp(): express.Express {
           operation: { type: 'reorder', collection: col, items: list },
         });
 
-        const pubResult = await publishPublicSnapshot(nextDb);
+        const pubResult = await publishPublicSnapshot(nextDb, {
+          adapter: activeSnapshotAdapter,
+          instanceCacheRef: options ? instanceCacheRef : undefined,
+        });
         res.json({
           success: true,
           savedToFirestore: true,
@@ -1979,7 +2822,7 @@ export function createExpressApp(): express.Express {
   // Delete item in a collection (with comprehensive media in-use guard)
   app.delete(
     '/api/cms/:collection/:id',
-    requireAdminMiddleware,
+    adminMiddleware,
     async (req: Request, res: Response) => {
       const col = req.params.collection as keyof PlatformDatabase;
       if (col === 'admins') {
@@ -2063,7 +2906,10 @@ export function createExpressApp(): express.Express {
           operation: { type: 'delete', collection: col, id },
         });
 
-        const pubResult = await publishPublicSnapshot(nextDb);
+        const pubResult = await publishPublicSnapshot(nextDb, {
+          adapter: activeSnapshotAdapter,
+          instanceCacheRef: options ? instanceCacheRef : undefined,
+        });
         res.json({
           success: true,
           deletedId: id,
@@ -2085,7 +2931,7 @@ export function createExpressApp(): express.Express {
   // ---------------------------------------------------------------------------
   // 5. CLOUDINARY SERVER-SIDE SIGNED UPLOAD & DELETE ROUTES (PHASE C & D)
   // ---------------------------------------------------------------------------
-  app.get('/api/cloudinary/status', requireAdminMiddleware, (_req: Request, res: Response) => {
+  app.get('/api/cloudinary/status', adminMiddleware, (_req: Request, res: Response) => {
     const cloudName = cleanEnvValue(process.env.CLOUDINARY_CLOUD_NAME);
     const apiKey = cleanEnvValue(process.env.CLOUDINARY_API_KEY);
     const apiSecret = cleanEnvValue(process.env.CLOUDINARY_API_SECRET);
@@ -2099,7 +2945,7 @@ export function createExpressApp(): express.Express {
     });
   });
 
-  app.post('/api/cloudinary/sign', requireAdminMiddleware, (req: Request, res: Response) => {
+  app.post('/api/cloudinary/sign', adminMiddleware, (req: Request, res: Response) => {
     const cloudName = cleanEnvValue(process.env.CLOUDINARY_CLOUD_NAME);
     const apiKey = cleanEnvValue(process.env.CLOUDINARY_API_KEY);
     const apiSecret = cleanEnvValue(process.env.CLOUDINARY_API_SECRET);
@@ -2164,7 +3010,7 @@ export function createExpressApp(): express.Express {
 
   app.post(
     '/api/cloudinary/delete',
-    requireAdminMiddleware,
+    adminMiddleware,
     async (req: Request, res: Response) => {
       const { mediaId, publicId, secureUrl } = req.body || {};
 
@@ -2233,7 +3079,10 @@ export function createExpressApp(): express.Express {
             nextDb,
             operation: { type: 'delete', collection: 'media', id: mediaId },
           });
-          await publishPublicSnapshot(nextDb);
+          await publishPublicSnapshot(nextDb, {
+            adapter: activeSnapshotAdapter,
+            instanceCacheRef: options ? instanceCacheRef : undefined,
+          });
         }
 
         res.json({
@@ -2253,7 +3102,7 @@ export function createExpressApp(): express.Express {
   // ---------------------------------------------------------------------------
   // 6. LIVE FUNCTIONAL TESTING & SECURITY AUDIT SUITE
   // ---------------------------------------------------------------------------
-  app.get('/api/audit/run', requireAdminMiddleware, async (_req: Request, res: Response) => {
+  app.get('/api/audit/run', adminMiddleware, async (_req: Request, res: Response) => {
     const db = await loadAdminDatabase();
     const rulesContent = fs.existsSync(FIRESTORE_RULES_FILE)
       ? fs.readFileSync(FIRESTORE_RULES_FILE, 'utf-8')
@@ -2610,7 +3459,25 @@ export function createExpressApp(): express.Express {
     const baseUrl = (
       process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:3000'}`
     ).replace(/\/$/, '');
-    const snapshot = await readPublishedPublicSnapshot();
+    const readsBefore = serverFirestoreReadOpsCount;
+    let snapshot: PublicContentSnapshot;
+    try {
+      snapshot = await readPublishedPublicSnapshot({
+        adapter: activeSnapshotAdapter,
+        instanceCacheRef: options ? instanceCacheRef : undefined,
+        strictProductionMode: activeStrictProd,
+      });
+    } catch (err: any) {
+      const status = err instanceof PublicSnapshotUnavailableError ? err.status : 503;
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      res.status(status).json({
+        error: err?.message || 'Public snapshot unavailable for sitemap generation.',
+        code: err?.code || 'PUBLIC_SNAPSHOT_UNAVAILABLE',
+      });
+      return;
+    }
+
+    const readsDelta = serverFirestoreReadOpsCount - readsBefore;
 
     const isCorePublished = (slug: string) => {
       const found = (snapshot.pages || []).find((p) => p.slug === slug || p.id === slug);
@@ -2690,7 +3557,10 @@ export function createExpressApp(): express.Express {
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urlEntries}
 </urlset>`;
 
-    res.setHeader('X-Firestore-Reads', '0');
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=1, stale-while-revalidate=5');
+    if (readsDelta === 0) {
+      res.setHeader('X-Firestore-Reads', '0');
+    }
     res.type('application/xml').send(xml);
   });
 

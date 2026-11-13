@@ -18,6 +18,9 @@ interface OptimizedImageProps {
  */
 export function optimizeCloudinaryUrl(url?: string, targetWidth = 1200): string {
   if (!url || typeof url !== 'string') return '';
+  if (url === '/assets/aistudio/1770146906397_16665dd0.png') {
+    return '/assets/aistudio/owner_portrait.png';
+  }
   if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
     if (!url.includes('f_auto')) {
       return url.replace(

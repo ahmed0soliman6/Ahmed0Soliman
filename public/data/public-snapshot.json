@@ -1,6 +1,6 @@
 {
   "version": "8.2.0",
-  "generatedAt": "2026-11-13T14:18:12.004Z",
+  "generatedAt": "2026-11-13T15:25:12.668Z",
   "siteSettings": {
     "id": "global",
     "brandName": {
@@ -8,16 +8,16 @@
       "en": "Ahmed Soliman"
     },
     "tagline": {
-      "ar": "مطوّر أنظمة العيادات الطبية والبرمجيات الصحية",
-      "en": "Healthcare Systems Architect & Full-Stack Engineer"
+      "ar": "أخصائي التمريض وجودة الرعاية الصحية ومطوّر الأنظمة الطبية الرقمية",
+      "en": "Healthcare Quality Specialist & Medical Systems Architect"
     },
     "ownerName": {
       "ar": "أحمد سليمان",
       "en": "Ahmed Soliman"
     },
     "ownerRole": {
-      "ar": "مطوّر ومشغّل أنظمة العيادات والمجمعات الطبية",
-      "en": "Medical Clinic & Healthcare Complex Systems Developer"
+      "ar": "مطوّر أنظمة العيادات والمستشفيات وأخصائي جودة الرعاية الصحية",
+      "en": "Medical Systems Developer & Healthcare Quality Specialist"
     },
     "avatarUrl": "/assets/aistudio/1770146906397_16665dd0.png",
     "primaryColor": "#00C2CB",
@@ -32,25 +32,25 @@
     "linkedinUrl": "",
     "contactEmail": "ahmed0soliman6@gmail.com",
     "location": {
-      "ar": "مصر — تطوير وتشغيل الأنظمة الطبية الرقمية",
-      "en": "Egypt — Healthcare Software Engineering & Operations"
+      "ar": "مصر — تطوير وتشغيل الأنظمة الطبية وجودة الرعاية الصحية",
+      "en": "Egypt — Healthcare Software Engineering & Clinical Quality"
     },
+    "hideVisitorHeaderNav": true,
     "published": true,
     "seo": {
       "title": {
-        "ar": "أحمد سليمان | مطوّر أنظمة العيادات والبرمجيات الصحية – Ahmed Soliman",
-        "en": "Ahmed Soliman | Healthcare Systems Architect & Digital Platform"
+        "ar": "أحمد سليمان | المنصة الرقمية الشخصية ومطوّر الأنظمة الطبية – Ahmed Soliman",
+        "en": "Ahmed Soliman | Personal Digital Platform & Medical Systems Architect"
       },
       "description": {
-        "ar": "المنصة الرقمية الرسمية للمهندس أحمد سليمان: تطوير وإدارة أنظمة العيادات والمجمعات الطبية الخيرية والخاصة في مصر، صفحات الهبوط الطبية، والمقالات التقنية.",
-        "en": "Official digital platform of Ahmed Soliman: developing and operating clinic management systems, charitable medical complex software, and custom healthcare landing pages."
+        "ar": "المنصة الرقمية الرسمية لأحمد سليمان: أخصائي التمريض وجودة الرعاية الصحية ومطوّر أنظمة العيادات والمستشفيات (Soli Medical، ICU-Sync، Mitali Hospital).",
+        "en": "Official personal platform of Ahmed Soliman: Healthcare Quality Specialist & Architect of Soli Medical, ICU-Sync, Mitali Hospital, and standalone clinic portals."
       },
       "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
       "canonicalSlug": "/",
       "structuredDataType": "Person"
     },
-    "updatedAt": "2026-11-11T12:00:00.000Z",
-    "hideVisitorHeaderNav": true
+    "updatedAt": "2026-11-13T15:25:12.649Z"
   },
   "pages": [
     {
@@ -73,8 +73,8 @@
         "en": "Bridging frontline clinical nursing, ICU care, and healthcare quality management with full-stack software engineering to build practical digital medical systems."
       },
       "biography": {
-        "ar": "مهتم بالبرمجيات العربية الأصيلة (RTL) وبالبنية الرقمية للرعاية الصحية المجتمعية التي تبدأ من واقع العمل الطبي اليومي، لا من قوائم معقدة.",
-        "en": "Focused on native Arabic-first (RTL) healthcare software and community medical infrastructure designed around real clinical workflows rather than bloated menus."
+        "ar": "من قلب الممارسة الطبية السريرية وإدارة الجودة إلى هندسة البرمجيات الصحية العربية الأصيلة: أبني حلولاً رقمية تختصر الوقت، تمنع الأخطاء، وترفع كفاءة تشغيل العيادات والمجمعات الطبية.",
+        "en": "From bedside clinical operations and quality governance to native Arabic/English health-tech architecture: building digital systems that eliminate workflow friction."
       },
       "highlights": {
         "ar": [
@@ -129,11 +129,11 @@
       "seo": {
         "title": {
           "ar": "أحمد سليمان | المنصة الرقمية الرسمية ومطوّر الأنظمة الطبية",
-          "en": "Ahmed Soliman | Official Digital Platform & Healthcare Systems Developer"
+          "en": "Ahmed Soliman | Official Personal Platform & Healthcare Systems Developer"
         },
         "description": {
-          "ar": "استكشف مشروعات وأنظمة أحمد سليمان لإدارة العيادات والمجمعات الطبية، صفحات الهبوط الطبية المستقلة، والمقالات التقنية.",
-          "en": "Explore Ahmed Soliman’s healthcare software systems, medical clinic landing pages, and technical insights."
+          "ar": "استكشف مشروعات وأنظمة أحمد سليمان: Soli Medical، ICU-Sync، Mitali Hospital، صفحات العيادات المستقلة، والمقالات التقنية والطبية.",
+          "en": "Explore Ahmed Soliman’s healthcare software systems, Soli Medical, ICU-Sync, standalone clinic portals, and editorial articles."
         },
         "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
         "canonicalSlug": "/",
@@ -147,19 +147,19 @@
       "slug": "about",
       "title": {
         "ar": "من أنا — السيرة المهنية",
-        "en": "About — Editorial Profile"
+        "en": "About — Editorial Monograph"
       },
       "kicker": {
-        "ar": "الملف التعريفي المهني · Ahmed Soliman",
-        "en": "Editorial Profile & Engineering Philosophy · Ahmed Soliman"
+        "ar": "الملف الشخصي التحريري · Ahmed Soliman",
+        "en": "Editorial Monograph & Career Timeline · Ahmed Soliman"
       },
       "headline": {
-        "ar": "أحمد سليمان — مطوّر أنظمة العيادات الطبية والبرمجيات الصحية",
-        "en": "Ahmed Soliman — Architect of Practical Healthcare Software"
+        "ar": "أحمد سليمان — بين الممارسة السريرية وجودة الرعاية وهندسة الأنظمة الطبية",
+        "en": "Ahmed Soliman — Where Clinical Care Meets Software Architecture"
       },
       "subheadline": {
-        "ar": "أطوّر وأدير أنظمة إدارة العيادات، وأبني وأشغّل برمجيات للمجمعات الطبية الخيرية في مصر، من التطوير حتى التشغيل الفعلي.",
-        "en": "Developing and managing clinic systems, and building and operating software for charitable medical complexes in Egypt from inception to live daily operation."
+        "ar": "متخصص في التمريض والرعاية الصحية وإدارة الجودة، ومطوّر برمجيات وأنظمة رقمية للعيادات والمجمعات الطبية والمستشفيات في مصر.",
+        "en": "Nursing & Healthcare Quality Specialist and Full-Stack Developer architecting digital platforms for clinics, ICUs, and medical complexes in Egypt."
       },
       "biography": {
         "ar": "بدأت رحلتي المهنية من داخل المستشفيات ووحدات الرعاية الحرجة والمجمعات الطبية، حيث عايشت عن قرب التحديات الحقيقية التي يواجهها الأطباء وهيئة التمريض وموظفو الاستقبال ومديرو الجودة يومياً. أدركت مبكراً أن معظم الأنظمة البرمجية تفشل في القطاع الطبي لأنها تُكتب من خارج الميدان الطبي، فتأتي إما معقدة ومزدحمة بقوائم تعطل الكشف، أو سطحية لا تغطي الدورة المالية والطبية الفعلية.\n\nلذلك قررت الجمع بين تخصصي في التمريض وإدارة جودة الرعاية الصحية وبين هندسة البرمجيات الحديثة. قمت بتصميم وتطوير وتشغيل منظومات رقمية متخصصة مثل نظام Soli Medical لإدارة العيادات والمجمعات الطبية، ونظام ICU-Sync لتنسيق الرعاية المركزة، ومنظومة Mitali Hospital، بالإضافة إلى أنظمة إدارة المخازن الطبية ومشروعات تحسين الجودة وسلامة المرضى.\n\nأؤمن بأن التحول الرقمي الصحي الناجح يبدأ من فهم تفاصيل رحلة المريض داخل المنشأة: من لحظة البحث عن الطبيب والحجز عبر الموبايل، إلى شاشة الاستقبال، إلى ملف التاريخ المرضي والروشتة أمام الطبيب، وصولاً إلى التقارير الإدارية والمالية ومؤشرات الجودة التي تساعد الإدارة على اتخاذ قرارات دقيقة.",
@@ -167,38 +167,38 @@
       },
       "highlights": {
         "ar": [
-          "أنظمة عربية RTL مصممة خصيصاً لطريقة عمل العيادات والمنشآت الطبية في مصر والمنطقة",
-          "بناء وتشغيل برمجيات المجمعات الطبية الخيرية متعددة العيادات والأقسام",
-          "مرافقة المنشأة الطبية من تحليل الاحتياج والتطوير حتى التدريب والتشغيل الفعلي",
-          "تصميم صفحات هبوط طبية مستقلة عالية التحويل للعيادات والمراكز التخصصية"
+          "خلفية أكاديمية وعملية راسخة في التمريض، الرعاية الحرجة (ICU)، وإدارة الجودة الصحية",
+          "تطوير وتشغيل أنظمة إدارة العيادات والمجمعات الطبية الخيرية والخاصة من التخطيط حتى التدريب الميداني",
+          "تصميم معماري لأنظمة ويب سحابية ثنائية اللغة (RTL/LTR) سريعة وآمنة ومتوافقة مع الموبايل",
+          "ربط الأنظمة الطبية بقنوات التواصل الذكية (بوتات تليجرام، واتساب، وصفحات هبوط مستقلة للعيادات)"
         ],
         "en": [
-          "Arabic-first RTL software tailored to real clinical workflows in Egypt and the MENA region",
-          "Multi-department systems for charitable medical complexes, labs, and pharmacies",
-          "Full operational ownership from requirements analysis to staff training and live deployment",
-          "High-conversion standalone medical landing pages for specialized clinics and centers"
+          "Strong clinical foundation in Nursing, Critical Care (ICU), and Healthcare Quality Assurance",
+          "End-to-end engineering and on-site deployment of clinic and charitable medical complex systems",
+          "Cloud-native bilingual (Arabic RTL / English LTR) web platforms built with React & TypeScript",
+          "Seamless patient automation connecting clinics with Telegram bots, WhatsApp, and standalone portals"
         ]
       },
       "metrics": [
         {
           "value": "01",
           "label": {
-            "ar": "عيادة الطبيب الواحد — تنظيم الاستقبال والكشف والروشتة والفاتورة",
-            "en": "Solo Physician Clinic — Reception, EMR, Prescription & Billing"
+            "ar": "الممارسة السريرية وجودة الرعاية — فهم عميق لمسارات العمل داخل المستشفيات والعيادات",
+            "en": "Clinical & Quality Foundation — Deep understanding of hospital and outpatient workflows"
           }
         },
         {
           "value": "02",
           "label": {
-            "ar": "المجمعات والمستشفيات الصغيرة — ربط العيادات والأقسام والمالية",
-            "en": "Medical Complexes — Unified Departments, Permissions & Finance"
+            "ar": "هندسة البرمجيات الطبية — تطوير منصات ويب سحابية متكاملة (Soli Medical & ICU-Sync)",
+            "en": "Health-Tech Engineering — Cloud SaaS & ERP development (Soli Medical & ICU-Sync)"
           }
         },
         {
           "value": "03",
           "label": {
-            "ar": "أتمتة التواصل — بوت تليجرام وربط واتساب المباشر للمرضى",
-            "en": "Patient Automation — Telegram Booking Bot & WhatsApp Workflows"
+            "ar": "التشغيل الميداني والأتمتة — تدريب الفرق الطبية وربط الحجز الآلي عبر تليجرام وواتساب",
+            "en": "Field Deployment & Automation — Staff onboarding and Telegram/WhatsApp patient flows"
           }
         }
       ],
@@ -279,67 +279,47 @@
       "skills": [
         {
           "category": {
-            "ar": "هندسة الواجهات والتجربة البصرية",
-            "en": "Frontend Architecture & UX"
+            "ar": "الخبرات الطبية وجودة الرعاية الصحية",
+            "en": "Clinical Care & Healthcare Quality"
           },
           "items": [
-            "React 19",
-            "Next.js App Router",
-            "TypeScript",
-            "Tailwind CSS",
-            "Framer Motion",
-            "RTL/LTR Bilingual Systems"
+            "Critical Care & ICU Workflows",
+            "Healthcare Quality Standards (GAHAR / JCI)",
+            "Patient Safety & Risk Management",
+            "Infection Control Protocols",
+            "Clinical Audit &KPI Dashboards",
+            "Outpatient & Polyclinic Operations"
           ]
         },
         {
           "category": {
-            "ar": "قواعد البيانات والخدمات السحابية",
-            "en": "Cloud Backend & Security"
+            "ar": "هندسة البرمجيات وتطوير الويب",
+            "en": "Full-Stack Software Engineering"
           },
           "items": [
-            "Firebase Authentication",
-            "Cloud Firestore",
-            "Zero-Trust Security Rules",
-            "Cloudinary Signed CDN",
-            "Node.js / Express",
-            "REST APIs"
+            "React 19 & Next.js",
+            "TypeScript & JavaScript (ES2024)",
+            "Tailwind CSS & Responsive RTL/LTR UI",
+            "Node.js & Express APIs",
+            "Cloud Firestore & Firebase Auth",
+            "Zero-Trust Security Rules & RBAC"
           ]
         },
         {
           "category": {
-            "ar": "الأنظمة الطبية والتشغيلية",
-            "en": "Healthcare Domain & Automation"
+            "ar": "الأنظمة الطبية والأتمتة الرقمية",
+            "en": "Medical Systems & Patient Automation"
           },
           "items": [
-            "Clinic Reception & Queue Flow",
-            "E-Prescription & Patient Files",
-            "Medical Complex Treasury & Accounting",
+            "Electronic Medical Records (Cloud EMR)",
+            "Clinic Treasury & Shift Accounting",
+            "Medical Inventory & Pharmacy Stock",
             "Telegram Bot API (@SoliMedicalproBot)",
-            "WhatsApp Business Workflows",
-            "Technical SEO & Schema.org"
+            "WhatsApp Business Consultation Flows",
+            "Technical SEO & Medical Schema.org"
           ]
         }
       ],
-      "heroImage": "/assets/aistudio/1770146906397_16665dd0.png",
-      "standaloneByDefault": false,
-      "published": true,
-      "order": 2,
-      "seo": {
-        "title": {
-          "ar": "من أنا | أحمد سليمان — مطوّر أنظمة العيادات الطبية والبرمجيات الصحية",
-          "en": "About Ahmed Soliman — Healthcare Systems Architect & Developer"
-        },
-        "description": {
-          "ar": "تعرف على المسيرة المهنية للمهندس أحمد سليمان في تطوير وتشغيل أنظمة إدارة العيادات وبرمجيات المجمعات الطبية الخيرية في مصر.",
-          "en": "Learn about Ahmed Soliman’s background in developing and operating clinic management systems and charitable medical complex software in Egypt."
-        },
-        "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
-        "canonicalSlug": "/about",
-        "noindex": false,
-        "structuredDataType": "Person"
-      },
-      "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-13T08:26:02.176Z",
       "qualifications": [
         {
           "degree": {
@@ -438,27 +418,25 @@
           "Technical Writing & Health-Tech Knowledge Sharing"
         ]
       },
-      "pageType": "core",
-      "isCore": true,
-      "layoutVariant": "editorial",
-      "blocks": [],
-      "additionalImages": [],
-      "ctaLabel": {
-        "ar": "",
-        "en": ""
+      "heroImage": "/assets/aistudio/1770146906397_16665dd0.png",
+      "standaloneByDefault": false,
+      "published": true,
+      "order": 2,
+      "seo": {
+        "title": {
+          "ar": "من أنا | أحمد سليمان — السيرة المهنية ومطوّر الأنظمة الطبية",
+          "en": "About Ahmed Soliman — Editorial Profile & Career Timeline"
+        },
+        "description": {
+          "ar": "تعرف على المسيرة المهنية لأحمد سليمان بين التمريض وإدارة الجودة الصحية وتطوير أنظمة العيادات والمستشفيات في مصر.",
+          "en": "Explore Ahmed Soliman’s monograph, career timeline, qualifications, and philosophy at the intersection of healthcare quality and software engineering."
+        },
+        "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
+        "canonicalSlug": "/about",
+        "structuredDataType": "Person"
       },
-      "ctaHref": "",
-      "accentColor": "#F59E0B",
-      "archived": false,
-      "sectionVisibility": {
-        "heroImage": true,
-        "body": true,
-        "highlights": true,
-        "metrics": true,
-        "timeline": true,
-        "blocks": true,
-        "cta": true
-      }
+      "createdAt": "2026-11-11T12:00:00.000Z",
+      "updatedAt": "2026-11-11T12:00:00.000Z"
     },
     {
       "id": "projects",
@@ -662,20 +640,28 @@
       "id": "soli-medical-single-clinic",
       "slug": "soli-medical-clinic-system",
       "title": {
-        "ar": "نظام Soli Medical — إدارة عيادة الطبيب الواحد",
-        "en": "Soli Medical — Single Physician Clinic Management System"
+        "ar": "منظومة Soli Medical — نظام إدارة العيادات والمجمعات الطبية المتكامل",
+        "en": "Soli Medical — Integrated Clinic & Medical Complex Management Suite"
       },
       "kicker": {
-        "ar": "01 · للطبيب الفرد والعيادات التخصصية",
-        "en": "01 · For Solo Physicians & Specialized Clinics"
+        "ar": "01 · المنظومة الطبية الرئيسية (عيادة فردية + مجمعات طبية)",
+        "en": "01 · Flagship Medical SaaS (Solo Clinics + Polyclinics)"
       },
       "summary": {
-        "ar": "يبدأ يوم العيادة من تسجيل المريض إلى الكشف والروشتة والفاتورة والمتابعة. النظام مبني ليكون واضحاً للطبيب والاستقبال بدون تعقيدات لا تحتاجها.",
-        "en": "Covers the entire clinic day from patient check-in to examination, prescription, billing, and follow-up—engineered for clarity across reception and doctor screens."
+        "ar": "الجيل الجديد من إدارة العيادات والمراكز الطبية: نظام سحابي يجمع الحجز الذكي، السجل الطبي الإلكتروني (Cloud EMR)، الإدارة المالية، وأتمتة التواصل عبر واتساب وبوت تليجرام.",
+        "en": "Next-generation cloud healthcare management uniting smart booking, Cloud EMR, e-prescriptions, financial accounting, and Telegram/WhatsApp patient automation."
       },
       "description": {
-        "ar": "صُمم نظام Soli Medical لعيادة الطبيب الواحد ليعالج التحدي اليومي الأهم في العيادات الخاصة: تنظيم حركة المرضى بين الاستقبال وغرفة الكشف بسرعة ودقة دون إرباك الطبيب بقوائم معقدة. يجمع النظام ملف المريض، التاريخ العلاجي، الزيارات السابقة، طباعة الروشتة، وحسابات الخزينة اليومية في سياق عملي واحد يعمل بالعربية والإنجليزية من المتصفح أو الموبايل.",
-        "en": "Soli Medical for Single-Doctor Clinics solves the core operational challenge of private practices: synchronizing patient flow between reception and the consultation room without overwhelming the physician. It unifies patient medical history, visit notes, prescription printing, and daily treasury accounting in a responsive Arabic/English web application."
+        "ar": "صُممت منظومة Soli Medical لتقدم مسارين مصممين بدقة حسب حجم المنشأة: مسار \"عيادة الطبيب الواحد\" الذي يركز على سرعة الاستقبال والكشف والروشتة والخزينة اليومية بدون تعقيد، ومسار \"المجمعات الطبية والمستشفيات الصغيرة\" الذي يربط العيادات المتعددة والأقسام والمالية والصلاحيات في لوحة قيادة واحدة.",
+        "en": "Soli Medical provides two purpose-built operational tracks: the Single-Doctor Clinic track focused on rapid check-in, EMR, e-prescription, and daily cash balance, and the Medical Complex track connecting multi-specialty clinics, departments, RBAC permissions, and central finance."
+      },
+      "problem": {
+        "ar": "معظم العيادات والمجمعات الطبية تعاني إما من الدفاتر الورقية وتشتت ملفات المرضى وضغط مكالمات الحجز، أو من برامج محاسبية معقدة غير مصممة لبيئة الكشف الطبي السريع وتفتقر لدعم اللغة العربية الأصيل.",
+        "en": "Clinics and medical centers either struggle with fragmented paper records and overwhelmed reception phones, or face bloated legacy software that slows doctors down during consultations."
+      },
+      "solution": {
+        "ar": "بناء منصة سحابية عربية وإنجليزية (RTL/LTR) بواجهة فائقة الوضوح تربط شاشة الاستقبال بشاشة الطبيب لحظياً، مع ملف مريض إلكتروني كامل، روشتة جاهزة للطباعة، تقارير خزينة دقيقة، وبوت تليجرام وواتساب للحجز الذاتي.",
+        "en": "Engineered a fast, native RTL/LTR cloud platform synchronizing reception queues with the doctor’s consultation screen in real time, complete with Cloud EMR, printable prescriptions, financial ledgers, and automated bot booking."
       },
       "category": "medical-systems",
       "categoryLabel": {
@@ -687,33 +673,34 @@
       "videoUrl": "https://www.youtube.com/watch?v=l90OUlLJT-I",
       "youtubeId": "l90OUlLJT-I",
       "liveUrl": "https://solimedical.vercel.app/solimedical",
+      "showcaseRoute": "/solimedical",
       "whatsappInquireText": {
-        "ar": "مرحباً، أريد نظام Soli Medical لعيادة الطبيب الواحد.",
-        "en": "Hello Ahmed, I would like to inquire about the Soli Medical Single-Doctor Clinic system."
+        "ar": "مرحباً م. أحمد، أريد الاستفسار عن منظومة Soli Medical لإدارة العيادات والمجمعات الطبية.",
+        "en": "Hello Ahmed, I would like to inquire about the Soli Medical Clinic & Complex Management System."
       },
       "features": {
         "ar": [
           "إدارة المواعيد والزيارات وقائمة الانتظار اللحظية بين الاستقبال والطبيب",
-          "الملف الطبي والرحلة العلاجية والروشتة الإلكترونية في شاشة واحدة",
-          "الفواتير والخزينة اليومية ومتابعة التحصيل والمصروفات بدقة",
-          "التقارير والإحصائيات اليومية والشهرية لنشاط العيادة",
-          "يعمل من المتصفح والموبايل مع دعم كامل للغتين العربية (RTL) والإنجليزية"
+          "سجل طبي إلكتروني سحابي (Cloud EMR) والروشتة الإلكترونية في شاشة واحدة",
+          "الفواتير والخزينة اليومية وحساب نسب الأطباء والمصروفات بدقة",
+          "مسار مخصص لعيادة الطبيب الواحد ومسار متكامل للمجمعات الطبية",
+          "تكامل مباشر مع بوت تليجرام (@SoliMedicalproBot) ورسائل واتساب"
         ],
         "en": [
-          "Real-time appointments, visits, and live waiting queue between reception and doctor",
-          "Unified patient medical dossier, treatment journey, and e-prescription workspace",
-          "Daily billing, treasury ledger, revenue collection, and expense tracking",
-          "Clear operational reports and daily/monthly performance analytics",
-          "Runs seamlessly on desktop and mobile browsers with native RTL Arabic & English support"
+          "Real-time appointment scheduling and live waiting queue synchronization",
+          "Cloud Electronic Medical Records (EMR) and one-click printable e-prescriptions",
+          "Daily billing, shift treasury reconciliation, and physician revenue share ledgers",
+          "Dedicated tracks for Single-Doctor Clinics and Multi-Department Medical Complexes",
+          "Integrated Telegram booking bot (@SoliMedicalproBot) and WhatsApp notifications"
         ]
       },
       "techStack": [
-        "React",
+        "React 19",
         "TypeScript",
         "Next.js",
         "Tailwind CSS",
-        "Cloud Database",
-        "PWA Ready"
+        "Cloud Firestore",
+        "Telegram Bot API"
       ],
       "screens": [
         {
@@ -764,7 +751,7 @@
             "en": "Solo Physician or Clinic Owner"
           },
           "medicalComplex": {
-            "ar": "مدير المجمع أو مجلس الإدارة",
+            "ar": "مدير المجمع أو الإدارة",
             "en": "Complex Director or Management Board"
           }
         },
@@ -792,7 +779,7 @@
             "en": "Single clinic with a lean reception team"
           },
           "medicalComplex": {
-            "ar": "عيادات متعددة وأقسام ومعامل وصيدليات",
+            "ar": "عيادات متعددة وأقسام ووحدات مختلفة",
             "en": "Multi-specialty clinics, labs, pharmacies & cashier desks"
           }
         },
@@ -816,11 +803,11 @@
             "en": "Deployment Model"
           },
           "singleClinic": {
-            "ar": "تفعيل مباشر وتدريب سريع خلال أيام",
+            "ar": "تفعيل مباشر وتدريب سريع",
             "en": "Direct activation and rapid onboarding"
           },
           "medicalComplex": {
-            "ar": "تنفيذ مرحلي مخصص حسب الوحدات والأقسام",
+            "ar": "تنفيذ مرحلي حسب الوحدات والأقسام",
             "en": "Phased rollout tailored to each operational unit"
           }
         }
@@ -830,28 +817,19 @@
       "order": 1,
       "seo": {
         "title": {
-          "ar": "نظام Soli Medical لإدارة عيادة الطبيب الواحد | مشروعات أحمد سليمان",
-          "en": "Soli Medical Single-Doctor Clinic System | Ahmed Soliman Projects"
+          "ar": "نظام Soli Medical لإدارة العيادات والمجمعات الطبية | أحمد سليمان",
+          "en": "Soli Medical Clinic & Polyclinic Management System | Ahmed Soliman"
         },
         "description": {
-          "ar": "تعرف على نظام Soli Medical لإدارة عيادة الطبيب الواحد: المواعيد، الملف الطبي، الروشتة، والخزينة اليومية بواجهة عربية RTL واضحة.",
-          "en": "Explore the Soli Medical Single-Doctor Clinic System by Ahmed Soliman: appointments, EMR, prescriptions, and billing."
+          "ar": "تعرف على منظومة Soli Medical لإدارة عيادة الطبيب الواحد والمجمعات الطبية: المواعيد، الملف الطبي، الروشتة، والخزينة اليومية.",
+          "en": "Explore Soli Medical by Ahmed Soliman: smart clinic appointments, Cloud EMR, prescriptions, billing, and multi-clinic ERP."
         },
         "ogImage": "/assets/aistudio/logo_ae3842b8.png",
         "canonicalSlug": "/projects/soli-medical-clinic-system",
         "structuredDataType": "SoftwareApplication"
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-11T12:00:00.000Z",
-      "problem": {
-        "ar": "معظم العيادات والمجمعات الطبية تعاني إما من الدفاتر الورقية وتشتت ملفات المرضى وضغط مكالمات الحجز، أو من برامج محاسبية معقدة غير مصممة لبيئة الكشف الطبي السريع وتفتقر لدعم اللغة العربية الأصيل.",
-        "en": "Clinics and medical centers either struggle with fragmented paper records and overwhelmed reception phones, or face bloated legacy software that slows doctors down during consultations."
-      },
-      "solution": {
-        "ar": "بناء منصة سحابية عربية وإنجليزية (RTL/LTR) بواجهة فائقة الوضوح تربط شاشة الاستقبال بشاشة الطبيب لحظياً، مع ملف مريض إلكتروني كامل، روشتة جاهزة للطباعة، تقارير خزينة دقيقة، وبوت تليجرام وواتساب للحجز الذاتي.",
-        "en": "Engineered a fast, native RTL/LTR cloud platform synchronizing reception queues with the doctor’s consultation screen in real time, complete with Cloud EMR, printable prescriptions, financial ledgers, and automated bot booking."
-      },
-      "showcaseRoute": "/solimedical"
+      "updatedAt": "2026-11-11T12:00:00.000Z"
     },
     {
       "id": "icu-sync-critical-care",
@@ -946,85 +924,6 @@
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
       "updatedAt": "2026-11-11T12:00:00.000Z"
-    },
-    {
-      "id": "soli-medical-telegram-bot",
-      "slug": "clinic-telegram-booking-bot",
-      "title": {
-        "ar": "بوت تليجرام الذكي للعيادات (@SoliMedicalproBot)",
-        "en": "Automated Clinic Telegram Booking Bot (@SoliMedicalproBot)"
-      },
-      "kicker": {
-        "ar": "03 · أتمتة حجز المواعيد واستعلام المرضى",
-        "en": "03 · Patient Self-Service & Booking Automation"
-      },
-      "summary": {
-        "ar": "يتيح للمريض السؤال عن مواعيد العمل والأطباء والأسعار والحجز المباشر من تليجرام بدون الحاجة لتحميل أي تطبيق إضافي.",
-        "en": "Enables patients to check clinic schedules, doctor availability, service prices, and book appointments directly via Telegram without installing extra apps."
-      },
-      "description": {
-        "ar": "لتخفيف ضغط المكالمات الهاتفية المتكررة على موظفي الاستقبال في العيادات والمجمعات الطبية، قمت بتطوير وتشغيل بوت تليجرام تفاعلي (@SoliMedicalproBot) مرتبط بنظام العيادة. يستطيع المريض من خلاله استعراض التخصصات، معرفة مواعيد الأطباء، وتأكيد حجز موعده في ثوانٍ.",
-        "en": "To reduce repetitive phone call load on clinic reception desks, I engineered @SoliMedicalproBot—an interactive Telegram assistant connected to the clinic schedule. Patients can browse specialties, check doctor hours, and book appointments in seconds."
-      },
-      "category": "automation-bots",
-      "categoryLabel": {
-        "ar": "أتمتة التواصل والحجز",
-        "en": "Patient Booking Automation"
-      },
-      "coverImage": "/assets/aistudio/logo_ae3842b8.png",
-      "logoImage": "/assets/aistudio/logo_ae3842b8.png",
-      "liveUrl": "https://t.me/SoliMedicalproBot",
-      "whatsappInquireText": {
-        "ar": "مرحباً، أريد ربط بوت تليجرام لحجز المواعيد بعيادتي.",
-        "en": "Hello Ahmed, I want to integrate the Telegram appointment booking bot with my clinic."
-      },
-      "features": {
-        "ar": [
-          "حجز مواعيد فوري من تليجرام بدون تحميل تطبيق خاص",
-          "الرد التلقائي على استفسارات المواعيد والتخصصات والأسعار على مدار الساعة",
-          "تقليل ضغط المكالمات على مكتب الاستقبال وتنظيم بيانات الحجز",
-          "واجهة محادثة عربية سهلة وواضحة لجميع فئات المرضى"
-        ],
-        "en": [
-          "Instant appointment booking inside Telegram with zero app installation required",
-          "24/7 automated responses for clinic working hours, specialties, and consultation fees",
-          "Reduces reception phone bottlenecks and structures patient booking data cleanly",
-          "Intuitive Arabic conversational interface accessible to all patient demographics"
-        ]
-      },
-      "techStack": [
-        "Telegram Bot API",
-        "Node.js",
-        "Webhook Automation",
-        "Clinic Schedule Sync"
-      ],
-      "screens": [],
-      "featured": true,
-      "published": true,
-      "order": 3,
-      "seo": {
-        "title": {
-          "ar": "بوت تليجرام لحجز مواعيد العيادات @SoliMedicalproBot | أحمد سليمان",
-          "en": "Clinic Telegram Booking Bot @SoliMedicalproBot | Ahmed Soliman"
-        },
-        "description": {
-          "ar": "احجز موعدك واستعلم عن خدمات العيادة مباشرة عبر بوت تليجرام @SoliMedicalproBot من تطوير أحمد سليمان.",
-          "en": "Automated patient inquiry and appointment booking via Telegram bot @SoliMedicalproBot developed by Ahmed Soliman."
-        },
-        "ogImage": "/assets/aistudio/logo_ae3842b8.png",
-        "canonicalSlug": "/projects/clinic-telegram-booking-bot",
-        "structuredDataType": "SoftwareApplication"
-      },
-      "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-11T12:00:00.000Z",
-      "problem": {
-        "ar": "انشغال خط الهاتف في العيادات والمراكز الطبية بالأسئلة المتكررة عن مواعيد الأطباء وسعر الكشف والعنوان، مما يضيع حجوزات حقيقية.",
-        "en": "Clinic phone lines are constantly tied up with repetitive questions about doctor schedules, consultation fees, and location addresses."
-      },
-      "solution": {
-        "ar": "بوت محادثة آلي على تليجرام يعمل 24/7 للرد الفوري على استفسارات المرضى وتسجيل الحجوزات مباشرة في جدول العيادة.",
-        "en": "Deployed a 24/7 conversational Telegram bot that answers patient inquiries instantly and logs confirmed bookings directly into the clinic queue."
-      }
     },
     {
       "id": "mitali-hospital-erp",
@@ -1318,6 +1217,85 @@
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
       "updatedAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "soli-medical-telegram-bot",
+      "slug": "clinic-telegram-booking-bot",
+      "title": {
+        "ar": "بوت تليجرام الذكي للعيادات (@SoliMedicalproBot)",
+        "en": "Automated Clinic Telegram Booking Bot (@SoliMedicalproBot)"
+      },
+      "kicker": {
+        "ar": "06 · أتمتة حجز المواعيد واستعلام المرضى",
+        "en": "06 · Patient Self-Service & Booking Automation"
+      },
+      "summary": {
+        "ar": "يتيح للمريض السؤال عن مواعيد العمل والأطباء والأسعار والحجز المباشر من تليجرام بدون الحاجة لتحميل أي تطبيق إضافي.",
+        "en": "Enables patients to check clinic schedules, doctor availability, service prices, and book appointments directly via Telegram without installing extra apps."
+      },
+      "description": {
+        "ar": "لتخفيف ضغط المكالمات الهاتفية المتكررة على موظفي الاستقبال في العيادات والمجمعات الطبية، قمت بتطوير وتشغيل بوت تليجرام تفاعلي (@SoliMedicalproBot) مرتبط بنظام العيادة. يستطيع المريض من خلاله استعراض التخصصات، معرفة مواعيد الأطباء، وتأكيد حجز موعده في ثوانٍ.",
+        "en": "To reduce repetitive phone call load on clinic reception desks, I engineered @SoliMedicalproBot—an interactive Telegram assistant connected to the clinic schedule. Patients can browse specialties, check doctor hours, and book appointments in seconds."
+      },
+      "problem": {
+        "ar": "انشغال خط الهاتف في العيادات والمراكز الطبية بالأسئلة المتكررة عن مواعيد الأطباء وسعر الكشف والعنوان، مما يضيع حجوزات حقيقية.",
+        "en": "Clinic phone lines are constantly tied up with repetitive questions about doctor schedules, consultation fees, and location addresses."
+      },
+      "solution": {
+        "ar": "بوت محادثة آلي على تليجرام يعمل 24/7 للرد الفوري على استفسارات المرضى وتسجيل الحجوزات مباشرة في جدول العيادة.",
+        "en": "Deployed a 24/7 conversational Telegram bot that answers patient inquiries instantly and logs confirmed bookings directly into the clinic queue."
+      },
+      "category": "automation-bots",
+      "categoryLabel": {
+        "ar": "أتمتة التواصل والحجز",
+        "en": "Patient Booking Automation"
+      },
+      "coverImage": "/assets/solimedical/booking.svg",
+      "logoImage": "/assets/aistudio/logo_ae3842b8.png",
+      "liveUrl": "https://t.me/SoliMedicalproBot",
+      "whatsappInquireText": {
+        "ar": "مرحباً م. أحمد، أريد ربط بوت تليجرام لحجز المواعيد بعيادتي.",
+        "en": "Hello Ahmed, I want to integrate the Telegram appointment booking bot with my clinic."
+      },
+      "features": {
+        "ar": [
+          "حجز مواعيد فوري من تليجرام بدون تحميل تطبيق خاص",
+          "الرد التلقائي على استفسارات المواعيد والتخصصات والأسعار على مدار الساعة",
+          "تقليل ضغط المكالمات على مكتب الاستقبال وتنظيم بيانات الحجز",
+          "واجهة محادثة عربية سهلة وواضحة لجميع فئات المرضى"
+        ],
+        "en": [
+          "Instant appointment booking inside Telegram with zero app installation required",
+          "24/7 automated responses for clinic working hours, specialties, and consultation fees",
+          "Reduces reception phone bottlenecks and structures patient booking data cleanly",
+          "Intuitive Arabic conversational interface accessible to all patient demographics"
+        ]
+      },
+      "techStack": [
+        "Telegram Bot API",
+        "Node.js",
+        "Webhook Automation",
+        "Clinic Schedule Sync"
+      ],
+      "screens": [],
+      "featured": false,
+      "published": true,
+      "order": 6,
+      "seo": {
+        "title": {
+          "ar": "بوت تليجرام لحجز مواعيد العيادات @SoliMedicalproBot | أحمد سليمان",
+          "en": "Clinic Telegram Booking Bot @SoliMedicalproBot | Ahmed Soliman"
+        },
+        "description": {
+          "ar": "احجز موعدك واستعلم عن خدمات العيادة مباشرة عبر بوت تليجرام @SoliMedicalproBot من تطوير أحمد سليمان.",
+          "en": "Automated patient inquiry and appointment booking via Telegram bot @SoliMedicalproBot developed by Ahmed Soliman."
+        },
+        "ogImage": "/assets/aistudio/logo_ae3842b8.png",
+        "canonicalSlug": "/projects/clinic-telegram-booking-bot",
+        "structuredDataType": "SoftwareApplication"
+      },
+      "createdAt": "2026-11-11T12:00:00.000Z",
+      "updatedAt": "2026-11-11T12:00:00.000Z"
     }
   ],
   "clinics": [
@@ -1342,17 +1320,23 @@
       },
       "coverImage": "/src/assets/images/clinic_interior_reception_1794472515936.jpg",
       "logoUrl": "/assets/aistudio/logo_ae3842b8.png",
+      "themeColor": "#0D9488",
+      "galleryImages": [
+        "/src/assets/images/clinic_interior_reception_1794472515936.jpg",
+        "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg"
+      ],
       "phone": "",
       "whatsapp": "https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%AD%D8%AC%D8%B2%20%D9%85%D9%88%D8%B9%D8%AF%20%D9%81%D9%8A%20%D9%85%D8%AC%D9%85%D8%B9%20%D8%A7%D9%84%D9%86%D9%88%D8%B1%20%D8%A7%D9%84%D8%B7%D8%A8%D9%8A.",
       "telegramUrl": "https://t.me/SoliMedicalproBot",
       "address": {
-        "ar": "شارع التحرير الرئيسي، بجوار محطة المترو، القاهرة، مصر",
-        "en": "Main Tahrir Street, Next to Metro Station, Cairo, Egypt"
+        "ar": "شارع التحرير الرئيسي، بجوار محطة المترو، الدقي، القاهرة، مصر",
+        "en": "Main Tahrir Street, Next to Dokki Metro Station, Cairo, Egypt"
       },
       "city": {
         "ar": "القاهرة",
         "en": "Cairo"
       },
+      "mapEmbedUrl": "https://www.google.com/maps?q=30.0385,31.2122&z=15&output=embed",
       "workingHours": [
         {
           "days": {
@@ -1414,18 +1398,12 @@
           "ar": "احجز موعدك في مجمع النور الطبي التخصصي: تعرف على جدول الأطباء، أسعار الكشف والخدمات الطبية، ومواعيد العمل اليومية.",
           "en": "Book your appointment at Al-Noor Specialized Medical Complex: view consultant doctors, transparent service pricing, and working hours."
         },
-        "ogImage": "/assets/aistudio/logo_ae3842b8.png",
+        "ogImage": "/src/assets/images/clinic_interior_reception_1794472515936.jpg",
         "canonicalSlug": "/clinics/al-noor-medical-complex",
         "structuredDataType": "MedicalClinic"
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-11T12:00:00.000Z",
-      "themeColor": "#0D9488",
-      "galleryImages": [
-        "/src/assets/images/clinic_interior_reception_1794472515936.jpg",
-        "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg"
-      ],
-      "mapEmbedUrl": "https://www.google.com/maps?q=30.0385,31.2122&z=15&output=embed"
+      "updatedAt": "2026-11-11T12:00:00.000Z"
     },
     {
       "id": "soli-dental-and-care-center",
@@ -1443,22 +1421,28 @@
         "en": "Precision diagnostics, structured clinical follow-up, and instant online appointment booking."
       },
       "description": {
-        "ar": "تمثل عيادة دار الشفاء نموذجاً عملياً لصفحات الهبوط الطبية المستقلة (Standalone Medical Landing Page) التي يصممها ويربطها المهندس أحمد سليمان للعيادات الفردية والمراكز الطبية لعرض الأطباء والخدمات والأسعار واستقبال الحجوزات مباشرة بدون أي تشتيت.",
-        "en": "Dar Al-Shifa Clinic exemplifies a high-conversion Standalone Medical Landing Page engineered by Ahmed Soliman for individual clinics—displaying physician credentials, transparent service fees, working hours, and direct booking."
+        "ar": "تمثل عيادة دار الشفاء نموذجاً عملياً لصفحات الهبوط الطبية المستقلة (Standalone Medical Landing Page) التي يصممها ويربطها أحمد سليمان للعيادات الفردية والمراكز الطبية لعرض الأطباء والخدمات والأسعار واستقبال الحجوزات مباشرة بهوية لونية مخصصة للعيادة بدون أي تشتيت.",
+        "en": "Dar Al-Shifa Clinic exemplifies a high-conversion Standalone Medical Landing Page engineered by Ahmed Soliman for individual clinics—displaying physician credentials, transparent service fees, working hours, map location, and direct booking with a custom clinic color identity."
       },
       "coverImage": "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg",
       "logoUrl": "/assets/aistudio/logo_ae3842b8.png",
+      "themeColor": "#2563EB",
+      "galleryImages": [
+        "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg",
+        "/src/assets/images/clinic_interior_reception_1794472515936.jpg"
+      ],
       "phone": "",
       "whatsapp": "https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A7%D9%84%D8%AD%D8%AC%D8%B2%20%D9%81%D9%8A%20%D8%B9%D9%8A%D8%A7%D8%AF%D8%A9%20%D8%AF%D8%A7%D8%B1%20%D8%A7%D9%84%D8%B4%D9%81%D8%A7%D8%A1.",
       "telegramUrl": "https://t.me/SoliMedicalproBot",
       "address": {
-        "ar": "المهندسين، الجيزة، مصر",
-        "en": "Mohandessin, Giza, Egypt"
+        "ar": "شارع جامعة الدول العربية، المهندسين، الجيزة، مصر",
+        "en": "Gameat El-Dewal El-Arabia St., Mohandessin, Giza, Egypt"
       },
       "city": {
         "ar": "الجيزة",
         "en": "Giza"
       },
+      "mapEmbedUrl": "https://www.google.com/maps?q=30.0511,31.2001&z=15&output=embed",
       "workingHours": [
         {
           "days": {
@@ -1485,14 +1469,14 @@
       ],
       "highlights": {
         "ar": [
-          "إمكانية مشاركة الرابط كصفحة هبوط مستقلة تماماً للعيادة",
-          "عرض واضح لتخصص الطبيب ومؤهلاته ومواعيد تواجده",
-          "قائمة خدمات وأسعار محدثة لحظياً من لوحة التحكم"
+          "إمكانية مشاركة الرابط كصفحة هبوط مستقلة تماماً للعيادة بدون أي روابط خارجية",
+          "هوية لونية مخصصة للعيادة مع عرض واضح لتخصص الطبيب ومؤهلاته ومواعيد تواجده",
+          "قائمة خدمات وأسعار محدثة لحظياً من لوحة التحكم مع حجز مباشر عبر واتساب"
         ],
         "en": [
-          "Shareable as a 100% standalone clinic campaign landing page",
-          "Clear presentation of physician qualifications and clinic hours",
-          "Real-time service and fee catalog managed via the Admin CMS"
+          "Shareable as a 100% isolated standalone clinic landing page",
+          "Custom clinic accent color with clear physician qualifications and clinic hours",
+          "Real-time service and fee catalog managed via the Admin CMS with instant booking"
         ]
       },
       "standaloneByDefault": false,
@@ -1507,18 +1491,12 @@
           "ar": "صفحة الهبوط الرسمية لعيادة دار الشفاء التخصصية: استعرض الأطباء، الخدمات الطبية، الأسعار، واحجز موعدك مباشرة.",
           "en": "Official landing page for Dar Al-Shifa Specialized Clinic: view doctors, medical services, pricing, and book online."
         },
-        "ogImage": "/assets/aistudio/logo_ae3842b8.png",
+        "ogImage": "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg",
         "canonicalSlug": "/clinics/soli-specialized-clinic",
         "structuredDataType": "MedicalClinic"
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-11T12:00:00.000Z",
-      "themeColor": "#2563EB",
-      "galleryImages": [
-        "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg",
-        "/src/assets/images/clinic_interior_reception_1794472515936.jpg"
-      ],
-      "mapEmbedUrl": "https://www.google.com/maps?q=30.0511,31.2001&z=15&output=embed"
+      "updatedAt": "2026-11-11T12:00:00.000Z"
     }
   ],
   "doctors": [
@@ -1844,7 +1822,7 @@
         "Patient Conversion",
         "Healthcare UX"
       ],
-      "coverImage": "/assets/aistudio/1770146906397_16665dd0.png",
+      "coverImage": "/src/assets/images/clinic_interior_reception_1794472515936.jpg",
       "readingTimeMinutes": 3,
       "authorName": {
         "ar": "أحمد سليمان",
@@ -1862,7 +1840,7 @@
           "ar": "كيف تساعد صفحات الهبوط المستقلة وبوتات الحجز عبر تليجرام وواتساب في زيادة حجوزات العيادات والمراكز الطبية.",
           "en": "How standalone clinic landing pages and automated Telegram/WhatsApp flows increase patient bookings."
         },
-        "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
+        "ogImage": "/src/assets/images/clinic_interior_reception_1794472515936.jpg",
         "canonicalSlug": "/blog/why-clinics-need-standalone-landing-pages",
         "structuredDataType": "BlogPosting"
       },

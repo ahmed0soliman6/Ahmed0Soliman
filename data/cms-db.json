@@ -17,16 +17,16 @@
       "en": "Ahmed Soliman"
     },
     "tagline": {
-      "ar": "مطوّر أنظمة العيادات الطبية والبرمجيات الصحية",
-      "en": "Healthcare Systems Architect & Full-Stack Engineer"
+      "ar": "أخصائي التمريض وجودة الرعاية الصحية ومطوّر الأنظمة الطبية الرقمية",
+      "en": "Healthcare Quality Specialist & Medical Systems Architect"
     },
     "ownerName": {
       "ar": "أحمد سليمان",
       "en": "Ahmed Soliman"
     },
     "ownerRole": {
-      "ar": "مطوّر ومشغّل أنظمة العيادات والمجمعات الطبية",
-      "en": "Medical Clinic & Healthcare Complex Systems Developer"
+      "ar": "مطوّر أنظمة العيادات والمستشفيات وأخصائي جودة الرعاية الصحية",
+      "en": "Medical Systems Developer & Healthcare Quality Specialist"
     },
     "avatarUrl": "/assets/aistudio/1770146906397_16665dd0.png",
     "primaryColor": "#00C2CB",
@@ -41,25 +41,25 @@
     "linkedinUrl": "",
     "contactEmail": "ahmed0soliman6@gmail.com",
     "location": {
-      "ar": "مصر — تطوير وتشغيل الأنظمة الطبية الرقمية",
-      "en": "Egypt — Healthcare Software Engineering & Operations"
+      "ar": "مصر — تطوير وتشغيل الأنظمة الطبية وجودة الرعاية الصحية",
+      "en": "Egypt — Healthcare Software Engineering & Clinical Quality"
     },
     "published": true,
     "seo": {
       "title": {
-        "ar": "أحمد سليمان | مطوّر أنظمة العيادات والبرمجيات الصحية – Ahmed Soliman",
-        "en": "Ahmed Soliman | Healthcare Systems Architect & Digital Platform"
+        "ar": "أحمد سليمان | المنصة الرقمية الشخصية ومطوّر الأنظمة الطبية – Ahmed Soliman",
+        "en": "Ahmed Soliman | Personal Digital Platform & Medical Systems Architect"
       },
       "description": {
-        "ar": "المنصة الرقمية الرسمية للمهندس أحمد سليمان: تطوير وإدارة أنظمة العيادات والمجمعات الطبية الخيرية والخاصة في مصر، صفحات الهبوط الطبية، والمقالات التقنية.",
-        "en": "Official digital platform of Ahmed Soliman: developing and operating clinic management systems, charitable medical complex software, and custom healthcare landing pages."
+        "ar": "المنصة الرقمية الرسمية لأحمد سليمان: أخصائي التمريض وجودة الرعاية الصحية ومطوّر أنظمة العيادات والمستشفيات (Soli Medical، ICU-Sync، Mitali Hospital).",
+        "en": "Official personal platform of Ahmed Soliman: Healthcare Quality Specialist & Architect of Soli Medical, ICU-Sync, Mitali Hospital, and standalone clinic portals."
       },
       "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
       "canonicalSlug": "/",
       "structuredDataType": "Person"
     },
-    "updatedAt": "2026-11-11T12:00:00.000Z",
-    "hideVisitorHeaderNav": true
+    "updatedAt": "2026-11-13T15:17:51.288Z",
+    "hideVisitorHeaderNav": false
   },
   "pages": [
     {
@@ -501,7 +501,7 @@
       "skills": [],
       "heroImage": "/assets/aistudio/logo_ae3842b8.png",
       "standaloneByDefault": false,
-      "published": true,
+      "published": false,
       "order": 3,
       "seo": {
         "title": {
@@ -516,7 +516,10 @@
         "structuredDataType": "WebSite"
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-11T12:00:00.000Z"
+      "updatedAt": "2026-11-13T15:17:51.143Z",
+      "isCore": true,
+      "pageType": "core",
+      "archived": false
     },
     {
       "id": "solimedical",
@@ -599,7 +602,7 @@
       "skills": [],
       "heroImage": "/assets/aistudio/logo_ae3842b8.png",
       "standaloneByDefault": false,
-      "published": true,
+      "published": false,
       "order": 5,
       "seo": {
         "title": {
@@ -614,7 +617,10 @@
         "structuredDataType": "MedicalClinic"
       },
       "createdAt": "2026-11-11T12:00:00.000Z",
-      "updatedAt": "2026-11-11T12:00:00.000Z"
+      "updatedAt": "2026-11-13T15:17:51.156Z",
+      "isCore": true,
+      "pageType": "core",
+      "archived": false
     },
     {
       "id": "blog",
