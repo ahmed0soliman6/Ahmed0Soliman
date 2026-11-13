@@ -637,6 +637,27 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       {/* Render the active page's custom header */}
       {renderWorldHeader()}
 
+      {/* Visitor Language Switcher on Individual / Standalone Pages (No multi-page header or admin links) */}
+      {!isAdminRoute && !adminSession && pageWorld !== 'home-avoshu' && (
+        <div className="fixed top-4 end-4 z-40">
+          <button
+            type="button"
+            onClick={handleToggleLocale}
+            aria-label={locale === 'ar' ? 'Switch language to English' : 'تبديل اللغة إلى العربية'}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold backdrop-blur-md border transition-all cursor-pointer active:scale-95 ${
+              pageWorld === 'about-editorial' ||
+              pageWorld === 'clinics-teal' ||
+              pageWorld === 'blog-magazine'
+                ? 'bg-white/95 text-zinc-900 border-zinc-300/90 hover:border-zinc-900 shadow-sm'
+                : 'bg-[#07131B]/90 text-slate-100 border-[#00D4FF]/35 hover:border-[#00D4FF] shadow-[0_4px_18px_rgba(0,0,0,0.35)]'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span className="whitespace-nowrap">{locale === 'ar' ? 'EN' : 'عربي'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Mobile Navigation Drawer */}
       {!isAdminRoute && !isStandalone && mobileMenuOpen && (
         <div className="md:hidden bg-slate-950 text-white border-b border-slate-800 px-4 py-4 space-y-2 z-40">

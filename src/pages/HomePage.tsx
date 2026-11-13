@@ -6,13 +6,16 @@ import { OptimizedImage } from '../components/common/OptimizedImage';
 import {
   Sun,
   Moon,
-  ArrowDown,
   ArrowUpRight,
-  Link2,
   MessageCircle,
   Send,
   ShieldCheck,
-  LayoutDashboard,
+  FolderKanban,
+  User,
+  Building2,
+  BookOpen,
+  Wrench,
+  ArrowDown,
 } from 'lucide-react';
 
 type StudioDockTab = 'projects' | 'about' | 'clinics' | 'blog' | 'skills';
@@ -25,9 +28,12 @@ export const HomePage: React.FC = () => {
   const { locale, setLocale, theme, toggleTheme, navigate, db, adminSession } = usePlatform();
 
   const homePage =
-    db.pages.find((p) => p.slug === 'home' || p.id === 'page-home') || db.pages[0];
+    db.pages.find((p) => p.slug === 'home' || p.id === 'page-home' || p.id === 'home') ||
+    db.pages[0];
   const aboutPage =
-    db.pages.find((p) => p.slug === 'about' || p.id === 'page-about') || db.pages[1] || db.pages[0];
+    db.pages.find((p) => p.slug === 'about' || p.id === 'page-about' || p.id === 'about') ||
+    db.pages[1] ||
+    db.pages[0];
   const settings = db.siteSettings;
 
   const isPageVisible = (slugId: string) => {
@@ -37,7 +43,6 @@ export const HomePage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<StudioDockTab>('projects');
   const [whatsAppQuickMsg, setWhatsAppQuickMsg] = useState('');
-  const [previewWeight, setPreviewWeight] = useState<number>(700);
 
   const publishedProjects = db.projects
     .filter((p) => p.published)
@@ -51,7 +56,7 @@ export const HomePage: React.FC = () => {
 
   const isLight = theme === 'light';
 
-  // Neumorphic surface palette tokens matching linestudio.art Light & Dark modes
+  // Preserved Neumorphic Console Surface Tokens (Light & Dark gray palettes + Turquoise accent)
   const neu = {
     pageBg: isLight ? 'bg-[#E2E4E9] text-[#1D1F23]' : 'bg-[#2C3135] text-[#F1F3F5]',
     boardShell: isLight
@@ -66,28 +71,40 @@ export const HomePage: React.FC = () => {
     raisedPillBtn: isLight
       ? 'bg-[#ECEEF2] text-[#1D1F23] border border-white/90 shadow-[5px_5px_12px_#C5C8CF,-4px_-4px_10px_#FFFFFF] hover:shadow-[inset_3px_3px_6px_#C5C8CF,inset_-3px_-3px_6px_#FFFFFF]'
       : 'bg-[#26292C] text-[#F1F3F5] border border-white/10 shadow-[5px_5px_12px_#17191B,-4px_-4px_10px_#33373B] hover:shadow-[inset_3px_3px_6px_#17191B,inset_-3px_-3px_6px_#33373B]',
-    activeDockCircle: isLight
-      ? 'bg-[#E1E3E8] text-[#1D1F23] font-black shadow-[inset_4px_4px_8px_#C3C6CD,inset_-4px_-4px_8px_#FFFFFF]'
-      : 'bg-[#1D2022] text-white font-black shadow-[inset_4px_4px_8px_#131517,inset_-4px_-4px_8px_#2B2F33]',
-    mutedText: isLight ? 'text-[#777B84]' : 'text-[#8E949B]',
-    subText: isLight ? 'text-[#52565E]' : 'text-[#B4BAC0]',
+    activeDockTab: isLight
+      ? 'bg-[#ECEEF2] text-[#008C94] border border-[#00C2CB]/45 shadow-[6px_6px_14px_#C3C6CD,-4px_-4px_10px_#FFFFFF]'
+      : 'bg-[#2A2E32] text-[#00C2CB] border border-[#00C2CB]/45 shadow-[6px_6px_14px_#141618,-4px_-4px_10px_#35393E]',
+    inactiveDockTab: isLight
+      ? 'text-[#52565E] hover:text-[#1D1F23] border border-transparent'
+      : 'text-[#B4BAC0] hover:text-white border border-transparent',
+    mutedText: isLight ? 'text-[#6A6F78]' : 'text-[#8E949B]',
+    subText: isLight ? 'text-[#4C515A]' : 'text-[#B8BEC5]',
+    divider: isLight ? 'border-black/6' : 'border-white/6',
   };
 
-  // Automatically filter out any section that was hidden by the Admin in /admin/pages
+  // Preserved 5 Interactive Dock tabs (filtered dynamically by page visibility)
   const allDockItems: {
     id: StudioDockTab;
     pageSlug: string;
     labelAr: string;
     labelEn: string;
+    icon: React.FC<{ className?: string }>;
   }[] = [
-    { id: 'projects', pageSlug: 'projects', labelAr: 'مشروعاتي', labelEn: 'Projects' },
-    { id: 'about', pageSlug: 'about', labelAr: 'من أنا', labelEn: 'About' },
-    { id: 'clinics', pageSlug: 'clinics', labelAr: 'العيادات', labelEn: 'Clinics' },
-    { id: 'blog', pageSlug: 'blog', labelAr: 'المقالات', labelEn: 'Articles' },
-    { id: 'skills', pageSlug: 'about', labelAr: 'أدواتي', labelEn: 'Skills' },
+    { id: 'projects', pageSlug: 'projects', labelAr: 'المشروعات', labelEn: 'Projects', icon: FolderKanban },
+    { id: 'about', pageSlug: 'about', labelAr: 'من أنا', labelEn: 'About', icon: User },
+    { id: 'clinics', pageSlug: 'clinics', labelAr: 'العيادات', labelEn: 'Clinics', icon: Building2 },
+    { id: 'blog', pageSlug: 'blog', labelAr: 'المقالات', labelEn: 'Articles', icon: BookOpen },
+    { id: 'skills', pageSlug: 'about', labelAr: 'المهارات', labelEn: 'Skills', icon: Wrench },
   ];
 
   const dockItems = allDockItems.filter((item) => isPageVisible(item.pageSlug));
+
+  const headerNavLinks = [
+    { id: 'about', labelAr: 'من أنا', labelEn: 'About', href: `/${locale}/about` },
+    { id: 'projects', labelAr: 'المشروعات', labelEn: 'Projects', href: `/${locale}/projects` },
+    { id: 'clinics', labelAr: 'العيادات', labelEn: 'Clinics', href: `/${locale}/clinics` },
+    { id: 'blog', labelAr: 'المقالات', labelEn: 'Articles', href: `/${locale}/blog` },
+  ].filter((item) => isPageVisible(item.id));
 
   const handleOpenAdmin = () => {
     if (adminSession) {
@@ -97,65 +114,85 @@ export const HomePage: React.FC = () => {
     }
   };
 
+  const handleJumpToProjects = () => {
+    setActiveTab('projects');
+    const el = document.getElementById('studio-dock-stage');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const handleWhatsAppSend = (e: React.FormEvent) => {
     e.preventDefault();
     const text =
       whatsAppQuickMsg.trim() ||
       (locale === 'ar'
-        ? 'مرحباً م. أحمد سليمان، أود الاستفسار عن الأنظمة الطبية وتطوير المشروعات.'
-        : 'Hello Ahmed Soliman, I would like to inquire about your medical software systems.');
+        ? 'مرحباً م. أحمد سليمان، أود الاستفسار عن تطوير الأنظمة الطبية وتنفيذ المشروعات.'
+        : 'Hello Ahmed Soliman, I would like to inquire about medical software systems.');
     const waUrl = `${OFFICIAL_WHATSAPP_URL}?text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const stageHeader = {
     projects: {
-      kicker: locale === 'ar' ? 'الأنظمة والبرمجيات الطبية' : 'Medical Systems & Platforms',
-      title: locale === 'ar' ? 'أنظمة تُسرّع عملك الطبي' : 'Systems That Accelerate Care',
+      kicker: locale === 'ar' ? 'أعمال أحمد سليمان البرمجية' : 'Selected Software Systems',
+      title: locale === 'ar' ? 'المشروعات والمنظومات الطبية' : 'Medical Systems & Platforms',
       sub:
         locale === 'ar'
-          ? 'تفعيل فوري، واجهة عربية وإنجليزية من البداية، وتحديثات مستمرة تناسب العيادات والمستشفيات.'
-          : 'Cloud clinical platforms, ICU telemetry, and automated patient bots built from real ICU & clinic workflows.',
+          ? 'حزمة مشروعات برمجية مصممة من واقع العمل الطبي وإدارة الجودة، ومن ضمنها منظومة Soli Medical.'
+          : 'Production healthcare platforms and clinical software engineered from real medical and quality workflows, including Soli Medical.',
+      fullPageHref: isPageVisible('projects') ? `/${locale}/projects` : null,
+      fullPageLabel: locale === 'ar' ? 'عرض جميع المشروعات' : 'All Projects',
     },
     about: {
-      kicker: locale === 'ar' ? 'السيرة المهنية والإكلينيكية' : 'Clinical & Technical Profile',
-      title: locale === 'ar' ? 'الجمع بين الطب والبرمجة' : 'Bridging ICU Care & Software',
+      kicker: locale === 'ar' ? 'الملف الشخصي والخبرة الميدانية' : 'Clinical & Technical Biography',
+      title: locale === 'ar' ? 'السيرة المهنية ومحطات الخبرة' : 'Experience & Career Milestones',
       sub:
         locale === 'ar'
-          ? 'خبرة عملية في العناية المركزة وإدارة الجودة الصحية مقترنة بهندسة الأنظمة السحابية.'
-          : 'Intensive Care leadership combined with full-stack healthcare systems engineering.',
+          ? 'الربط بين التمريض وإدارة الجودة الصحية وبين هندسة البرمجيات لتقديم حلول عملية قابلة للتشغيل.'
+          : 'Uniting critical care nursing and healthcare quality governance with full-stack software engineering.',
+      fullPageHref: isPageVisible('about') ? `/${locale}/about` : null,
+      fullPageLabel: locale === 'ar' ? 'صفحة من أنا الكاملة' : 'Full Profile',
     },
     clinics: {
-      kicker: locale === 'ar' ? 'بوابات العيادات والمراكز' : 'Standalone Clinic Portals',
-      title: locale === 'ar' ? 'صفحات هبوط مستقلة للعيادات' : 'Dedicated Clinic Landing Portals',
+      kicker: locale === 'ar' ? 'نماذج الصفحات الطبية المستقلة' : 'Standalone Clinic Portals',
+      title: locale === 'ar' ? 'العيادات والمجمعات الطبية' : 'Featured Clinics & Medical Centers',
       sub:
         locale === 'ar'
-          ? 'لكل عيادة أو مركز طبي هويته المستقلة، جدول أطبائه، وأسعار خدماته مع الحجز الفوري عبر واتساب.'
-          : 'Independent patient-facing landing pages for clinics with doctor rosters, pricing, and instant WhatsApp booking.',
+          ? 'صفحات هبوط مخصصة لكل عيادة أو مجمع طبي تعرض الأطباء والخدمات مع الحجز المباشر.'
+          : 'Dedicated clinic landing portals showcasing doctors, services, and instant patient booking.',
+      fullPageHref: isPageVisible('clinics') ? `/${locale}/clinics` : null,
+      fullPageLabel: locale === 'ar' ? 'دليل العيادات الكامل' : 'Clinics Directory',
     },
     blog: {
-      kicker: locale === 'ar' ? 'مساحة المعرفة والمقالات' : 'Knowledge & Editorial Hub',
-      title: locale === 'ar' ? 'مقالات وتجارب من أرض الواقع' : 'Clinical & Tech Insights',
+      kicker: locale === 'ar' ? 'المقالات التقنية والإكلينيكية' : 'Editorial & Technical Writing',
+      title: locale === 'ar' ? 'أحدث المقالات والشروحات' : 'Latest Insights & Articles',
       sub:
         locale === 'ar'
-          ? 'شروحات تقنية وطبية حول التحول الرقمي للعيادات، إدارة العناية المركزة، وجودة الرعاية الصحية.'
-          : 'Articles and practical guides on digital clinic transformation, ICU synchronization, and healthcare quality.',
+          ? 'رؤى عملية حول رقمنة العيادات، مزامنة وحدات العناية المركزة، ومعايير جودة الرعاية.'
+          : 'Practical guides on clinic digitalization, ICU coordination, and healthcare quality.',
+      fullPageHref: isPageVisible('blog') ? `/${locale}/blog` : null,
+      fullPageLabel: locale === 'ar' ? 'تصفح كل المقالات' : 'All Articles',
     },
     skills: {
-      kicker: locale === 'ar' ? 'المهارات والأدوات' : 'Competencies & Stack',
-      title: locale === 'ar' ? 'أدوات وتقنيات متكاملة' : 'Full-Stack & Clinical Toolkit',
+      kicker: locale === 'ar' ? 'القدرات السريرية والتقنية' : 'Core Stack & Clinical Expertise',
+      title: locale === 'ar' ? 'المهارات والأدوات المعتمدة' : 'Skills & Technical Toolkit',
       sub:
         locale === 'ar'
-          ? 'من قيادة وحدات الرعاية الحرجة إلى تطوير تطبيقات React وTypeScript وFirebase وبوتات التليجرام.'
-          : 'From high-acuity ICU leadership to React, TypeScript, Firebase, and automated medical bots.',
+          ? 'مزيج عملي يجمع معايير الجودة الإكلينيكية وتطوير تطبيقات الويب الحديثة والأتمتة.'
+          : 'A practical blend of clinical quality governance, modern web engineering, and workflow automation.',
+      fullPageHref: isPageVisible('about') ? `/${locale}/about` : null,
+      fullPageLabel: locale === 'ar' ? 'عرض السيرة الكاملة' : 'Full CV',
     },
   }[activeTab];
 
-  const badgeColors = [
-    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25',
-    'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/25',
-    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25',
-  ];
+  const heroMetrics = (homePage?.metrics || []).slice(0, 3);
+  const heroHeadline = homePage?.headline?.[locale] || settings.ownerName[locale];
+  const heroLead =
+    homePage?.subheadline?.[locale] ||
+    (locale === 'ar'
+      ? 'أخصائي تمريض وجودة رعاية صحية ومطوّر أنظمة طبية متكاملة للعيادات والمستشفيات.'
+      : 'Healthcare quality specialist and full-stack developer building practical systems for clinics and hospitals.');
 
   return (
     <LayoutResolver pageWorld="home-avoshu" adminQuickEditPath="/admin/pages">
@@ -175,140 +212,73 @@ export const HomePage: React.FC = () => {
         }}
       />
 
-      {/* =================================================================== */}
-      {/* LINESTUDIO.ART TACTILE NEUMORPHIC STUDIO WORKSPACE                   */}
-      {/* =================================================================== */}
       <div
-        className={`min-h-screen w-full flex flex-col items-center justify-center py-6 px-3 sm:px-6 lg:px-10 transition-colors duration-300 ${neu.pageBg}`}
+        className={`min-h-screen w-full overflow-x-hidden py-4 sm:py-6 lg:py-8 px-3 sm:px-6 lg:px-10 transition-colors duration-300 ${neu.pageBg}`}
       >
-        {/* Main Console Wrapper + External Right Vertical Pill Dock */}
-        <div className="w-full max-w-[1320px] flex flex-col lg:flex-row items-stretch gap-5 lg:gap-6">
+        <div className="w-full max-w-[1280px] mx-auto">
           {/* =============================================================== */}
-          {/* 1. RIGHT VERTICAL PILL DOCK (In RTL this sits on the Right)     */}
+          {/* SCULPTED NEUMORPHIC MAIN CONSOLE                                */}
           {/* =============================================================== */}
-          <aside className="order-1 lg:order-1 flex lg:flex-col items-center justify-between gap-3">
-            {/* Tall Sculpted Vertical Pill Bar */}
-            <nav
-              aria-label="Studio Sections"
-              className={`w-full lg:w-[88px] flex-1 rounded-[36px] lg:rounded-[44px] p-2.5 lg:py-5 lg:px-2.5 flex flex-row lg:flex-col items-center justify-around lg:justify-between gap-2 ${neu.boardShell}`}
+          <div
+            className={`rounded-[30px] sm:rounded-[42px] p-4 sm:p-6 lg:p-8 flex flex-col gap-6 sm:gap-7 transition-all duration-300 ${neu.boardShell}`}
+          >
+            {/* ------------------------------------------------------------- */}
+            {/* 1. COMPACT SINGLE-ROW HEADER AREA                             */}
+            {/* ------------------------------------------------------------- */}
+            <header
+              className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${neu.divider}`}
             >
-              {dockItems.map((item) => {
-                const isActive = activeTab === item.id;
-                return (
+              {/* Zone 1: Compact Brand Identity */}
+              <button
+                type="button"
+                onClick={() => navigate(`/${locale}`)}
+                className="flex items-center gap-3 text-start cursor-pointer group shrink-0"
+              >
+                <span
+                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    isLight
+                      ? 'bg-[#ECEEF2] shadow-[5px_5px_12px_#C2C5CC,-4px_-4px_10px_#FFFFFF] border-2 border-[#E2E4E9]'
+                      : 'bg-gradient-to-br from-[#6A7077] via-[#3A3E43] to-[#232629] shadow-[5px_5px_12px_#151719,-3px_-3px_10px_#3A3F45]'
+                  }`}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#00C2CB]" />
+                </span>
+                <span className="flex flex-col">
+                  <span className="text-sm sm:text-base font-black tracking-tight whitespace-nowrap">
+                    {settings.ownerName[locale]}
+                  </span>
+                  <span className={`text-[11px] font-medium whitespace-nowrap ${neu.mutedText}`}>
+                    {locale === 'ar'
+                      ? 'المنصة الشخصية والأنظمة الطبية'
+                      : 'Personal Platform & MedTech'}
+                  </span>
+                </span>
+              </button>
+
+              {/* Zone 2: Clean Single-Line Navigation Links (Desktop) */}
+              <nav
+                aria-label="Primary Pages"
+                className="hidden lg:flex items-center gap-7 text-xs sm:text-sm font-bold"
+              >
+                {headerNavLinks.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setActiveTab(item.id)}
-                    className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex flex-col items-center justify-center text-[11px] sm:text-xs transition-all cursor-pointer select-none ${
-                      isActive
-                        ? neu.activeDockCircle
-                        : `${neu.subText} hover:scale-105 font-bold`
-                    }`}
+                    onClick={() => navigate(item.href)}
+                    className={`whitespace-nowrap shrink-0 cursor-pointer transition-colors hover:text-[#00C2CB] ${neu.subText}`}
                   >
-                    <span>{locale === 'ar' ? item.labelAr : item.labelEn}</span>
+                    {locale === 'ar' ? item.labelAr : item.labelEn}
                   </button>
-                );
-              })}
+                ))}
+              </nav>
 
-              {isPageVisible('projects') && (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/${locale}/projects`)}
-                  className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex flex-col items-center justify-center text-[11px] font-bold transition-all cursor-pointer ${neu.subText} hover:scale-105`}
-                  title={locale === 'ar' ? 'فتح صفحة المشروعات الكاملة' : 'Open Projects Page'}
-                >
-                  <span>{locale === 'ar' ? 'المعرض' : 'Gallery'}</span>
-                </button>
-              )}
-
-              {/* Prominent Admin Dashboard Button in the Dock */}
-              <button
-                type="button"
-                onClick={handleOpenAdmin}
-                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex flex-col items-center justify-center gap-0.5 text-[10px] font-extrabold transition-all cursor-pointer ${neu.activeDockCircle}`}
-                title={locale === 'ar' ? 'لوحة الإدارة (/admin)' : 'Admin Dashboard (/admin)'}
-              >
-                <LayoutDashboard className="w-4 h-4 text-emerald-500" />
-                <span>{locale === 'ar' ? 'الإدارة' : 'Admin'}</span>
-              </button>
-            </nav>
-          </aside>
-
-          {/* =============================================================== */}
-          {/* 2. SCULPTED MAIN STUDIO CONSOLE BOARD (Center + Compact Card)   */}
-          {/* =============================================================== */}
-          <div
-            className={`order-2 lg:order-2 flex-1 rounded-[38px] sm:rounded-[48px] p-4 sm:p-6 lg:p-7 flex flex-col gap-5 relative transition-all duration-300 ${neu.boardShell}`}
-          >
-            {/* ------------------------------------------------------------- */}
-            {/* TOP CONSOLE BAR: Page Shortcuts + Admin Button + Theme Toggle */}
-            {/* ------------------------------------------------------------- */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Top Section Navigation Shortcuts + Prominent Admin Dashboard Button */}
-              <div className="flex flex-wrap items-center gap-2">
-                {isPageVisible('about') && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/${locale}/about`)}
-                    className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${neu.raisedPillBtn}`}
-                  >
-                    {locale === 'ar' ? 'صفحة من أنا' : 'About Page'}
-                  </button>
-                )}
-                {isPageVisible('solimedical') && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/${locale}/solimedical`)}
-                    className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${neu.raisedPillBtn}`}
-                  >
-                    Soli Medical
-                  </button>
-                )}
-                {isPageVisible('clinics') && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/${locale}/clinics`)}
-                    className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${neu.raisedPillBtn}`}
-                  >
-                    {locale === 'ar' ? 'العيادات' : 'Clinics'}
-                  </button>
-                )}
-                {isPageVisible('blog') && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/${locale}/blog`)}
-                    className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${neu.raisedPillBtn}`}
-                  >
-                    {locale === 'ar' ? 'المقالات' : 'Blog'}
-                  </button>
-                )}
-
-                {/* Prominent Admin Dashboard Button right inside the Home Page Top Bar */}
-                <button
-                  type="button"
-                  onClick={handleOpenAdmin}
-                  className={`px-4 py-2 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5 transition-all cursor-pointer ${neu.raisedPillBtn}`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>
-                    {adminSession
-                      ? locale === 'ar'
-                        ? 'لوحة الإدارة (متصل)'
-                        : 'Admin Dashboard'
-                      : locale === 'ar'
-                      ? 'لوحة الإدارة'
-                      : 'Admin CMS'}
-                  </span>
-                </button>
-              </div>
-
-              {/* Left/End cluster: Language Switch + Tactile Sun/Moon Switch + Ribbed Emblem */}
-              <div className="flex items-center gap-3 ms-auto shrink-0">
+              {/* Zone 3: Language, Theme, Direct Contact & Single Admin Control */}
+              <div className="flex items-center gap-2 sm:gap-2.5 ms-auto lg:ms-0 shrink-0">
                 <button
                   type="button"
                   onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')}
-                  className={`px-3.5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer shrink-0 ${neu.raisedPillBtn}`}
-                  title="Switch Language"
+                  className={`h-10 px-3.5 rounded-full text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap shrink-0 ${neu.raisedPillBtn}`}
+                  title={locale === 'ar' ? 'Switch to English' : 'التبديل للعربية'}
                 >
                   {locale === 'ar' ? 'EN' : 'عربي'}
                 </button>
@@ -318,7 +288,7 @@ export const HomePage: React.FC = () => {
                   type="button"
                   onClick={toggleTheme}
                   aria-label="Toggle Light/Dark Studio Mode"
-                  className={`w-20 h-11 rounded-full p-1.5 flex items-center transition-all cursor-pointer shrink-0 ${neu.recessedWell} ${
+                  className={`w-16 h-10 rounded-full p-1 flex items-center transition-all cursor-pointer shrink-0 ${neu.recessedWell} ${
                     isLight ? 'justify-end' : 'justify-start'
                   }`}
                 >
@@ -328,605 +298,532 @@ export const HomePage: React.FC = () => {
                     {isLight ? (
                       <Sun className="w-4 h-4 text-zinc-800" />
                     ) : (
-                      <Moon className="w-4 h-4 text-[#FF4D4D] fill-[#FF4D4D]" />
+                      <Moon className="w-4 h-4 text-[#00C2CB]" />
                     )}
                   </span>
                 </button>
 
-                {/* Circular Ribbed Brand Dial */}
+                <a
+                  href={OFFICIAL_WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="WhatsApp"
+                  title="WhatsApp"
+                  className={`hidden sm:inline-flex w-10 h-10 rounded-full items-center justify-center transition-all shrink-0 ${neu.raisedPillBtn}`}
+                >
+                  <MessageCircle className="w-4 h-4 text-[#00C2CB]" />
+                </a>
+
                 <button
                   type="button"
-                  onClick={() => navigate(`/${locale}/about`)}
-                  title={settings.ownerName[locale]}
-                  className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-transform hover:scale-105 ${
-                    isLight
-                      ? 'bg-[#ECEEF2] shadow-[8px_8px_18px_#C2C5CC,-6px_-6px_16px_#FFFFFF] border-4 border-[#E2E4E9]'
-                      : 'bg-gradient-to-br from-[#9EA4AA] via-[#585D63] to-[#2B2F33] shadow-[8px_8px_18px_#151719,-4px_-4px_12px_#3A3F45] p-1'
-                  }`}
+                  onClick={handleOpenAdmin}
+                  className={`h-10 px-3.5 sm:px-4 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${neu.raisedPillBtn}`}
                 >
-                  <span
-                    className={`w-9 h-9 rounded-full flex items-center justify-center ${
-                      isLight ? 'bg-[#ECEEF2]' : 'bg-[#C4C9CE]'
-                    }`}
-                  >
-                    <span className="w-2.5 h-4 bg-[#1B1D20] rounded-[2px]" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#00C2CB]" />
+                  <span>
+                    {adminSession
+                      ? locale === 'ar'
+                        ? 'لوحة الإدارة'
+                        : 'Admin'
+                      : locale === 'ar'
+                      ? 'الإدارة'
+                      : 'Admin'}
                   </span>
                 </button>
               </div>
-            </div>
+            </header>
 
             {/* ------------------------------------------------------------- */}
-            {/* MAIN CONSOLE BODY: Expanded Center Stage (9 Cols) + Compact Profile Card (3 Cols) */}
+            {/* 2. BALANCED SPLIT HERO CONSOLE (Text + Prominent Portrait)     */}
             {/* ------------------------------------------------------------- */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
-              {/* =========================================================== */}
-              {/* CENTER CARVED STAGE (9 Columns)                             */}
-              {/* =========================================================== */}
+            <section
+              aria-label={locale === 'ar' ? 'التعريف الرئيسي' : 'Hero Console'}
+              className={`rounded-[26px] sm:rounded-[34px] p-5 sm:p-7 lg:p-9 ${neu.recessedWell}`}
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 lg:gap-10 items-center">
+                {/* Hero Narrative & Primary Actions (7 cols on Desktop) */}
+                <div className="lg:col-span-7 flex flex-col gap-5 text-start order-2 lg:order-1">
+                  <div className="space-y-3">
+                    <div className={`text-xs sm:text-sm font-semibold ${neu.mutedText}`}>
+                      <span>{settings.ownerRole[locale]}</span>
+                      <span aria-hidden="true" className="mx-2 text-[#00C2CB]">
+                        ·
+                      </span>
+                      <span>{locale === 'ar' ? 'مصر' : 'Egypt'}</span>
+                    </div>
+
+                    <h1
+                      style={{ fontSize: 'clamp(1.75rem, 3.1vw, 2.75rem)' }}
+                      className="font-black leading-[1.18] tracking-tight"
+                    >
+                      {heroHeadline}
+                    </h1>
+
+                    <p
+                      className={`text-sm sm:text-base leading-[1.7] max-w-xl line-clamp-3 ${neu.subText}`}
+                    >
+                      {heroLead}
+                    </p>
+                  </div>
+
+                  {/* Primary Action Buttons */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleJumpToProjects}
+                      className="min-h-[44px] px-6 py-2.5 rounded-full text-xs sm:text-sm font-extrabold bg-[#00C2CB] text-slate-950 hover:bg-[#00AEB7] transition-all inline-flex items-center justify-center gap-2 shadow-[6px_6px_16px_rgba(0,194,203,0.28)] cursor-pointer whitespace-nowrap"
+                    >
+                      <span>
+                        {locale === 'ar' ? 'استعراض المشروعات والأنظمة' : 'Explore Medical Systems'}
+                      </span>
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
+
+                    {isPageVisible('about') && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/${locale}/about`)}
+                        className={`min-h-[44px] px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold inline-flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${neu.raisedPillBtn}`}
+                      >
+                        <span>{locale === 'ar' ? 'السيرة المهنية' : 'Professional Profile'}</span>
+                        <ArrowUpRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Compact Key Metrics Strip */}
+                  {heroMetrics.length > 0 && (
+                    <div
+                      className={`grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t ${neu.divider}`}
+                    >
+                      {heroMetrics.map((metric, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="text-lg sm:text-xl font-black font-mono-tabular text-[#0099A3] dark:text-[#00C2CB]">
+                            {metric.value}
+                          </div>
+                          <div className={`text-xs leading-snug line-clamp-2 ${neu.mutedText}`}>
+                            {metric.label[locale]}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Prominent Portrait Showcase (5 cols on Desktop) */}
+                <div className="lg:col-span-5 flex justify-center lg:justify-end order-1 lg:order-2">
+                  <div
+                    className={`w-full max-w-[290px] sm:max-w-[330px] lg:max-w-[360px] rounded-[28px] p-3 transition-all ${neu.raisedCard}`}
+                  >
+                    <div
+                      className={`rounded-[20px] p-1.5 border border-[#00C2CB]/30 ${neu.recessedWell}`}
+                    >
+                      <div className="aspect-[4/5] w-full rounded-[16px] overflow-hidden">
+                        <OptimizedImage
+                          src={settings.avatarUrl}
+                          alt={settings.ownerName[locale]}
+                          priority
+                          containerClassName="w-full h-full"
+                          className="w-full h-full object-cover object-top"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ------------------------------------------------------------- */}
+            {/* 3. INTEGRATED HORIZONTAL INTERACTIVE DOCK (All Screen Sizes)  */}
+            {/* ------------------------------------------------------------- */}
+            <nav
+              id="studio-dock-stage"
+              aria-label={locale === 'ar' ? 'أقسام المنصة التفاعلية' : 'Studio Interactive Sections'}
+              className={`rounded-[24px] lg:rounded-full p-2 sm:p-2.5 ${neu.recessedWell}`}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                {dockItems.map((item) => {
+                  const isActive = activeTab === item.id;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveTab(item.id)}
+                      aria-pressed={isActive}
+                      className={`min-h-[44px] px-4 py-2.5 rounded-[16px] lg:rounded-full flex items-center justify-center gap-2 text-xs sm:text-sm font-extrabold transition-all cursor-pointer whitespace-nowrap select-none ${
+                        isActive ? neu.activeDockTab : neu.inactiveDockTab
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4 h-4 shrink-0 ${
+                          isActive ? 'text-[#00C2CB]' : 'opacity-75'
+                        }`}
+                      />
+                      <span>{locale === 'ar' ? item.labelAr : item.labelEn}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+
+            {/* ------------------------------------------------------------- */}
+            {/* 4. STRUCTURED MAIN CONTENT AREA (Active Tab Stage)            */}
+            {/* ------------------------------------------------------------- */}
+            <section
+              aria-live="polite"
+              className={`rounded-[26px] sm:rounded-[34px] p-5 sm:p-7 flex flex-col gap-6 ${neu.recessedWell}`}
+            >
+              {/* Stage Section Header */}
               <div
-                className={`lg:col-span-9 rounded-[32px] p-5 sm:p-7 flex flex-col justify-between gap-6 ${neu.recessedWell}`}
+                className={`flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b ${neu.divider}`}
               >
-                {/* Stage Header */}
                 <div className="space-y-1.5 text-start">
-                  <div className={`text-xs font-bold ${neu.mutedText}`}>
+                  <div className="text-xs font-bold text-[#0099A3] dark:text-[#00C2CB]">
                     {stageHeader.kicker}
                   </div>
-                  <h1 className="text-2xl sm:text-4xl font-black tracking-tight">
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">
                     {stageHeader.title}
-                  </h1>
+                  </h2>
                   <p className={`text-xs sm:text-sm max-w-2xl leading-relaxed ${neu.subText}`}>
                     {stageHeader.sub}
                   </p>
                 </div>
 
-                {/* --------------------------------------------------------- */}
-                {/* TAB 1: PROJECTS (3-Column Tactile Cards + Interactive Bar) */}
-                {/* --------------------------------------------------------- */}
-                {activeTab === 'projects' && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
-                      {publishedProjects.slice(0, 6).map((project, idx) => {
-                        const isSoli = project.slug === 'soli-medical-clinic-system';
-                        const badgeClass = badgeColors[idx % badgeColors.length];
-                        const targetUrl = isSoli
-                          ? `/${locale}/solimedical`
-                          : `/${locale}/projects/${project.slug}`;
-
-                        return (
-                          <div
-                            key={project.id}
-                            onClick={() => navigate(targetUrl)}
-                            className={`rounded-[26px] p-5 flex flex-col justify-between gap-4 transition-all duration-300 cursor-pointer group ${neu.raisedCard}`}
-                          >
-                            <div className="space-y-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="space-y-0.5">
-                                  <h2 className="text-sm sm:text-base font-extrabold leading-snug group-hover:underline">
-                                    {project.title[locale]}
-                                  </h2>
-                                  <div className={`text-[11px] font-semibold ${neu.mutedText}`}>
-                                    {project.categoryLabel[locale]}
-                                  </div>
-                                </div>
-
-                                <div
-                                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-xs font-black ${neu.recessedWell}`}
-                                >
-                                  {isSoli ? (
-                                    <img
-                                      src="/assets/aistudio/logo_ae3842b8.png"
-                                      alt="Soli Medical"
-                                      className="w-6 h-6 object-contain"
-                                    />
-                                  ) : (
-                                    <span>{locale === 'ar' ? 'ط' : 'M'}</span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-start">
-                                <span
-                                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${badgeClass}`}
-                                >
-                                  {project.techStack[0] || 'Cloud System'}
-                                </span>
-                              </div>
-
-                              <p className={`text-xs leading-relaxed line-clamp-3 ${neu.subText}`}>
-                                • {project.summary[locale]}
-                              </p>
-                            </div>
-
-                            <div className="pt-2 flex items-center justify-between gap-2 border-t border-black/5 dark:border-white/5">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(targetUrl);
-                                }}
-                                className={`px-3.5 py-2 rounded-full text-[11px] font-extrabold inline-flex items-center gap-1.5 transition-all cursor-pointer ${neu.raisedPillBtn}`}
-                              >
-                                <span>
-                                  {isSoli
-                                    ? locale === 'ar'
-                                      ? 'عرض Soli Medical'
-                                      : 'Soli Medical'
-                                    : locale === 'ar'
-                                    ? 'استعراض النظام'
-                                    : 'Explore'}
-                                </span>
-                                <ArrowDown className="w-3 h-3" />
-                              </button>
-
-                              <span className="text-xs font-black">
-                                {isSoli
-                                  ? locale === 'ar'
-                                    ? 'متاح الآن'
-                                    : 'Live'
-                                  : locale === 'ar'
-                                  ? 'معتمد'
-                                  : 'Verified'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Interactive Typography Showcase Bar */}
-                    {isPageVisible('solimedical') && (
-                      <div className={`rounded-[26px] p-5 space-y-4 ${neu.raisedCard}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`w-8 h-8 rounded-full flex items-center justify-center ${neu.recessedWell}`}
-                            >
-                              <Link2 className="w-3.5 h-3.5" />
-                            </span>
-                            <div>
-                              <div className="text-xs font-extrabold">
-                                {locale === 'ar'
-                                  ? 'Soli Medical — نظام العيادات والمجمعات الطبية'
-                                  : 'Soli Medical — Clinic & Polyclinic Suite'}
-                              </div>
-                              <div className={`text-[11px] ${neu.mutedText}`}>
-                                {locale === 'ar'
-                                  ? 'نسخة عيادة الطبيب الواحد + نسخة المجمعات الطبية'
-                                  : 'Single-Doctor Clinic + Medical Complex Edition'}
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/${locale}/solimedical`)}
-                            className={`px-4 py-2 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer ${neu.raisedPillBtn}`}
-                          >
-                            <span>
-                              {locale === 'ar'
-                                ? 'فتح صفحة Soli Medical التفاعلية'
-                                : 'Open Soli Medical Showcase'}
-                            </span>
-                            <ArrowUpRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        <div
-                          style={{ fontWeight: previewWeight }}
-                          className="text-xl sm:text-3xl tracking-tight text-center py-2 transition-all"
-                        >
-                          {locale === 'ar'
-                            ? 'نظامان عربيان لرعاية تتحرك معك — من يوميات العيادة إلى قرار إداري أوضح'
-                            : 'Two Bilingual Clinical Systems Engineered Around Real Daily Care'}
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-mono-tabular font-bold">
-                            <span>{previewWeight}</span>
-                            <span>swash · RTL</span>
-                          </div>
-                          <div className={`h-4 rounded-full p-1 flex items-center ${neu.recessedWell}`}>
-                            <input
-                              type="range"
-                              min={400}
-                              max={900}
-                              step={100}
-                              value={previewWeight}
-                              onChange={(e) => setPreviewWeight(Number(e.target.value))}
-                              aria-label="Preview font weight"
-                              className="w-full accent-zinc-800 dark:accent-cyan-400 cursor-pointer"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* --------------------------------------------------------- */}
-                {/* TAB 2: ABOUT & TIMELINE                                    */}
-                {/* --------------------------------------------------------- */}
-                {activeTab === 'about' && (
-                  <div className="space-y-5">
-                    <div className={`rounded-[26px] p-6 space-y-4 ${neu.raisedCard}`}>
-                      <h2 className="text-lg sm:text-xl font-black">
-                        {aboutPage?.headline?.[locale] || settings.ownerName[locale]}
-                      </h2>
-                      <p className={`text-xs sm:text-sm leading-relaxed ${neu.subText}`}>
-                        {aboutPage?.biography?.[locale]}
-                      </p>
-                      <div className="flex flex-wrap gap-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/${locale}/about`)}
-                          className={`px-5 py-2.5 rounded-full text-xs font-extrabold inline-flex items-center gap-2 cursor-pointer ${neu.raisedPillBtn}`}
-                        >
-                          <span>
-                            {locale === 'ar'
-                              ? 'فتح صفحة السيرة الذاتية التحريرية الكاملة'
-                              : 'Open Full Editorial Profile & CV'}
-                          </span>
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {(aboutPage?.experienceTimeline || []).slice(0, 3).map((exp, i) => (
-                        <div key={i} className={`rounded-[24px] p-5 space-y-2 ${neu.raisedCard}`}>
-                          <div className="text-[11px] font-mono-tabular font-bold text-amber-600 dark:text-amber-400">
-                            {exp.period[locale]}
-                          </div>
-                          <h3 className="text-sm font-extrabold">{exp.role[locale]}</h3>
-                          <div className={`text-xs font-semibold ${neu.mutedText}`}>
-                            {exp.organization[locale]}
-                          </div>
-                          <p className={`text-xs leading-relaxed line-clamp-3 ${neu.subText}`}>
-                            {exp.description[locale]}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* --------------------------------------------------------- */}
-                {/* TAB 3: CLINICS & MEDICAL CENTERS                           */}
-                {/* --------------------------------------------------------- */}
-                {activeTab === 'clinics' && (
-                  <div className="space-y-5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {publishedClinics.map((clinic) => (
-                        <div
-                          key={clinic.id}
-                          onClick={() => navigate(`/${locale}/clinics/${clinic.slug}`)}
-                          className={`rounded-[26px] p-6 flex flex-col justify-between gap-4 cursor-pointer ${neu.raisedCard}`}
-                        >
-                          <div className="space-y-2">
-                            <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold bg-teal-500/15 text-teal-700 dark:text-teal-300">
-                              {clinic.specialtyBadge[locale]}
-                            </span>
-                            <h2 className="text-lg font-black">{clinic.name[locale]}</h2>
-                            <p className={`text-xs leading-relaxed ${neu.subText}`}>
-                              {clinic.tagline[locale]}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-3 border-t border-black/5 dark:border-white/5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/${locale}/clinics/${clinic.slug}`);
-                              }}
-                              className={`px-4 py-2 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5 ${neu.raisedPillBtn}`}
-                            >
-                              <span>
-                                {locale === 'ar' ? 'فتح بوابة العيادة' : 'Open Clinic Portal'}
-                              </span>
-                              <ArrowUpRight className="w-3.5 h-3.5" />
-                            </button>
-                            <span className={`text-xs font-bold ${neu.mutedText}`}>
-                              {clinic.city[locale]}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/${locale}/clinics`)}
-                        className={`px-5 py-2.5 rounded-full text-xs font-extrabold inline-flex items-center gap-2 cursor-pointer ${neu.raisedPillBtn}`}
-                      >
-                        <span>
-                          {locale === 'ar'
-                            ? 'عرض دليل العيادات والمراكز الطبية بالكامل'
-                            : 'View Full Medical Clinics Directory'}
-                        </span>
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* --------------------------------------------------------- */}
-                {/* TAB 4: BLOG & KNOWLEDGE ARTICLES                           */}
-                {/* --------------------------------------------------------- */}
-                {activeTab === 'blog' && (
-                  <div className="space-y-5">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {publishedArticles.slice(0, 3).map((art) => (
-                        <div
-                          key={art.id}
-                          onClick={() => navigate(`/${locale}/blog/${art.slug}`)}
-                          className={`rounded-[26px] p-5 flex flex-col justify-between gap-4 cursor-pointer ${neu.raisedCard}`}
-                        >
-                          <div className="space-y-2.5">
-                            <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                              {art.category[locale]}
-                            </span>
-                            <h2 className="text-sm sm:text-base font-extrabold leading-snug">
-                              {art.title[locale]}
-                            </h2>
-                            <p className={`text-xs leading-relaxed line-clamp-3 ${neu.subText}`}>
-                              {art.excerpt[locale]}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2 border-t border-black/5 dark:border-white/5">
-                            <button
-                              type="button"
-                              className={`px-3.5 py-1.5 rounded-full text-[11px] font-extrabold ${neu.raisedPillBtn}`}
-                            >
-                              {locale === 'ar' ? 'اقرأ المقال ←' : 'Read Article →'}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/${locale}/blog`)}
-                        className={`px-5 py-2.5 rounded-full text-xs font-extrabold inline-flex items-center gap-2 cursor-pointer ${neu.raisedPillBtn}`}
-                      >
-                        <span>
-                          {locale === 'ar'
-                            ? 'فتح مجلة المعرفة والمقالات الكاملة'
-                            : 'Open Full Knowledge Magazine'}
-                        </span>
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* --------------------------------------------------------- */}
-                {/* TAB 5: SKILLS & TOOLKIT                                    */}
-                {/* --------------------------------------------------------- */}
-                {activeTab === 'skills' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {(aboutPage?.skills || []).map((grp, idx) => (
-                      <div key={idx} className={`rounded-[26px] p-5 space-y-3 ${neu.raisedCard}`}>
-                        <h2 className="text-sm sm:text-base font-black">{grp.category[locale]}</h2>
-                        <div className="flex flex-wrap gap-2">
-                          {grp.items.map((sk, j) => (
-                            <span
-                              key={j}
-                              className={`px-3 py-1.5 rounded-full text-xs font-bold ${neu.recessedWell}`}
-                            >
-                              {sk}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Bottom Recessed WhatsApp Direct Bar */}
-                <form
-                  onSubmit={handleWhatsAppSend}
-                  className={`h-12 rounded-full px-4 flex items-center justify-between gap-3 ${neu.raisedCard}`}
-                >
-                  <input
-                    type="text"
-                    value={whatsAppQuickMsg}
-                    onChange={(e) => setWhatsAppQuickMsg(e.target.value)}
-                    placeholder={
-                      locale === 'ar'
-                        ? 'تحتاج شيئاً محدداً؟ راسلنا عبر واتساب...'
-                        : 'Need a custom medical system? Message on WhatsApp...'
-                    }
-                    className="flex-1 bg-transparent text-xs font-semibold focus:outline-none placeholder:opacity-75"
-                  />
+                {stageHeader.fullPageHref && (
                   <button
-                    type="submit"
-                    className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer"
-                    title={locale === 'ar' ? 'إرسال عبر واتساب' : 'Send via WhatsApp'}
+                    type="button"
+                    onClick={() => navigate(stageHeader.fullPageHref!)}
+                    className={`min-h-[40px] px-4 py-2 rounded-full text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 self-start sm:self-auto ${neu.raisedPillBtn}`}
                   >
-                    <span className="w-2 h-3.5 bg-current rounded-[1px]" />
+                    <span>{stageHeader.fullPageLabel}</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-[#00C2CB]" />
                   </button>
-                </form>
+                )}
               </div>
 
-              {/* =========================================================== */}
-              {/* LEFT SIDE DOCK (3 Columns: Compact Personal Profile Card)   */}
-              {/* =========================================================== */}
-              <div className="lg:col-span-3 flex flex-col gap-4">
-                <div
-                  className={`rounded-[30px] p-5 flex flex-col items-center text-center gap-4 ${neu.recessedWell}`}
-                >
-                  {/* Compact Circular Avatar */}
-                  <div
-                    className={`w-20 h-20 rounded-full p-1 overflow-hidden shrink-0 ${neu.raisedCard}`}
-                  >
-                    <OptimizedImage
-                      src={settings.avatarUrl}
-                      alt={settings.ownerName[locale]}
-                      priority
-                      containerClassName="w-full h-full rounded-full overflow-hidden"
-                      className="w-full h-full object-cover object-top rounded-full"
-                    />
-                  </div>
+              {/* TAB 1: PROJECTS (Soli Medical appears cleanly as a project with logo & image) */}
+              {activeTab === 'projects' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {publishedProjects.slice(0, 6).map((project) => {
+                    const isSoli = project.slug === 'soli-medical-clinic-system';
+                    const targetUrl = isSoli
+                      ? `/${locale}/solimedical`
+                      : `/${locale}/projects/${project.slug}`;
 
-                  {/* Name & Title */}
-                  <div className="space-y-1">
-                    <h2 className="text-base sm:text-lg font-black tracking-tight">
-                      {settings.ownerName[locale]}
-                    </h2>
-                    <p className={`text-[11px] font-bold leading-snug ${neu.mutedText}`}>
-                      {settings.ownerRole[locale]}
+                    return (
+                      <article
+                        key={project.id}
+                        onClick={() => navigate(targetUrl)}
+                        className={`rounded-[24px] overflow-hidden flex flex-col justify-between transition-all duration-200 cursor-pointer group ${neu.raisedCard}`}
+                      >
+                        <div>
+                          {/* Project Visual Cover */}
+                          <div className="relative aspect-[16/10] w-full overflow-hidden">
+                            <OptimizedImage
+                              src={project.coverImage}
+                              alt={project.title[locale]}
+                              containerClassName="w-full h-full"
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                            />
+                            {isSoli && (
+                              <div
+                                className={`absolute top-3 start-3 w-10 h-10 rounded-xl p-1.5 flex items-center justify-center ${neu.raisedCard}`}
+                              >
+                                <img
+                                  src="/assets/aistudio/logo_ae3842b8.png"
+                                  alt="Soli Medical Logo"
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Project Body */}
+                          <div className="p-5 space-y-2.5 text-start">
+                            <div className={`text-xs font-semibold ${neu.mutedText}`}>
+                              <span>{project.categoryLabel[locale]}</span>
+                              {project.techStack[0] && (
+                                <>
+                                  <span aria-hidden="true" className="mx-1.5 text-[#00C2CB]">
+                                    ·
+                                  </span>
+                                  <span>{project.techStack[0]}</span>
+                                </>
+                              )}
+                            </div>
+
+                            <h3 className="text-base font-extrabold leading-snug group-hover:text-[#0099A3] dark:group-hover:text-[#00C2CB] transition-colors">
+                              {project.title[locale]}
+                            </h3>
+
+                            <p className={`text-xs sm:text-[13px] leading-relaxed line-clamp-2 ${neu.subText}`}>
+                              {project.summary[locale]}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`px-5 py-3.5 flex items-center justify-between gap-2 border-t ${neu.divider}`}
+                        >
+                          <span className="text-xs font-extrabold inline-flex items-center gap-1 text-[#0099A3] dark:text-[#00C2CB]">
+                            <span>
+                              {isSoli
+                                ? locale === 'ar'
+                                  ? 'عرض مشروع Soli Medical'
+                                  : 'Open Soli Medical'
+                                : locale === 'ar'
+                                ? 'استعراض التفاصيل'
+                                : 'Explore System'}
+                            </span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* TAB 2: ABOUT & EXPERIENCE TIMELINE */}
+              {activeTab === 'about' && (
+                <div className="space-y-5">
+                  <div className={`rounded-[24px] p-5 sm:p-6 space-y-3 text-start ${neu.raisedCard}`}>
+                    <h3 className="text-base sm:text-lg font-black">
+                      {aboutPage?.headline?.[locale] || settings.ownerName[locale]}
+                    </h3>
+                    <p className={`text-xs sm:text-sm leading-[1.75] ${neu.subText}`}>
+                      {aboutPage?.biography?.[locale]}
                     </p>
                   </div>
 
-                  <p className={`text-xs leading-relaxed ${neu.subText}`}>
-                    {locale === 'ar'
-                      ? 'أخصائي عناية مركزة ومطور أنظمة برمجية طبية (Soli Medical · ICU-Sync · Mitali Hospital).'
-                      : 'ICU Specialist & Healthcare Systems Developer (Soli Medical · ICU-Sync · Mitali Hospital).'}
-                  </p>
-
-                  {/* Primary Action Buttons */}
-                  <div className="w-full space-y-2 pt-1">
-                    {isPageVisible('about') && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/${locale}/about`)}
-                        className={`w-full py-2.5 px-3 rounded-full text-xs font-extrabold cursor-pointer ${neu.raisedPillBtn}`}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {(aboutPage?.experienceTimeline || []).slice(0, 3).map((exp, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-[24px] p-5 space-y-2.5 text-start ${neu.raisedCard}`}
                       >
-                        {locale === 'ar' ? 'السيرة الذاتية ←' : 'Full Biography →'}
-                      </button>
-                    )}
-
-                    {isPageVisible('solimedical') && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/${locale}/solimedical`)}
-                        className={`w-full py-2.5 px-3 rounded-full text-xs font-extrabold cursor-pointer ${neu.raisedPillBtn}`}
-                      >
-                        Soli Medical
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={handleOpenAdmin}
-                      className={`w-full py-2.5 px-3 rounded-full text-xs font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer ${neu.raisedPillBtn}`}
-                    >
-                      <LayoutDashboard className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>
-                        {locale === 'ar' ? 'فتح لوحة الإدارة' : 'Open Admin Dashboard'}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* 3 Official Contact Channels Only (WhatsApp, Telegram Bot, Facebook) */}
-                  <div className="w-full pt-3 border-t border-black/5 dark:border-white/5 flex items-center justify-center gap-2.5">
-                    <a
-                      href={OFFICIAL_WHATSAPP_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
-                      title="WhatsApp"
-                    >
-                      <MessageCircle className="w-4 h-4 text-emerald-500" />
-                    </a>
-
-                    <a
-                      href={OFFICIAL_TELEGRAM_BOT_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
-                      title="Telegram Bot (@SoliMedicalproBot)"
-                    >
-                      <Send className="w-4 h-4 text-sky-500" />
-                    </a>
-
-                    <a
-                      href={OFFICIAL_FACEBOOK_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
-                      title="Facebook (SoliMedical)"
-                    >
-                      f
-                    </a>
+                        <div className="text-xs font-mono-tabular font-bold text-[#0099A3] dark:text-[#00C2CB]">
+                          {exp.period[locale]}
+                        </div>
+                        <h3 className="text-sm sm:text-base font-extrabold leading-snug">
+                          {exp.role[locale]}
+                        </h3>
+                        <div className={`text-xs font-semibold ${neu.mutedText}`}>
+                          {exp.organization[locale]}
+                        </div>
+                        <p className={`text-xs leading-relaxed line-clamp-3 ${neu.subText}`}>
+                          {exp.description[locale]}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            </div>
+              )}
+
+              {/* TAB 3: CLINICS & MEDICAL CENTERS */}
+              {activeTab === 'clinics' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {publishedClinics.map((clinic) => (
+                    <article
+                      key={clinic.id}
+                      onClick={() => navigate(`/${locale}/clinics/${clinic.slug}`)}
+                      className={`rounded-[24px] overflow-hidden flex flex-col justify-between transition-all duration-200 cursor-pointer group ${neu.raisedCard}`}
+                    >
+                      <div>
+                        <div className="aspect-[16/9] w-full overflow-hidden">
+                          <OptimizedImage
+                            src={clinic.coverImage}
+                            alt={clinic.name[locale]}
+                            containerClassName="w-full h-full"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          />
+                        </div>
+
+                        <div className="p-5 space-y-2 text-start">
+                          <div className={`text-xs font-semibold ${neu.mutedText}`}>
+                            <span>{clinic.specialtyBadge[locale]}</span>
+                            <span aria-hidden="true" className="mx-1.5 text-[#00C2CB]">
+                              ·
+                            </span>
+                            <span>{clinic.city[locale]}</span>
+                          </div>
+                          <h3 className="text-base sm:text-lg font-black group-hover:text-[#0099A3] dark:group-hover:text-[#00C2CB] transition-colors">
+                            {clinic.name[locale]}
+                          </h3>
+                          <p className={`text-xs sm:text-[13px] leading-relaxed line-clamp-2 ${neu.subText}`}>
+                            {clinic.tagline[locale]}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`px-5 py-3.5 flex items-center justify-between border-t ${neu.divider}`}
+                      >
+                        <span className="text-xs font-extrabold inline-flex items-center gap-1.5 text-[#0099A3] dark:text-[#00C2CB]">
+                          <span>
+                            {locale === 'ar' ? 'فتح بوابة العيادة' : 'Open Clinic Portal'}
+                          </span>
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              {/* TAB 4: BLOG & KNOWLEDGE ARTICLES */}
+              {activeTab === 'blog' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {publishedArticles.slice(0, 3).map((art) => (
+                    <article
+                      key={art.id}
+                      onClick={() => navigate(`/${locale}/blog/${art.slug}`)}
+                      className={`rounded-[24px] overflow-hidden flex flex-col justify-between transition-all duration-200 cursor-pointer group ${neu.raisedCard}`}
+                    >
+                      <div>
+                        <div className="aspect-[16/10] w-full overflow-hidden">
+                          <OptimizedImage
+                            src={art.coverImage}
+                            alt={art.title[locale]}
+                            containerClassName="w-full h-full"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          />
+                        </div>
+
+                        <div className="p-5 space-y-2 text-start">
+                          <div className={`text-xs font-semibold ${neu.mutedText}`}>
+                            <span>{art.category[locale]}</span>
+                            <span aria-hidden="true" className="mx-1.5 text-[#00C2CB]">
+                              ·
+                            </span>
+                            <span className="font-mono-tabular">
+                              {art.readingTimeMinutes} {locale === 'ar' ? 'دقائق' : 'min'}
+                            </span>
+                          </div>
+                          <h3 className="text-sm sm:text-base font-extrabold leading-snug group-hover:text-[#0099A3] dark:group-hover:text-[#00C2CB] transition-colors">
+                            {art.title[locale]}
+                          </h3>
+                          <p className={`text-xs leading-relaxed line-clamp-2 ${neu.subText}`}>
+                            {art.excerpt[locale]}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`px-5 py-3.5 flex items-center justify-between border-t ${neu.divider}`}
+                      >
+                        <span className="text-xs font-extrabold inline-flex items-center gap-1 text-[#0099A3] dark:text-[#00C2CB]">
+                          <span>{locale === 'ar' ? 'اقرأ المقال' : 'Read Article'}</span>
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              {/* TAB 5: SKILLS & TOOLKIT */}
+              {activeTab === 'skills' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {(aboutPage?.skills || []).map((grp, idx) => (
+                    <div
+                      key={idx}
+                      className={`rounded-[24px] p-5 space-y-3.5 text-start ${neu.raisedCard}`}
+                    >
+                      <h3 className="text-sm sm:text-base font-black">{grp.category[locale]}</h3>
+                      <div className="flex flex-col gap-2">
+                        {grp.items.map((sk, j) => (
+                          <div
+                            key={j}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-semibold ${neu.recessedWell}`}
+                          >
+                            {sk}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ------------------------------------------------------------- */}
+            {/* 5. DIRECT WHATSAPP CONSOLE BAR                                */}
+            {/* ------------------------------------------------------------- */}
+            <form
+              onSubmit={handleWhatsAppSend}
+              className={`rounded-[22px] sm:rounded-full p-2 sm:ps-5 sm:pe-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 ${neu.recessedWell}`}
+            >
+              <input
+                type="text"
+                value={whatsAppQuickMsg}
+                onChange={(e) => setWhatsAppQuickMsg(e.target.value)}
+                placeholder={
+                  locale === 'ar'
+                    ? 'هل لديك استفسار عن نظام طبي أو تطوير موقع عيادة؟ اكتب رسالتك هنا...'
+                    : 'Have a question about a medical system or clinic portal? Write here...'
+                }
+                className="flex-1 min-h-[40px] px-3 sm:px-0 bg-transparent text-xs sm:text-sm font-medium focus:outline-none placeholder:opacity-75"
+              />
+              <button
+                type="submit"
+                className="min-h-[42px] px-5 rounded-full bg-[#00C2CB] text-slate-950 hover:bg-[#00AEB7] text-xs font-extrabold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>{locale === 'ar' ? 'إرسال عبر واتساب' : 'Send via WhatsApp'}</span>
+              </button>
+            </form>
           </div>
+
+          {/* =============================================================== */}
+          {/* QUIET CONSOLE FOOTER (3 Official Channels + Attribution Only)   */}
+          {/* =============================================================== */}
+          <footer className="mt-6 px-2 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <div className={`text-center sm:text-start font-semibold ${neu.mutedText}`}>
+              <span>{settings.ownerName[locale]}</span>
+              <span aria-hidden="true" className="mx-2 text-[#00C2CB]">
+                ·
+              </span>
+              <span>{settings.ownerRole[locale]}</span>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <a
+                href={OFFICIAL_WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp"
+                title="WhatsApp"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
+              >
+                <MessageCircle className="w-4 h-4 text-emerald-500" />
+              </a>
+
+              <a
+                href={OFFICIAL_TELEGRAM_BOT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Telegram Bot"
+                title="Telegram Bot (@SoliMedicalproBot)"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
+              >
+                <Send className="w-4 h-4 text-sky-500" />
+              </a>
+
+              <a
+                href={OFFICIAL_FACEBOOK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+                title="Facebook (SoliMedical)"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
+              >
+                f
+              </a>
+            </div>
+          </footer>
         </div>
-
-        {/* ================================================================= */}
-        {/* BOTTOM BAR BELOW THE CONSOLE (Only 3 Official Channels + Admin)   */}
-        {/* ================================================================= */}
-        <footer className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs">
-          <a
-            href={OFFICIAL_WHATSAPP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
-            title="WhatsApp"
-          >
-            <MessageCircle className="w-4 h-4" />
-          </a>
-
-          <a
-            href={OFFICIAL_TELEGRAM_BOT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
-            title="Telegram Bot"
-          >
-            <Send className="w-4 h-4" />
-          </a>
-
-          <a
-            href={OFFICIAL_FACEBOOK_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs transition-transform hover:scale-105 ${neu.raisedPillBtn}`}
-            title="Facebook"
-          >
-            f
-          </a>
-
-          <button
-            type="button"
-            onClick={() => navigate(`/${locale}/about`)}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer ${neu.raisedPillBtn}`}
-          >
-            {locale === 'ar' ? (
-              <>
-                التصميم والأنظمة بواسطة <strong className="font-black">AHMED SOLIMAN</strong>
-              </>
-            ) : (
-              <>
-                Designed & Engineered by <strong className="font-black">AHMED SOLIMAN</strong>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenAdmin}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer ${neu.raisedPillBtn}`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>
-              {adminSession
-                ? locale === 'ar'
-                  ? 'لوحة الإدارة (متصل)'
-                  : 'Admin CMS (Active)'
-                : locale === 'ar'
-                ? 'دخول لوحة الإدارة (/admin)'
-                : 'Admin Login (/admin)'}
-            </span>
-          </button>
-        </footer>
       </div>
     </LayoutResolver>
   );

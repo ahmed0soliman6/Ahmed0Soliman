@@ -37,8 +37,8 @@
     "whatsappUrl": "https://wa.me/Ahmed0soliman",
     "telegramBotUrl": "https://t.me/SoliMedicalproBot",
     "facebookUrl": "https://www.facebook.com/SoliMedical/",
-    "githubUrl": "https://github.com/Ahmed0soliman",
-    "linkedinUrl": "https://www.linkedin.com/in/ahmed-soliman",
+    "githubUrl": "",
+    "linkedinUrl": "",
     "contactEmail": "ahmed0soliman6@gmail.com",
     "location": {
       "ar": "مصر — تطوير وتشغيل الأنظمة الطبية الرقمية",
@@ -445,6 +445,202 @@
           "Technical Writing & Health-Tech Knowledge Sharing"
         ]
       }
+    },
+    {
+      "id": "projects",
+      "slug": "projects",
+      "title": {
+        "ar": "معرض المشروعات والأنظمة",
+        "en": "Projects & Systems Gallery"
+      },
+      "kicker": {
+        "ar": "معرض الأعمال والأنظمة الطبية",
+        "en": "Healthcare Software & ERP Systems"
+      },
+      "headline": {
+        "ar": "معرض المشروعات والأنظمة الطبية الرقمية",
+        "en": "Featured Healthcare Software & Digital Systems"
+      },
+      "subheadline": {
+        "ar": "استعرض الأنظمة البرمجية والمنصات الطبية المطوّرة للعيادات والمجمعات الطبية والمستشفيات.",
+        "en": "Explore specialized healthcare software platforms engineered for clinics, ICUs, and hospitals."
+      },
+      "biography": {
+        "ar": "مجموعة متكاملة من الأنظمة السحابية الطبية المصممة لواقع العمل اليومي داخل العيادات والمستشفيات.",
+        "en": "Cloud healthcare systems built around real clinical and administrative workflows."
+      },
+      "highlights": {
+        "ar": [],
+        "en": []
+      },
+      "metrics": [],
+      "experienceTimeline": [],
+      "skills": [],
+      "heroImage": "/assets/aistudio/logo_ae3842b8.png",
+      "standaloneByDefault": false,
+      "published": true,
+      "order": 3,
+      "seo": {
+        "title": {
+          "ar": "معرض المشروعات والأنظمة الطبية | أحمد سليمان",
+          "en": "Projects & Healthcare Systems | Ahmed Soliman"
+        },
+        "description": {
+          "ar": "استكشف مشروعات وأنظمة أحمد سليمان الطبية والبرمجية.",
+          "en": "Explore healthcare software systems by Ahmed Soliman."
+        },
+        "canonicalSlug": "/projects",
+        "structuredDataType": "WebSite"
+      },
+      "createdAt": "2026-11-11T12:00:00.000Z",
+      "updatedAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "solimedical",
+      "slug": "solimedical",
+      "title": {
+        "ar": "صفحة عرض نظام Soli Medical",
+        "en": "Soli Medical Showcase Page"
+      },
+      "kicker": {
+        "ar": "Soli Medical · نظام إدارة العيادات والمجمعات الطبية",
+        "en": "Soli Medical · Clinic & Polyclinic Management Suite"
+      },
+      "headline": {
+        "ar": "نظامان عربيان لرعاية تتحرك معك.",
+        "en": "Two Clinical Systems Engineered Around Your Care."
+      },
+      "subheadline": {
+        "ar": "اختر ما يناسب حجم منشأتك: نظام واضح لإدارة عيادة الطبيب الواحد، أو منظومة تشغيل مترابطة لمجمع العيادات والمستشفيات الصغيرة.",
+        "en": "Choose what fits your facility: a streamlined system for solo clinics or an interconnected platform for medical complexes."
+      },
+      "biography": {
+        "ar": "من يوميات العيادة إلى قرار إداري أوضح.",
+        "en": "From daily clinic workflows to clearer executive decisions."
+      },
+      "highlights": {
+        "ar": [],
+        "en": []
+      },
+      "metrics": [],
+      "experienceTimeline": [],
+      "skills": [],
+      "heroImage": "/assets/aistudio/logo_ae3842b8.png",
+      "standaloneByDefault": false,
+      "published": true,
+      "order": 4,
+      "seo": {
+        "title": {
+          "ar": "Soli Medical | نظام إدارة العيادات والمجمعات الطبية",
+          "en": "Soli Medical | Clinic & Polyclinic Management System"
+        },
+        "description": {
+          "ar": "نظام عربي لإدارة العيادات والمجمعات الطبية: استقبال، حجز مواعيد، ملفات مرضى، فواتير وتقارير.",
+          "en": "Bilingual clinic management system: reception, appointments, EMR, billing, and analytics."
+        },
+        "canonicalSlug": "/solimedical",
+        "structuredDataType": "SoftwareApplication"
+      },
+      "createdAt": "2026-11-11T12:00:00.000Z",
+      "updatedAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "clinics",
+      "slug": "clinics",
+      "title": {
+        "ar": "صفحات العيادات والمراكز الطبية",
+        "en": "Medical Clinics Directory"
+      },
+      "kicker": {
+        "ar": "بوابات العيادات والمراكز الطبية المستقلة",
+        "en": "Standalone Clinic Landing Portals"
+      },
+      "headline": {
+        "ar": "رعاية طبية متكاملة وصفحات هبوط مستقلة للعيادات",
+        "en": "Dedicated Standalone Portals for Clinics & Medical Centers"
+      },
+      "subheadline": {
+        "ar": "لكل عيادة أو مركز طبي صفحة هبوط مستقلة تعرض الأطباء والخدمات والأسعار ومواعيد العمل والحجز المباشر.",
+        "en": "Each clinic features a dedicated standalone landing page showcasing doctors, services, pricing, and direct booking."
+      },
+      "biography": {
+        "ar": "دليل البوابات الطبية وصفحات الهبوط المستقلة للعيادات.",
+        "en": "Directory of standalone medical clinic landing pages."
+      },
+      "highlights": {
+        "ar": [],
+        "en": []
+      },
+      "metrics": [],
+      "experienceTimeline": [],
+      "skills": [],
+      "heroImage": "/assets/aistudio/logo_ae3842b8.png",
+      "standaloneByDefault": false,
+      "published": true,
+      "order": 5,
+      "seo": {
+        "title": {
+          "ar": "صفحات العيادات والمراكز الطبية | أحمد سليمان",
+          "en": "Medical Clinics & Portals | Ahmed Soliman"
+        },
+        "description": {
+          "ar": "استعرض صفحات الهبوط المستقلة للعيادات والمجمعات الطبية.",
+          "en": "Browse standalone medical clinic landing pages."
+        },
+        "canonicalSlug": "/clinics",
+        "structuredDataType": "MedicalClinic"
+      },
+      "createdAt": "2026-11-11T12:00:00.000Z",
+      "updatedAt": "2026-11-11T12:00:00.000Z"
+    },
+    {
+      "id": "blog",
+      "slug": "blog",
+      "title": {
+        "ar": "مساحة المقالات والمعرفة",
+        "en": "Blog & Knowledge Hub"
+      },
+      "kicker": {
+        "ar": "المجلة التحريرية والمعرفية",
+        "en": "Editorial & Knowledge Hub"
+      },
+      "headline": {
+        "ar": "مقالات تقنية وطبية وتجارب عملية من الميدان",
+        "en": "Healthcare Engineering & Clinical Quality Articles"
+      },
+      "subheadline": {
+        "ar": "شروحات ومقالات متخصصة في التحول الرقمي الصحي، إدارة العيادات، وجودة الرعاية الطبية.",
+        "en": "In-depth articles on digital healthcare transformation, clinic operations, and clinical quality."
+      },
+      "biography": {
+        "ar": "مساحة المعرفة والمقالات التقنية والطبية.",
+        "en": "Technical and clinical knowledge hub."
+      },
+      "highlights": {
+        "ar": [],
+        "en": []
+      },
+      "metrics": [],
+      "experienceTimeline": [],
+      "skills": [],
+      "heroImage": "/assets/aistudio/1770146906397_16665dd0.png",
+      "standaloneByDefault": false,
+      "published": true,
+      "order": 6,
+      "seo": {
+        "title": {
+          "ar": "المقالات ومساحة المعرفة | أحمد سليمان",
+          "en": "Articles & Knowledge Hub | Ahmed Soliman"
+        },
+        "description": {
+          "ar": "مقالات وشروحات تقنية وطبية بقلم أحمد سليمان.",
+          "en": "Articles and guides by Ahmed Soliman."
+        },
+        "canonicalSlug": "/blog",
+        "structuredDataType": "BlogPosting"
+      },
+      "createdAt": "2026-11-11T12:00:00.000Z",
+      "updatedAt": "2026-11-11T12:00:00.000Z"
     }
   ],
   "projects": [
@@ -1132,7 +1328,7 @@
       },
       "coverImage": "/src/assets/images/clinic_interior_reception_1794472515936.jpg",
       "logoUrl": "/assets/aistudio/logo_ae3842b8.png",
-      "phone": "+201000000000",
+      "phone": "",
       "whatsapp": "https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%AD%D8%AC%D8%B2%20%D9%85%D9%88%D8%B9%D8%AF%20%D9%81%D9%8A%20%D9%85%D8%AC%D9%85%D8%B9%20%D8%A7%D9%84%D9%86%D9%88%D8%B1%20%D8%A7%D9%84%D8%B7%D8%A8%D9%8A.",
       "telegramUrl": "https://t.me/SoliMedicalproBot",
       "address": {
@@ -1238,7 +1434,7 @@
       },
       "coverImage": "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg",
       "logoUrl": "/assets/aistudio/logo_ae3842b8.png",
-      "phone": "+201000000000",
+      "phone": "",
       "whatsapp": "https://wa.me/Ahmed0soliman?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A7%D9%84%D8%AD%D8%AC%D8%B2%20%D9%81%D9%8A%20%D8%B9%D9%8A%D8%A7%D8%AF%D8%A9%20%D8%AF%D8%A7%D8%B1%20%D8%A7%D9%84%D8%B4%D9%81%D8%A7%D8%A1.",
       "telegramUrl": "https://t.me/SoliMedicalproBot",
       "address": {
