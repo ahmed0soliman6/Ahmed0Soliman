@@ -1043,6 +1043,159 @@ async function runPhase8_3Tests() {
     }
   }
 
+  // Test 2.19: Unauthorized login immediately deletes user from Firebase Authentication + Multi-Admin Write Permissions Management
+  {
+    const deletedFirebaseUids: string[] = [];
+    const secondaryAdminUid = 'secondary-editor-uid-777';
+    const secondaryAdminEmail = 'editor@solimedical.com';
+    const unauthorizedUid = 'stranger-uid-999';
+    const unauthorizedEmail = 'dina3ramadan@gmail.com';
+
+    const customResolver = async (): Promise<AdminServiceResolution> => ({
+      ready: true,
+      deps: {
+        ownerEmail,
+        ownerUid,
+        verifyIdToken: async (idToken: string) => {
+          if (idToken === 'valid-owner-firebase-id-token') {
+            return {
+              uid: ownerUid,
+              email: ownerEmail,
+              email_verified: true,
+              name: 'Ahmed Soliman',
+              picture: 'https://lh3.googleusercontent.com/a/owner-avatar',
+            };
+          }
+          if (idToken === 'secondary-admin-token') {
+            return {
+              uid: secondaryAdminUid,
+              email: secondaryAdminEmail,
+              email_verified: true,
+              name: 'Secondary Editor',
+              picture: 'https://lh3.googleusercontent.com/a/editor-avatar',
+            };
+          }
+          if (idToken === 'unauthorized-google-token') {
+            return {
+              uid: unauthorizedUid,
+              email: unauthorizedEmail,
+              email_verified: true,
+              name: 'Unauthorized User',
+            };
+          }
+          throw new Error('Invalid token');
+        },
+        hasAdminDocument: async (uid: string, email?: string) => {
+          if (uid === ownerUid) {
+            return { exists: true, disabled: false, role: 'owner' };
+          }
+          const matched = (sharedFirestoreDb.admins || []).find(
+            (a) => a.uid === uid || (email && a.email.toLowerCase() === email.toLowerCase())
+          );
+          if (!matched) return { exists: false };
+          return {
+            exists: true,
+            disabled: Boolean(matched.disabled),
+            role: matched.role || 'admin',
+            photoUrl: matched.photoUrl,
+          };
+        },
+        deleteAuthUser: async (uid: string) => {
+          deletedFirebaseUids.push(uid);
+        },
+        purgeUnauthorizedAuthUsers: async () => ({
+          deletedCount: 1,
+          deletedEmails: [unauthorizedEmail],
+        }),
+        saveSessionRecord: async (record: CentralSessionRecord) => {
+          sharedCentralSessionsJson.set(record.id, JSON.stringify(record));
+        },
+        getSessionRecord: async (sessionId: string) => {
+          const raw = sharedCentralSessionsJson.get(sessionId);
+          return raw ? (JSON.parse(raw) as CentralSessionRecord) : null;
+        },
+        revokeSessionRecord: async (sessionId: string) => {
+          sharedCentralSessionsJson.delete(sessionId);
+        },
+      },
+    });
+
+    const baseSim = createSharedBlobStorageSimulator({ configured: true });
+    await publishPublicSnapshot(sharedFirestoreDb, { adapter: baseSim.adapter });
+
+    const app = createExpressApp({
+      authDepsResolver: customResolver,
+      hmacSecret: VALID_TEST_SECRET,
+      snapshotAdapter: baseSim.adapter,
+      strictProductionMode: true,
+    });
+    const srv = await startTestServer(app);
+    try {
+      // 1. Unauthorized Google login must return 403 AND immediately delete the UID from Firebase Auth
+      const unauthRes = await requestJson(srv.baseUrl, '/api/auth/admin-login', {
+        method: 'POST',
+        body: { idToken: 'unauthorized-google-token' },
+      });
+      assert.equal(unauthRes.status, 403, 'Unauthorized Google account must be rejected with 403');
+      assert.ok(
+        deletedFirebaseUids.includes(unauthorizedUid),
+        'Rejected unauthorized user must be immediately deleted from Firebase Authentication'
+      );
+
+      // 2. Owner logs in and receives photoUrl and role
+      const ownerLogin = await requestJson(srv.baseUrl, '/api/auth/admin-login', {
+        method: 'POST',
+        body: {
+          idToken: 'valid-owner-firebase-id-token',
+          photoUrl: 'https://lh3.googleusercontent.com/a/owner-avatar',
+        },
+      });
+      assert.equal(ownerLogin.status, 200);
+      assert.equal(ownerLogin.data.photoUrl, 'https://lh3.googleusercontent.com/a/owner-avatar');
+      const ownerToken = ownerLogin.data.token as string;
+
+      // 3. Owner adds a secondary admin via POST /api/cms/admins/manage
+      const addAdminRes = await requestJson(srv.baseUrl, '/api/cms/admins/manage', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ownerToken}` },
+        body: {
+          email: secondaryAdminEmail,
+          name: 'Secondary Editor',
+          uid: secondaryAdminUid,
+        },
+      });
+      assert.equal(addAdminRes.status, 200, 'Owner must be able to add a secondary admin');
+      assert.equal(addAdminRes.data.admin.email, secondaryAdminEmail);
+      assert.equal(addAdminRes.data.admin.role, 'admin');
+
+      // 4. Secondary admin can now sign in and receives a valid write-enabled session
+      const editorLogin = await requestJson(srv.baseUrl, '/api/auth/admin-login', {
+        method: 'POST',
+        body: { idToken: 'secondary-admin-token' },
+      });
+      assert.equal(editorLogin.status, 200, 'Invited secondary admin must be allowed to sign in');
+      assert.equal(editorLogin.data.role, 'admin');
+      assert.equal(editorLogin.data.photoUrl, 'https://lh3.googleusercontent.com/a/editor-avatar');
+
+      // 5. Primary owner cannot be deleted via DELETE /api/cms/admins/manage/:id
+      const tryDeleteOwner = await requestJson(
+        srv.baseUrl,
+        `/api/cms/admins/manage/${encodeURIComponent(ownerUid)}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${ownerToken}` },
+        }
+      );
+      assert.equal(tryDeleteOwner.status, 403, 'Primary owner must be protected from deletion');
+
+      recordPass(
+        'Test 2.19: Unauthorized Google accounts are automatically deleted from Firebase Auth on 403, and secondary admins can be granted/managed with write permissions'
+      );
+    } finally {
+      await srv.close();
+    }
+  }
+
   console.log('\n================================================================');
   console.log(`🎉 ALL ${passed} PHASE 8.3 RELIABILITY & SECURITY SUITES PASSED!`);
   console.log('================================================================');

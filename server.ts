@@ -67,6 +67,8 @@ export interface CentralSessionRecord {
   uid: string;
   email: string;
   name: string;
+  photoUrl?: string;
+  role?: 'owner' | 'admin';
   expiresAt: number;
   revoked: boolean;
   createdAt: string;
@@ -77,7 +79,23 @@ export interface FirebaseAdminVerificationDeps {
   ownerUid: string;
   ownerEmail?: string;
   verifyIdToken: (idToken: string) => Promise<DecodedAdminToken>;
-  hasAdminDocument: (uid: string) => Promise<{ exists: boolean; disabled?: boolean }>;
+  hasAdminDocument: (
+    uid: string,
+    email?: string,
+    displayName?: string,
+    photoUrl?: string
+  ) => Promise<{
+    exists: boolean;
+    disabled?: boolean;
+    bootstrapped?: boolean;
+    role?: 'owner' | 'admin';
+    photoUrl?: string;
+  }>;
+  deleteAuthUser?: (uid: string) => Promise<void>;
+  purgeUnauthorizedAuthUsers?: () => Promise<{
+    deletedCount: number;
+    deletedEmails: string[];
+  }>;
   saveSessionRecord?: (session: CentralSessionRecord) => Promise<void>;
   getSessionRecord?: (sessionId: string) => Promise<CentralSessionRecord | null>;
   revokeSessionRecord?: (sessionId: string, uid?: string) => Promise<void>;
@@ -126,8 +144,8 @@ export function getPublicFirebaseClientConfigFromEnv() {
     cleanEnvValue(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID) ||
     cleanEnvValue(process.env.FIREBASE_MESSAGING_SENDER_ID);
   const databaseId =
-    cleanEnvValue(process.env.VITE_FIREBASE_DATABASE_ID) ||
     cleanEnvValue(process.env.FIREBASE_DATABASE_ID) ||
+    cleanEnvValue(process.env.VITE_FIREBASE_DATABASE_ID) ||
     '(default)';
 
   return {
@@ -247,14 +265,15 @@ async function getAdminFirestoreInstance(): Promise<{
 }
 
 /**
- * Phase F: Strict Owner Bootstrap Logic (exported for unit & integration testing).
- * Never uses any hardcoded fallback email. Requires explicit ownerEmail or ownerUid from environment variables,
- * and requires userRecord.emailVerified === true.
+ * Phase F: Strict Owner & Invited Secondary Admin Bootstrap Logic (exported for unit & integration testing).
+ * Never uses any hardcoded fallback email. Requires explicit ownerEmail/ownerUid from environment variables
+ * OR an explicit invited admin record in Firestore /admins, and requires userRecord.emailVerified === true.
  */
 export async function resolveOrBootstrapAdminDocument(params: {
   uid: string;
   ownerUid?: string;
   ownerEmail?: string;
+  photoUrlHint?: string;
   getExistingAdminDoc: (
     uid: string
   ) => Promise<{ exists: boolean; data?: Record<string, any> }>;
@@ -263,32 +282,57 @@ export async function resolveOrBootstrapAdminDocument(params: {
     email?: string;
     emailVerified: boolean;
     displayName?: string;
+    photoURL?: string;
   }>;
   createAdminDoc: (uid: string, docData: Record<string, any>) => Promise<void>;
-}): Promise<{ exists: boolean; disabled: boolean; bootstrapped?: boolean }> {
+  findInvitedAdminDocByEmail?: (
+    email: string
+  ) => Promise<{ id: string; data: Record<string, any> } | null>;
+  deleteAdminDocById?: (id: string) => Promise<void>;
+}): Promise<{
+  exists: boolean;
+  disabled: boolean;
+  bootstrapped?: boolean;
+  role?: 'owner' | 'admin';
+  photoUrl?: string;
+}> {
   const {
     uid,
     ownerUid = '',
     ownerEmail = '',
+    photoUrlHint,
     getExistingAdminDoc,
     getAuthUserRecord,
     createAdminDoc,
+    findInvitedAdminDocByEmail,
+    deleteAdminDocById,
   } = params;
 
   const existing = await getExistingAdminDoc(uid);
   if (existing.exists) {
+    const existingRole: 'owner' | 'admin' =
+      existing.data?.role === 'owner' ? 'owner' : 'admin';
+    const nextPhotoUrl = photoUrlHint || existing.data?.photoUrl;
+    if (photoUrlHint && existing.data?.photoUrl !== photoUrlHint) {
+      await createAdminDoc(uid, {
+        photoUrl: photoUrlHint,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
     return {
       exists: true,
       disabled: Boolean(existing.data?.disabled === true),
       bootstrapped: false,
+      role: existingRole,
+      photoUrl: nextPhotoUrl,
     };
   }
 
   const configuredOwnerEmail = ownerEmail.trim().toLowerCase();
   const configuredOwnerUid = ownerUid.replace(/\.+$/, '').trim();
 
-  // If neither ADMIN_OWNER_EMAIL nor ADMIN_OWNER_UID is configured, never bootstrap
-  if (!configuredOwnerEmail && !configuredOwnerUid) {
+  // If neither owner env vars nor invited admin lookup is available, never bootstrap
+  if (!configuredOwnerEmail && !configuredOwnerUid && !findInvitedAdminDocByEmail) {
     return { exists: false, disabled: false, bootstrapped: false };
   }
 
@@ -298,6 +342,47 @@ export async function resolveOrBootstrapAdminDocument(params: {
   }
 
   const verifiedEmail = (userRecord.email || '').trim().toLowerCase();
+  const resolvedPhoto = photoUrlHint || userRecord.photoURL || undefined;
+
+  // Check if this verified email was explicitly invited as a secondary admin in Firestore /admins
+  if (verifiedEmail && findInvitedAdminDocByEmail) {
+    const invited = await findInvitedAdminDocByEmail(verifiedEmail);
+    if (invited && invited.data) {
+      const isDisabled = Boolean(invited.data.disabled === true);
+      const invitedRole: 'owner' | 'admin' =
+        invited.data.role === 'owner' ? 'owner' : 'admin';
+      const now = new Date().toISOString();
+      const linkedDoc = {
+        ...invited.data,
+        id: uid,
+        uid,
+        email: verifiedEmail,
+        name: invited.data.name || userRecord.displayName || 'Admin',
+        ...(resolvedPhoto ? { photoUrl: resolvedPhoto } : {}),
+        role: invitedRole,
+        disabled: isDisabled,
+        createdAt: invited.data.createdAt || now,
+        updatedAt: now,
+      };
+      await createAdminDoc(uid, linkedDoc);
+      if (invited.id && invited.id !== uid && deleteAdminDocById) {
+        await deleteAdminDocById(invited.id).catch(() => {});
+      }
+      cachedAdminDatabase = null;
+      return {
+        exists: true,
+        disabled: isDisabled,
+        bootstrapped: true,
+        role: invitedRole,
+        photoUrl: resolvedPhoto,
+      };
+    }
+  }
+
+  // If neither ADMIN_OWNER_EMAIL nor ADMIN_OWNER_UID is configured, never bootstrap owner
+  if (!configuredOwnerEmail && !configuredOwnerUid) {
+    return { exists: false, disabled: false, bootstrapped: false };
+  }
 
   // If ownerEmail is configured, the user's verified email MUST match it
   if (configuredOwnerEmail && verifiedEmail !== configuredOwnerEmail) {
@@ -316,18 +401,28 @@ export async function resolveOrBootstrapAdminDocument(params: {
     return { exists: false, disabled: false, bootstrapped: false };
   }
 
+  const now = new Date().toISOString();
   const newDoc = {
     id: uid,
     uid,
     email: verifiedEmail,
     name: userRecord.displayName || 'Ahmed Soliman',
-    role: 'owner',
+    ...(resolvedPhoto ? { photoUrl: resolvedPhoto } : {}),
+    role: 'owner' as const,
     disabled: false,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
 
   await createAdminDoc(uid, newDoc);
-  return { exists: true, disabled: false, bootstrapped: true };
+  cachedAdminDatabase = null;
+  return {
+    exists: true,
+    disabled: false,
+    bootstrapped: true,
+    role: 'owner',
+    photoUrl: resolvedPhoto,
+  };
 }
 
 export async function getFirebaseAdminVerificationServices(): Promise<AdminServiceResolution> {
@@ -360,13 +455,20 @@ export async function getFirebaseAdminVerificationServices(): Promise<AdminServi
             email: decoded.email,
             email_verified: decoded.email_verified,
             name: typeof decoded.name === 'string' ? decoded.name : undefined,
+            picture: typeof decoded.picture === 'string' ? decoded.picture : undefined,
           };
         },
-        hasAdminDocument: async (uid: string) => {
+        hasAdminDocument: async (
+          uid: string,
+          _email?: string,
+          _displayName?: string,
+          photoUrl?: string
+        ) => {
           return resolveOrBootstrapAdminDocument({
             uid,
             ownerUid,
             ownerEmail,
+            photoUrlHint: photoUrl,
             getExistingAdminDoc: async (targetUid) => {
               serverFirestoreReadOpsCount += 1;
               const snap = await adminDb.collection('admins').doc(targetUid).get();
@@ -379,6 +481,7 @@ export async function getFirebaseAdminVerificationServices(): Promise<AdminServi
                 email: userRec.email,
                 emailVerified: Boolean(userRec.emailVerified),
                 displayName: userRec.displayName,
+                photoURL: userRec.photoURL,
               };
             },
             createAdminDoc: async (targetUid, docData) => {
@@ -388,7 +491,72 @@ export async function getFirebaseAdminVerificationServices(): Promise<AdminServi
                 .doc(targetUid)
                 .set(docData, { merge: true });
             },
+            findInvitedAdminDocByEmail: async (normalizedEmail) => {
+              serverFirestoreReadOpsCount += 1;
+              const snap = await adminDb
+                .collection('admins')
+                .where('email', '==', normalizedEmail)
+                .limit(1)
+                .get();
+              if (snap.empty) return null;
+              const doc = snap.docs[0];
+              return { id: doc.id, data: doc.data() };
+            },
+            deleteAdminDocById: async (docId) => {
+              serverFirestoreWriteOpsCount += 1;
+              await adminDb.collection('admins').doc(docId).delete();
+            },
           });
+        },
+        deleteAuthUser: async (targetUid: string) => {
+          await adminAuth.revokeRefreshTokens(targetUid).catch(() => {});
+          await adminAuth.deleteUser(targetUid).catch(() => {});
+        },
+        purgeUnauthorizedAuthUsers: async () => {
+          const adminsSnap = await adminDb.collection('admins').get();
+          const allowedUids = new Set<string>();
+          const allowedEmails = new Set<string>();
+
+          const normOwnerUid = (ownerUid || '').replace(/\.+$/, '').trim();
+          const normOwnerEmail = (ownerEmail || '').trim().toLowerCase();
+          if (normOwnerEmail) allowedEmails.add(normOwnerEmail);
+
+          for (const doc of adminsSnap.docs) {
+            const data = doc.data();
+            if (data && data.disabled !== true) {
+              if (typeof data.uid === 'string' && data.uid.trim()) {
+                allowedUids.add(data.uid.trim());
+              }
+              if (typeof data.email === 'string' && data.email.trim()) {
+                allowedEmails.add(data.email.trim().toLowerCase());
+              }
+            }
+          }
+
+          const listResult = await adminAuth.listUsers(100);
+          const deletedEmails: string[] = [];
+          let deletedCount = 0;
+
+          for (const userRecord of listResult.users || []) {
+            const uUid = userRecord.uid;
+            const uEmail = (userRecord.email || '').trim().toLowerCase();
+            const isOwnerByUid =
+              Boolean(normOwnerUid) &&
+              (uUid === normOwnerUid ||
+                (normOwnerUid.length >= 16 && uUid.startsWith(normOwnerUid)));
+            const isOwnerByEmail = Boolean(normOwnerEmail) && uEmail === normOwnerEmail;
+            const isAllowedAdmin =
+              allowedUids.has(uUid) || (Boolean(uEmail) && allowedEmails.has(uEmail));
+
+            if (!isOwnerByUid && !isOwnerByEmail && !isAllowedAdmin) {
+              await adminAuth.revokeRefreshTokens(uUid).catch(() => {});
+              await adminAuth.deleteUser(uUid).catch(() => {});
+              deletedCount += 1;
+              deletedEmails.push(uEmail || uUid);
+            }
+          }
+
+          return { deletedCount, deletedEmails };
         },
         saveSessionRecord: async (session: CentralSessionRecord) => {
           serverFirestoreWriteOpsCount += 1;
@@ -440,6 +608,8 @@ export interface AdminSession {
   uid: string;
   email: string;
   name: string;
+  photoUrl?: string;
+  role?: 'owner' | 'admin';
   expiresAt: number;
 }
 
@@ -597,6 +767,8 @@ export function verifySignedAdminSessionToken(
         uid: parsed.uid,
         email: parsed.email || '',
         name: parsed.name || 'Ahmed Soliman',
+        ...(typeof parsed.photoUrl === 'string' && parsed.photoUrl ? { photoUrl: parsed.photoUrl } : {}),
+        ...(parsed.role === 'owner' || parsed.role === 'admin' ? { role: parsed.role } : {}),
         expiresAt: parsed.expiresAt,
       },
     };
@@ -792,6 +964,9 @@ export async function verifyAdminSessionCentralized(
     };
   }
 
+  let resolvedRole = signedSession.role || centralRec.role;
+  let resolvedPhoto = signedSession.photoUrl || centralRec.photoUrl;
+
   try {
     const adminDoc = await deps.hasAdminDocument(signedSession.uid);
     if (!adminDoc || !adminDoc.exists || adminDoc.disabled === true) {
@@ -804,6 +979,8 @@ export async function verifyAdminSessionCentralized(
         error: 'Access Denied: Admin account is disabled or removed in Firestore /admins/{uid}.',
       };
     }
+    if (adminDoc.role) resolvedRole = adminDoc.role;
+    if (adminDoc.photoUrl) resolvedPhoto = adminDoc.photoUrl;
   } catch {
     return {
       authenticated: false,
@@ -813,8 +990,14 @@ export async function verifyAdminSessionCentralized(
     };
   }
 
-  activeSessions.set(token, signedSession);
-  return { authenticated: true, session: signedSession };
+  const enrichedSession: AdminSession = {
+    ...signedSession,
+    ...(resolvedPhoto ? { photoUrl: resolvedPhoto } : {}),
+    ...(resolvedRole ? { role: resolvedRole } : {}),
+  };
+
+  activeSessions.set(token, enrichedSession);
+  return { authenticated: true, session: enrichedSession };
 }
 
 export function createRequireAdminMiddleware(
@@ -2136,7 +2319,7 @@ export function createAdminLoginHandler(
       return;
     }
 
-    // Step 2: Preserve owner UID/email verification
+    // Step 2: Check primary owner identity (UID / Email) and secondary admin records
     const normalizedOwnerUid = (deps.ownerUid || '').replace(/\.+$/, '').trim();
     const uidMatches =
       Boolean(normalizedOwnerUid) &&
@@ -2149,20 +2332,22 @@ export function createAdminLoginHandler(
       typeof decoded.email === 'string' &&
       decoded.email.trim().toLowerCase() === deps.ownerEmail.trim().toLowerCase();
 
-    if (!uidMatches && !verifiedOwnerEmailMatches) {
-      res.status(403).json({
-        error: 'Access Denied: Authenticated UID is not the authorized platform owner.',
-        code: 'FORBIDDEN_NOT_OWNER_UID',
-      });
-      return;
-    }
+    const isPrimaryOwnerCandidate = uidMatches || verifiedOwnerEmailMatches;
+    const requestedPhotoUrl =
+      typeof decoded.picture === 'string' && decoded.picture.trim()
+        ? decoded.picture.trim()
+        : typeof req.body?.photoUrl === 'string' && req.body.photoUrl.trim()
+        ? req.body.photoUrl.trim()
+        : undefined;
 
     if (
+      uidMatches &&
       deps.ownerEmail &&
       deps.ownerEmail.trim().length > 0 &&
       (!decoded.email ||
         decoded.email.trim().toLowerCase() !== deps.ownerEmail.trim().toLowerCase())
     ) {
+      await deps.deleteAuthUser?.(decoded.uid).catch(() => {});
       res.status(403).json({
         error: 'Access Denied: Authenticated account email does not match ADMIN_OWNER_EMAIL.',
         code: 'FORBIDDEN_EMAIL_MISMATCH',
@@ -2170,18 +2355,20 @@ export function createAdminLoginHandler(
       return;
     }
 
-    // Step 3: Verify admins/{uid} exists and is active
+    // Step 3: Verify admins/{uid} (or invited email in /admins) exists and is active
+    let adminDoc: {
+      exists: boolean;
+      disabled?: boolean;
+      role?: 'owner' | 'admin';
+      photoUrl?: string;
+    };
     try {
-      const adminDoc = await deps.hasAdminDocument(decoded.uid);
-      if (!adminDoc.exists || adminDoc.disabled) {
-        res.status(403).json({
-          error: adminDoc.disabled
-            ? 'Access Denied: Admin account is disabled in Firestore /admins/{uid}.'
-            : 'Access Denied: UID is not registered in Firestore /admins/{uid}.',
-          code: adminDoc.disabled ? 'FORBIDDEN_ADMIN_DISABLED' : 'FORBIDDEN_NOT_ADMIN_UID',
-        });
-        return;
-      }
+      adminDoc = await deps.hasAdminDocument(
+        decoded.uid,
+        decoded.email,
+        decoded.name,
+        requestedPhotoUrl
+      );
     } catch {
       res.status(503).json({
         error: 'Failed to verify /admins/{uid} authorization record in Firestore.',
@@ -2190,15 +2377,55 @@ export function createAdminLoginHandler(
       return;
     }
 
+    const isExplicitSecondaryAdmin =
+      adminDoc.exists && adminDoc.disabled !== true && adminDoc.role === 'admin';
+
+    if (!isPrimaryOwnerCandidate && !isExplicitSecondaryAdmin) {
+      if (adminDoc.exists && adminDoc.disabled === true) {
+        res.status(403).json({
+          error: 'Access Denied: Admin account is disabled in Firestore /admins/{uid}.',
+          code: 'FORBIDDEN_ADMIN_DISABLED',
+        });
+        return;
+      }
+      // Immediately delete unauthorized user from Firebase Authentication so they never linger in Firebase Console -> Users
+      await deps.deleteAuthUser?.(decoded.uid).catch(() => {});
+      res.status(403).json({
+        error: 'Access Denied: Authenticated UID is not the authorized platform owner.',
+        code: 'FORBIDDEN_NOT_OWNER_UID',
+      });
+      return;
+    }
+
+    if (!adminDoc.exists || adminDoc.disabled) {
+      if (!adminDoc.exists && !isPrimaryOwnerCandidate) {
+        await deps.deleteAuthUser?.(decoded.uid).catch(() => {});
+      }
+      res.status(403).json({
+        error: adminDoc.disabled
+          ? 'Access Denied: Admin account is disabled in Firestore /admins/{uid}.'
+          : 'Access Denied: UID is not registered in Firestore /admins/{uid}.',
+        code: adminDoc.disabled ? 'FORBIDDEN_ADMIN_DISABLED' : 'FORBIDDEN_NOT_ADMIN_UID',
+      });
+      return;
+    }
+
     // Step 4: Create signed session token
     const finalEmail = sanitizeText(decoded.email || '', 120).trim().toLowerCase();
     const finalName = sanitizeText(decoded.name || 'Ahmed Soliman', 120) || 'Ahmed Soliman';
+    const finalPhotoUrl =
+      requestedPhotoUrl || adminDoc.photoUrl || '/assets/aistudio/owner_portrait.png';
+    const finalRole: 'owner' | 'admin' = isPrimaryOwnerCandidate
+      ? 'owner'
+      : adminDoc.role || 'admin';
     const expiresAt = Date.now() + SESSION_TTL_MS;
     const token = createSignedAdminSessionToken(
       {
         uid: decoded.uid,
         email: finalEmail,
         name: finalName,
+        photoUrl: finalPhotoUrl,
+        role: finalRole,
         expiresAt,
       },
       secretOverride
@@ -2209,6 +2436,8 @@ export function createAdminLoginHandler(
       uid: decoded.uid,
       email: finalEmail,
       name: finalName,
+      photoUrl: finalPhotoUrl,
+      role: finalRole,
       expiresAt,
     };
 
@@ -2219,6 +2448,8 @@ export function createAdminLoginHandler(
       uid: session.uid,
       email: session.email,
       name: session.name,
+      photoUrl: finalPhotoUrl,
+      role: finalRole,
       expiresAt: session.expiresAt,
       revoked: false,
       createdAt: new Date().toISOString(),
@@ -2236,6 +2467,9 @@ export function createAdminLoginHandler(
       return;
     }
 
+    // Background cleanup of any stray unauthorized accounts in Firebase Auth (e.g., dina3ramadan@gmail.com)
+    void deps.purgeUnauthorizedAuthUsers?.().catch(() => {});
+
     // Step 7: Only after central Firestore write succeeds, cache locally and return session token
     activeSessions.set(token, session);
 
@@ -2244,6 +2478,8 @@ export function createAdminLoginHandler(
       uid: session.uid,
       email: session.email,
       name: session.name,
+      photoUrl: session.photoUrl,
+      role: session.role,
       expiresAt: session.expiresAt,
     });
   };
@@ -2281,6 +2517,8 @@ export function registerAuthRoutes(
       uid: result.session.uid,
       email: result.session.email,
       name: result.session.name,
+      photoUrl: result.session.photoUrl,
+      role: result.session.role || 'owner',
       expiresAt: result.session.expiresAt,
     });
   });
@@ -2682,6 +2920,299 @@ export function createExpressApp(options?: ServerInstanceOptions): express.Expre
       });
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // 4.1 ADMIN MANAGEMENT & UNAUTHORIZED FIREBASE AUTH USER CLEANUP ROUTES
+  // ---------------------------------------------------------------------------
+  app.post(
+    '/api/cms/admins/manage',
+    adminMiddleware,
+    async (req: Request, res: Response) => {
+      const rawEmail = sanitizeText(String(req.body?.email || ''), 120)
+        .trim()
+        .toLowerCase();
+      const rawName = sanitizeText(String(req.body?.name || ''), 120).trim();
+      const rawUid = sanitizeText(String(req.body?.uid || ''), 128).trim();
+
+      if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        res.status(400).json({
+          error: 'يرجى إدخال بريد Google إلكتروني صحيح للمدير الجديد.',
+          code: 'INVALID_ADMIN_EMAIL',
+        });
+        return;
+      }
+      if (!rawName || rawName.length < 2) {
+        res.status(400).json({
+          error: 'يرجى إدخال اسم واضح للمدير (حرفين على الأقل).',
+          code: 'INVALID_ADMIN_NAME',
+        });
+        return;
+      }
+
+      try {
+        const db = await loadAdminDatabase();
+        const adminsList = [...(db.admins || [])];
+        const now = new Date().toISOString();
+
+        const existingIdx = adminsList.findIndex(
+          (a) =>
+            (a.email && a.email.trim().toLowerCase() === rawEmail) ||
+            (rawUid && (a.id === rawUid || a.uid === rawUid))
+        );
+
+        const emailHash = crypto
+          .createHash('sha256')
+          .update(rawEmail)
+          .digest('hex')
+          .slice(0, 16);
+        const docId =
+          rawUid ||
+          (existingIdx >= 0 ? adminsList[existingIdx].id : `invite-${emailHash}`);
+
+        const adminRecord = {
+          ...(existingIdx >= 0 ? adminsList[existingIdx] : {}),
+          id: docId,
+          uid: rawUid || (existingIdx >= 0 ? adminsList[existingIdx].uid : docId),
+          email: rawEmail,
+          name: rawName,
+          role:
+            existingIdx >= 0 && adminsList[existingIdx].role === 'owner'
+              ? ('owner' as const)
+              : ('admin' as const),
+          disabled: false,
+          createdAt:
+            existingIdx >= 0 ? adminsList[existingIdx].createdAt || now : now,
+          updatedAt: now,
+        };
+
+        if (existingIdx >= 0) {
+          adminsList[existingIdx] = adminRecord;
+        } else {
+          adminsList.push(adminRecord);
+        }
+
+        const nextDb: PlatformDatabase = {
+          ...db,
+          admins: adminsList,
+        };
+
+        await persistAdminMutationToFirestore({
+          nextDb,
+          operation: {
+            type: 'upsert',
+            collection: 'admins',
+            id: docId,
+            record: adminRecord,
+          },
+        });
+
+        res.json({
+          success: true,
+          admin: adminRecord,
+          admins: adminsList,
+        });
+      } catch (err: any) {
+        res.status(503).json({
+          error: err?.message || 'Failed to save admin record in Firestore.',
+          code: 'FIRESTORE_WRITE_FAILED',
+        });
+      }
+    }
+  );
+
+  app.patch(
+    '/api/cms/admins/manage/:id',
+    adminMiddleware,
+    async (req: Request, res: Response) => {
+      const targetId = String(req.params.id || '').trim();
+      try {
+        const db = await loadAdminDatabase();
+        const adminsList = [...(db.admins || [])];
+        const idx = adminsList.findIndex(
+          (a) => a.id === targetId || a.uid === targetId
+        );
+        if (idx === -1) {
+          res.status(404).json({
+            error: 'سجل المدير غير موجود.',
+            code: 'ADMIN_NOT_FOUND',
+          });
+          return;
+        }
+
+        const target = adminsList[idx];
+        const envCheck = checkFirebaseAdminEnvConfig();
+        const isPrimaryOwner =
+          target.role === 'owner' ||
+          (envCheck.ready &&
+            ((envCheck.ownerUid &&
+              (target.uid === envCheck.ownerUid ||
+                target.id === envCheck.ownerUid)) ||
+              (envCheck.ownerEmail &&
+                target.email?.trim().toLowerCase() ===
+                  envCheck.ownerEmail.trim().toLowerCase())));
+
+        if (isPrimaryOwner && req.body?.disabled === true) {
+          res.status(403).json({
+            error: 'لا يمكن تعطيل حساب المالك الأساسي للمنصة.',
+            code: 'OWNER_DISABLE_FORBIDDEN',
+          });
+          return;
+        }
+
+        const updated = {
+          ...target,
+          ...(typeof req.body?.name === 'string' && req.body.name.trim()
+            ? { name: sanitizeText(req.body.name, 120).trim() }
+            : {}),
+          ...(typeof req.body?.disabled === 'boolean'
+            ? { disabled: req.body.disabled }
+            : {}),
+          updatedAt: new Date().toISOString(),
+        };
+
+        adminsList[idx] = updated;
+        const nextDb: PlatformDatabase = { ...db, admins: adminsList };
+
+        await persistAdminMutationToFirestore({
+          nextDb,
+          operation: {
+            type: 'upsert',
+            collection: 'admins',
+            id: updated.id,
+            record: updated,
+          },
+        });
+
+        res.json({
+          success: true,
+          admin: updated,
+          admins: adminsList,
+        });
+      } catch (err: any) {
+        res.status(503).json({
+          error: err?.message || 'Failed to update admin record in Firestore.',
+          code: 'FIRESTORE_WRITE_FAILED',
+        });
+      }
+    }
+  );
+
+  app.delete(
+    '/api/cms/admins/manage/:id',
+    adminMiddleware,
+    async (req: Request, res: Response) => {
+      const targetId = String(req.params.id || '').trim();
+      try {
+        const authRes = await activeAuthResolver();
+        const resolvedOwnerUid = authRes && authRes.ready ? authRes.deps.ownerUid : '';
+        const resolvedOwnerEmail = authRes && authRes.ready ? authRes.deps.ownerEmail : '';
+
+        if (
+          (resolvedOwnerUid && targetId === resolvedOwnerUid) ||
+          targetId === 'admin-owner-1'
+        ) {
+          res.status(403).json({
+            error: 'لا يمكن حذف حساب المالك الأساسي للمنصة.',
+            code: 'OWNER_DELETE_FORBIDDEN',
+          });
+          return;
+        }
+
+        const db = await loadAdminDatabase();
+        const adminsList = [...(db.admins || [])];
+        const idx = adminsList.findIndex(
+          (a) => a.id === targetId || a.uid === targetId
+        );
+        if (idx === -1) {
+          res.status(404).json({
+            error: 'سجل المدير غير موجود.',
+            code: 'ADMIN_NOT_FOUND',
+          });
+          return;
+        }
+
+        const target = adminsList[idx];
+        const envCheck = checkFirebaseAdminEnvConfig();
+        const isPrimaryOwner =
+          target.role === 'owner' ||
+          (resolvedOwnerUid &&
+            (target.uid === resolvedOwnerUid || target.id === resolvedOwnerUid)) ||
+          (resolvedOwnerEmail &&
+            target.email?.trim().toLowerCase() ===
+              resolvedOwnerEmail.trim().toLowerCase()) ||
+          (envCheck.ready &&
+            ((envCheck.ownerUid &&
+              (target.uid === envCheck.ownerUid ||
+                target.id === envCheck.ownerUid)) ||
+              (envCheck.ownerEmail &&
+                target.email?.trim().toLowerCase() ===
+                  envCheck.ownerEmail.trim().toLowerCase())));
+
+        if (isPrimaryOwner) {
+          res.status(403).json({
+            error: 'لا يمكن حذف حساب المالك الأساسي للمنصة.',
+            code: 'OWNER_DELETE_FORBIDDEN',
+          });
+          return;
+        }
+
+        const filtered = adminsList.filter((_, i) => i !== idx);
+        const nextDb: PlatformDatabase = { ...db, admins: filtered };
+
+        await persistAdminMutationToFirestore({
+          nextDb,
+          operation: { type: 'delete', collection: 'admins', id: target.id },
+        });
+
+        // Also delete the removed admin from Firebase Auth if they had signed in
+        if (authRes && authRes.ready && target.uid && !target.uid.startsWith('invite-')) {
+          await authRes.deps.deleteAuthUser?.(target.uid).catch(() => {});
+        }
+
+        res.json({
+          success: true,
+          deletedId: target.id,
+          admins: filtered,
+        });
+      } catch (err: any) {
+        res.status(503).json({
+          error: err?.message || 'Failed to delete admin record from Firestore.',
+          code: 'FIRESTORE_WRITE_FAILED',
+        });
+      }
+    }
+  );
+
+  app.post(
+    '/api/cms/admins/purge-unauthorized',
+    adminMiddleware,
+    async (_req: Request, res: Response) => {
+      try {
+        const resolved = await activeAuthResolver();
+        if (!resolved || !resolved.ready || !resolved.deps.purgeUnauthorizedAuthUsers) {
+          res.json({
+            success: true,
+            deletedCount: 0,
+            deletedEmails: [],
+          });
+          return;
+        }
+        const purgeRes = await resolved.deps.purgeUnauthorizedAuthUsers();
+        res.json({
+          success: true,
+          deletedCount: purgeRes.deletedCount,
+          deletedEmails: purgeRes.deletedEmails,
+        });
+      } catch (err: any) {
+        res.status(503).json({
+          error:
+            err?.message ||
+            'Failed to purge unauthorized accounts from Firebase Authentication.',
+          code: 'FIREBASE_AUTH_PURGE_FAILED',
+        });
+      }
+    }
+  );
 
   // Upsert (Create or Update) item in any collection
   app.post(

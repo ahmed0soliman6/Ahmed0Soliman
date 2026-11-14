@@ -21,7 +21,10 @@ export interface AdminRecord {
   uid: string;
   email: string;
   name: string;
+  photoUrl?: string;
   role: 'owner' | 'admin';
+  disabled?: boolean;
+  addedBy?: string;
   createdAt: string;
   updatedAt: string;
 }

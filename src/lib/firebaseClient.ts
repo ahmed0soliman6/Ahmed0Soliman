@@ -249,9 +249,21 @@ export async function signInWithExistingFirebaseGoogle(): Promise<{
     uid: user.uid,
     email: user.email || '',
     displayName: user.displayName || 'Admin',
-    photoURL: user.photoURL || '/assets/aistudio/1770146906397_16665dd0.png',
+    photoURL: user.photoURL || '/assets/aistudio/owner_portrait.png',
     idToken,
   };
+}
+
+export async function deleteCurrentUnauthorizedFirebaseUser(): Promise<void> {
+  const instances = getFirebaseInstances();
+  if (!instances) return;
+  try {
+    if (instances.auth.currentUser) {
+      await instances.auth.currentUser.delete().catch(() => {});
+    }
+  } finally {
+    await fbSignOut(instances.auth).catch(() => {});
+  }
 }
 
 export async function signOutFromExistingFirebase(): Promise<void> {

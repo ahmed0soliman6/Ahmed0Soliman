@@ -196,6 +196,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
+  // Admin Management State
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminUid, setNewAdminUid] = useState('');
+  const [adminManageBusy, setAdminManageBusy] = useState(false);
+  const [purgingAuthUsers, setPurgingAuthUsers] = useState(false);
+
   // Unified Search, Filter, Sort & Pagination State
   const [searchFilter, setSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'trash'>('all');
@@ -568,8 +575,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
   // RENDER ADMIN AUTHENTICATION GATE IF NOT LOGGED IN (Google + Firebase ID Token)
   // ---------------------------------------------------------------------------
   if (!adminSession) {
-    const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
-
     const handleGoogleOwnerLogin = async () => {
       setLoginError(null);
       setLoginLoading(true);
@@ -614,37 +619,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
     return (
       <LayoutResolver>
         <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#070E1A]">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-7 sm:p-8 space-y-5 shadow-xl">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 p-7 sm:p-8 space-y-6 shadow-xl">
             <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#00C2CB]">
-                <ShieldCheck className="w-4 h-4" />
-                <span>
-                  {locale === 'ar' ? 'بوابة إدارة المنصة المحمية' : 'Protected Admin CMS Gate'}
-                </span>
-              </div>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-white">
+                {locale === 'ar' ? 'تسجيل دخول الإدارة' : 'Admin Sign-In'}
+              </h1>
               <button
                 onClick={() => navigate(`/${locale}`)}
-                className="text-xs text-slate-500 hover:text-[#00C2CB]"
+                className="text-xs text-slate-500 hover:text-[#00C2CB] cursor-pointer"
               >
-                {locale === 'ar' ? 'العودة للموقع ←' : '← Back to Site'}
+                {locale === 'ar' ? 'العودة للموقع ←' : '← Back'}
               </button>
             </div>
 
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-                {locale === 'ar'
-                  ? 'تسجيل دخول المدير عبر Google'
-                  : 'Authorized Admin Sign-In'}
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                {locale === 'ar'
-                  ? 'الدخول مقصور على حساب Google المعتمد، مع التحقق التشفيري من Firebase ID Token على الخادم ومطابقة UID في وثيقة admins.'
-                  : 'Access is restricted exclusively to the authorized Google account, verified server-side via Firebase ID Token and /admins/{uid}.'}
-              </p>
-            </div>
-
             {loginError && (
-              <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-700/80 text-xs text-red-200 space-y-2">
+              <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-700/80 text-xs text-red-200">
                 <div className="flex items-start gap-2.5">
                   <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                   <span className="leading-relaxed">{loginError}</span>
@@ -656,51 +645,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
               type="button"
               disabled={loginLoading || !isFirebaseConnected}
               onClick={handleGoogleOwnerLogin}
-              className="w-full py-3.5 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+              className="w-full py-3.5 px-4 rounded-xl text-sm font-bold bg-white text-slate-900 hover:bg-slate-100 border border-slate-200 dark:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-3 shadow-md cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4" />
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
               <span>
                 {loginLoading
                   ? locale === 'ar'
-                    ? 'جاري التحقق من توقيع Firebase ID Token...'
-                    : 'Verifying Firebase ID Token...'
+                    ? 'جاري تسجيل الدخول...'
+                    : 'Signing in...'
                   : locale === 'ar'
-                  ? 'الدخول باستخدام Google (Firebase Auth)'
-                  : 'Sign In with Google (Firebase Auth)'}
+                  ? 'المتابعة باستخدام Google'
+                  : 'Continue with Google'}
               </span>
             </button>
-
-            {/* Current Domain Copy Helper for Firebase Authorized Domains */}
-            {currentDomain && (
-              <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-2">
-                <div className="font-semibold text-slate-800 dark:text-slate-200">
-                  {locale === 'ar'
-                    ? 'لتجنب خطأ (auth/unauthorized-domain) أضف هذا النطاق في Firebase:'
-                    : 'To prevent (auth/unauthorized-domain), add this domain in Firebase:'}
-                </div>
-                <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                  <code className="text-[11px] text-[#00C2CB] truncate font-mono">
-                    {currentDomain}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(currentDomain);
-                      showToast(
-                        locale === 'ar'
-                          ? 'تم نسخ النطاق! أضفه في Authentication -> Settings -> Authorized domains'
-                          : 'Domain copied! Add it in Authentication -> Settings -> Authorized domains',
-                        'info'
-                      );
-                    }}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-[#00C2CB] hover:text-slate-950 text-slate-700 dark:text-slate-200 font-semibold shrink-0 transition-colors"
-                  >
-                    <Copy className="w-3 h-3" />
-                    <span>{locale === 'ar' ? 'نسخ النطاق' : 'Copy'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
 
             {!isFirebaseConnected && (
               <form
@@ -711,8 +685,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <span>
                     {locale === 'ar'
-                      ? 'لم يتم العثور على VITE_FIREBASE_API_KEY وقت البناء. يمكنك لصق مفتاح الويب العام ومعرّف المشروع لتفعيل زر Google فوراً:'
-                      : 'VITE_FIREBASE_API_KEY was not baked at build time. Paste your public Web API Key and Project ID to enable Google Sign-In:'}
+                      ? 'أدخل مفتاح الويب العام ومعرّف المشروع لتفعيل زر Google:'
+                      : 'Enter your public Web API Key and Project ID to enable Google Sign-In:'}
                   </span>
                 </div>
                 <div>
@@ -982,6 +956,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
           subRoute={subRoute}
           activeNavKey={activeNavKey}
           adminUid={adminSession.uid}
+          adminName={adminSession.name}
+          adminEmail={adminSession.email}
+          adminPhotoUrl={adminSession.photoUrl || db.siteSettings.avatarUrl}
+          adminRole={adminSession.role}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           collapsed={sidebarCollapsed}
@@ -1101,6 +1079,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <div
+                className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700"
+                title={adminSession.email}
+              >
+                {adminSession.photoUrl || db.siteSettings.avatarUrl ? (
+                  <img
+                    src={adminSession.photoUrl || db.siteSettings.avatarUrl}
+                    alt={adminSession.name || adminSession.email}
+                    className="w-6 h-6 rounded-full object-cover border border-[#00C2CB]/50 shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <ShieldCheck className="w-4 h-4 text-[#00C2CB] shrink-0" />
+                )}
+                <span className="hidden xl:inline text-xs font-semibold text-slate-800 dark:text-slate-100 max-w-[140px] truncate">
+                  {adminSession.name || adminSession.email}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={() => refreshData()}
@@ -4773,6 +4770,335 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ subRoute }) => {
                         }}
                       />
                     </label>
+                  </div>
+                </div>
+
+                {/* 4. Multi-Admin Access & Write Permissions Management (#settings-admins) */}
+                <div
+                  id="settings-admins"
+                  className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-6 scroll-mt-20"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-[#00C2CB]">
+                        {locale === 'ar'
+                          ? 'إدارة المديرين وصلاحيات الكتابة'
+                          : 'Administrators & Write Permissions'}
+                      </div>
+                      <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                        {locale === 'ar'
+                          ? 'المديرون المعتمدون وحماية حسابات Firebase Authentication'
+                          : 'Authorized Admins & Firebase Auth Protection'}
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {locale === 'ar'
+                          ? 'أي حساب Google غير مدرج هنا يتم رفض دخوله فوراً وحذفه تلقائياً من قائمة Firebase Authentication.'
+                          : 'Any Google account not listed here is automatically rejected and deleted from Firebase Authentication.'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={purgingAuthUsers}
+                      onClick={async () => {
+                        if (!adminSession) return;
+                        setPurgingAuthUsers(true);
+                        try {
+                          const res = await fetch('/api/cms/admins/purge-unauthorized', {
+                            method: 'POST',
+                            headers: {
+                              Authorization: `Bearer ${adminSession.token}`,
+                            },
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok) {
+                            throw new Error(data.error || 'Failed to purge unauthorized users');
+                          }
+                          const count = Number(data.deletedCount || 0);
+                          showToast(
+                            locale === 'ar'
+                              ? count > 0
+                                ? `تم تنظيف وحذف ${count} حساب غير مصرح به من Firebase Auth`
+                                : 'قائمة Firebase Auth نظيفة تماماً — لا توجد حسابات غير مصرح بها'
+                              : count > 0
+                              ? `Purged ${count} unauthorized user(s) from Firebase Auth`
+                              : 'Firebase Auth is clean — no unauthorized users found',
+                            'success'
+                          );
+                        } catch (err: any) {
+                          showToast(
+                            err?.message ||
+                              (locale === 'ar'
+                                ? 'تعذر تنظيف حسابات Firebase Auth'
+                                : 'Failed to purge Firebase Auth users'),
+                            'error'
+                          );
+                        } finally {
+                          setPurgingAuthUsers(false);
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] disabled:opacity-50 shrink-0 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${purgingAuthUsers ? 'animate-spin' : ''}`} />
+                      <span>
+                        {locale === 'ar'
+                          ? 'تنظيف الحسابات غير المصرحة من Firebase Auth'
+                          : 'Purge Unauthorized Firebase Auth Users'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Add / Invite Secondary Admin Form */}
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!adminSession || !newAdminEmail.trim()) return;
+                      setAdminManageBusy(true);
+                      try {
+                        const res = await fetch('/api/cms/admins/manage', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${adminSession.token}`,
+                          },
+                          body: JSON.stringify({
+                            email: newAdminEmail.trim().toLowerCase(),
+                            name: newAdminName.trim() || newAdminEmail.trim().split('@')[0],
+                            uid: newAdminUid.trim() || undefined,
+                          }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                          throw new Error(data.error || 'Failed to add administrator');
+                        }
+                        setNewAdminEmail('');
+                        setNewAdminName('');
+                        setNewAdminUid('');
+                        await refreshData();
+                        showToast(
+                          locale === 'ar'
+                            ? 'تمت إضافة المدير ومنحه صلاحيات الكتابة بنجاح'
+                            : 'Administrator added with write permissions',
+                          'success'
+                        );
+                      } catch (err: any) {
+                        showToast(err?.message || 'Failed to add admin', 'error');
+                      } finally {
+                        setAdminManageBusy(false);
+                      }
+                    }}
+                    className="p-4 rounded-xl bg-slate-50 dark:bg-[#070E1A] border border-slate-200 dark:border-slate-800 space-y-3"
+                  >
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">
+                      {locale === 'ar'
+                        ? 'إضافة مدير جديد بصلاحيات الكتابة والتحرير'
+                        : 'Add New Administrator with Write Permissions'}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                          {locale === 'ar' ? 'البريد الإلكتروني (Google Email) *' : 'Google Email *'}
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          placeholder="editor@gmail.com"
+                          value={newAdminEmail}
+                          onChange={(e) => setNewAdminEmail(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                          {locale === 'ar' ? 'الاسم المعروض' : 'Display Name'}
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={locale === 'ar' ? 'اسم المدير' : 'Admin Name'}
+                          value={newAdminName}
+                          onChange={(e) => setNewAdminName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                          {locale === 'ar'
+                            ? 'Firebase UID (اختياري — يُربط تلقائياً عند أول دخول)'
+                            : 'Firebase UID (Optional — auto-linked on first login)'}
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={locale === 'ar' ? 'تلقائي عند أول دخول' : 'Auto on first sign-in'}
+                          value={newAdminUid}
+                          onChange={(e) => setNewAdminUid(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 font-mono-tabular"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={adminManageBusy || !newAdminEmail.trim()}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#00C2CB] text-slate-950 hover:bg-[#0099A3] disabled:opacity-50 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>
+                          {locale === 'ar'
+                            ? 'إضافة مدير بصلاحية الكتابة'
+                            : 'Grant Admin Write Access'}
+                        </span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Authorized Admins List */}
+                  <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                    {(db.admins || []).map((adm) => {
+                      const isPrimaryOwner = adm.role === 'owner';
+                      const avatarSrc =
+                        adm.photoUrl ||
+                        (isPrimaryOwner ? adminSession?.photoUrl || db.siteSettings.avatarUrl : '');
+                      return (
+                        <div
+                          key={adm.id}
+                          className="p-4 bg-white dark:bg-[#0F172A] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {avatarSrc ? (
+                              <img
+                                src={avatarSrc}
+                                alt={adm.name || adm.email}
+                                className="w-9 h-9 rounded-full object-cover border border-[#00C2CB]/50 shrink-0"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-[#00C2CB]/15 border border-[#00C2CB]/40 flex items-center justify-center text-[#00C2CB] shrink-0">
+                                <ShieldCheck className="w-4 h-4" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {adm.name || adm.email}
+                                </span>
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    isPrimaryOwner
+                                      ? 'bg-[#00C2CB]/15 text-[#00C2CB]'
+                                      : adm.disabled
+                                      ? 'bg-red-500/15 text-red-400'
+                                      : 'bg-emerald-500/15 text-emerald-400'
+                                  }`}
+                                >
+                                  {isPrimaryOwner
+                                    ? locale === 'ar'
+                                      ? 'المالك الأساسي (Owner)'
+                                      : 'Primary Owner'
+                                    : adm.disabled
+                                    ? locale === 'ar'
+                                      ? 'موقوف مؤقتاً'
+                                      : 'Disabled'
+                                    : locale === 'ar'
+                                    ? 'مدير بصلاحية كتابة (Admin)'
+                                    : 'Authorized Admin'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] font-mono-tabular text-slate-500 dark:text-slate-400 truncate">
+                                {adm.email}
+                                {adm.uid ? ` · UID: ${adm.uid.slice(0, 10)}…` : locale === 'ar' ? ' · بانتظار أول دخول عبر Google' : ' · Pending first Google sign-in'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {!isPrimaryOwner && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                disabled={adminManageBusy}
+                                onClick={async () => {
+                                  if (!adminSession) return;
+                                  setAdminManageBusy(true);
+                                  try {
+                                    const res = await fetch(`/api/cms/admins/manage/${encodeURIComponent(adm.id)}`, {
+                                      method: 'PATCH',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        Authorization: `Bearer ${adminSession.token}`,
+                                      },
+                                      body: JSON.stringify({ disabled: !adm.disabled }),
+                                    });
+                                    if (!res.ok) {
+                                      const err = await res.json().catch(() => ({}));
+                                      throw new Error(err.error || 'Update failed');
+                                    }
+                                    await refreshData();
+                                    showToast(
+                                      locale === 'ar'
+                                        ? adm.disabled
+                                          ? 'تم تفعيل صلاحيات المدير'
+                                          : 'تم إيقاف صلاحيات المدير مؤقتاً'
+                                        : adm.disabled
+                                        ? 'Admin access re-enabled'
+                                        : 'Admin access disabled',
+                                      'info'
+                                    );
+                                  } catch (err: any) {
+                                    showToast(err?.message || 'Failed to update admin', 'error');
+                                  } finally {
+                                    setAdminManageBusy(false);
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-[#00C2CB] cursor-pointer"
+                              >
+                                {adm.disabled
+                                  ? locale === 'ar'
+                                    ? 'تفعيل'
+                                    : 'Enable'
+                                  : locale === 'ar'
+                                  ? 'إيقاف مؤقت'
+                                  : 'Disable'}
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={adminManageBusy}
+                                onClick={async () => {
+                                  if (!adminSession) return;
+                                  setAdminManageBusy(true);
+                                  try {
+                                    const res = await fetch(`/api/cms/admins/manage/${encodeURIComponent(adm.id)}`, {
+                                      method: 'DELETE',
+                                      headers: {
+                                        Authorization: `Bearer ${adminSession.token}`,
+                                      },
+                                    });
+                                    if (!res.ok) {
+                                      const err = await res.json().catch(() => ({}));
+                                      throw new Error(err.error || 'Delete failed');
+                                    }
+                                    await refreshData();
+                                    showToast(
+                                      locale === 'ar'
+                                        ? 'تم حذف المدير وإلغاء صلاحياته'
+                                        : 'Administrator removed',
+                                      'info'
+                                    );
+                                  } catch (err: any) {
+                                    showToast(err?.message || 'Failed to remove admin', 'error');
+                                  } finally {
+                                    setAdminManageBusy(false);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg text-red-500 hover:bg-red-950/30 cursor-pointer"
+                                title={locale === 'ar' ? 'حذف المدير' : 'Remove Admin'}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

@@ -9,6 +9,7 @@ import { INITIAL_PLATFORM_DATA } from '../data/initialSeedData';
 import {
   signInWithExistingFirebaseGoogle,
   signOutFromExistingFirebase,
+  deleteCurrentUnauthorizedFirebaseUser,
   getSavedFirebaseConfig,
   hydrateFirebaseConfigFromServer,
   invalidateFirestoreCache,
@@ -18,6 +19,8 @@ export interface AdminUserSession {
   uid: string;
   email: string;
   name: string;
+  photoUrl?: string;
+  role?: 'owner' | 'admin';
   token: string;
   expiresAt: number;
   viaFirebase?: boolean;
@@ -390,13 +393,20 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           uid: apiSession.data.uid || candidate.uid,
           email: apiSession.data.email || candidate.email,
           name: apiSession.data.name || candidate.name,
+          photoUrl: apiSession.data.photoUrl || candidate.photoUrl,
+          role: apiSession.data.role || candidate.role || 'owner',
           token: candidate.token,
           expiresAt: apiSession.data.expiresAt || candidate.expiresAt,
           viaFirebase: true,
         };
         setAdminSession((prev) =>
-          prev && prev.token === verifiedSession.token ? prev : verifiedSession
+          prev &&
+          prev.token === verifiedSession.token &&
+          prev.photoUrl === verifiedSession.photoUrl
+            ? prev
+            : verifiedSession
         );
+        localStorage.setItem(STORAGE_ADMIN_SESSION_KEY, JSON.stringify(verifiedSession));
       } else {
         setAdminSession(null);
         localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
@@ -481,8 +491,8 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!getSavedFirebaseConfig()) {
       throw new Error(
         locale === 'ar'
-          ? 'إعدادات Firebase Auth غير متوفرة. يرجى إدخال API Key ومعرّف المشروع (Project ID) أدناه أو في متغيرات VITE_FIREBASE_*.'
-          : 'Firebase Auth is not configured. Please provide API Key & Project ID below or in VITE_FIREBASE_*.'
+          ? 'إعدادات Firebase Auth غير متوفرة. يرجى التحقق من إعدادات الاتصال.'
+          : 'Firebase Auth is not configured.'
       );
     }
 
@@ -500,6 +510,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         },
         body: JSON.stringify({
           idToken: fbUser.idToken,
+          photoUrl: fbUser.photoURL,
         }),
       });
       resStatus = res.status;
@@ -510,6 +521,14 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         resText = (await res.text()).slice(0, 140);
       }
       if (!res.ok || !apiData?.token) {
+        if (resStatus === 403) {
+          await deleteCurrentUnauthorizedFirebaseUser().catch(() => {});
+          throw new Error(
+            locale === 'ar'
+              ? 'عذراً، هذا الحساب غير مصرح له بالدخول وتم إزالته تلقائياً.'
+              : 'Access Denied: This Google account is not authorized and has been automatically removed.'
+          );
+        }
         await signOutFromExistingFirebase().catch(() => {});
         if (apiData?.error) {
           throw new Error(apiData.error);
@@ -518,8 +537,8 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           locale === 'ar'
             ? `تعذر الوصول إلى خادم التحقق (/api/auth/admin-login) — استجابة الخادم (HTTP ${resStatus}${
                 resText ? `: ${resText}` : ''
-              }). تأكد من نشر آخر تحديثات الخادم على Vercel.`
-            : `Server verification failed (/api/auth/admin-login, HTTP ${resStatus}). Ensure latest server bundle is deployed.`
+              }).`
+            : `Server verification failed (/api/auth/admin-login, HTTP ${resStatus}).`
         );
       }
     } catch (err: any) {
@@ -527,7 +546,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         await signOutFromExistingFirebase().catch(() => {});
         throw new Error(
           locale === 'ar'
-            ? 'تعذر الوصول إلى خادم التحقق (/api/auth/admin-login). لا يمكن إصدار جلسة إدارة بدون تحقق الخادم.'
+            ? 'تعذر الوصول إلى خادم التحقق (/api/auth/admin-login).'
             : 'Could not reach server verification endpoint (/api/auth/admin-login).'
         );
       }
@@ -538,6 +557,8 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       uid: apiData.uid,
       email: apiData.email,
       name: apiData.name,
+      photoUrl: apiData.photoUrl || fbUser.photoURL || '/assets/aistudio/owner_portrait.png',
+      role: apiData.role || 'owner',
       token: apiData.token,
       expiresAt: apiData.expiresAt,
       viaFirebase: true,
@@ -547,8 +568,8 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem(STORAGE_ADMIN_SESSION_KEY, JSON.stringify(newSession));
     showToast(
       locale === 'ar'
-        ? `مرحباً بك يا ${newSession.name} — تم التحقق من الهوية عبر Firebase`
-        : `Welcome ${newSession.name} — Firebase Admin session verified`,
+        ? `مرحباً بك يا ${newSession.name}`
+        : `Welcome ${newSession.name}`,
       'success'
     );
   }, [locale, showToast]);

@@ -87,6 +87,8 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
     Boolean(adminSession) && searchParams.get('preview_nav') === '1';
 
   const settings = db.siteSettings;
+  const adminAvatarUrl =
+    adminSession?.photoUrl || settings.avatarUrl || '/assets/aistudio/owner_portrait.png';
 
   const isPagePublished = (slugId: string) => {
     const found = db.pages.find(
@@ -476,9 +478,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 <button
                   type="button"
                   onClick={handleAdminButtonClick}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-zinc-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-2 ps-1.5 pe-3.5 py-1.5 rounded-full text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-zinc-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
-                  <Lock className="w-3.5 h-3.5" />
+                  <img
+                    src={adminAvatarUrl}
+                    alt={adminSession?.name || 'Admin'}
+                    referrerPolicy="no-referrer"
+                    className="w-6 h-6 rounded-full object-cover border border-zinc-300 shrink-0"
+                  />
                   <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
                 </button>
               )}
@@ -561,9 +568,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 <button
                   type="button"
                   onClick={handleAdminButtonClick}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95 transition-opacity shadow-md shadow-indigo-600/20 whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-2 ps-1.5 pe-3.5 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95 transition-opacity shadow-md shadow-indigo-600/20 whitespace-nowrap shrink-0 cursor-pointer"
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <img
+                    src={adminAvatarUrl}
+                    alt={adminSession?.name || 'Admin'}
+                    referrerPolicy="no-referrer"
+                    className="w-6 h-6 rounded-full object-cover ring-2 ring-white/40 shrink-0"
+                  />
                   <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
                 </button>
               )}
@@ -648,9 +660,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 <button
                   type="button"
                   onClick={handleAdminButtonClick}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#0D9488] text-white hover:bg-[#0F766E] transition-colors whitespace-nowrap shrink-0 shadow-xs cursor-pointer"
+                  className="inline-flex items-center gap-2 ps-1.5 pe-3.5 py-1.5 rounded-full text-xs font-bold bg-[#0D9488] text-white hover:bg-[#0F766E] transition-colors whitespace-nowrap shrink-0 shadow-xs cursor-pointer"
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <img
+                    src={adminAvatarUrl}
+                    alt={adminSession?.name || 'Admin'}
+                    referrerPolicy="no-referrer"
+                    className="w-6 h-6 rounded-full object-cover ring-2 ring-white/40 shrink-0"
+                  />
                   <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
                 </button>
               )}
@@ -735,9 +752,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 <button
                   type="button"
                   onClick={handleAdminButtonClick}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-stone-900 dark:bg-[#6EE7B7] text-white dark:text-[#0F1715] hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-2 ps-1.5 pe-3.5 py-1.5 rounded-full text-xs font-bold bg-stone-900 dark:bg-[#6EE7B7] text-white dark:text-[#0F1715] hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <img
+                    src={adminAvatarUrl}
+                    alt={adminSession?.name || 'Admin'}
+                    referrerPolicy="no-referrer"
+                    className="w-6 h-6 rounded-full object-cover ring-2 ring-white/30 shrink-0"
+                  />
                   <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin'}</span>
                 </button>
               )}
@@ -817,9 +839,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 <button
                   type="button"
                   onClick={handleAdminButtonClick}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-extrabold bg-gradient-to-r from-[#00D4FF] to-[#38BDF8] text-slate-950 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0 shadow-[0_0_20px_rgba(0,212,255,0.35)] cursor-pointer"
+                  className="inline-flex items-center gap-2 ps-1.5 pe-4 py-1.5 rounded-full text-xs font-extrabold bg-gradient-to-r from-[#00D4FF] to-[#38BDF8] text-slate-950 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0 shadow-[0_0_20px_rgba(0,212,255,0.35)] cursor-pointer"
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <img
+                    src={adminAvatarUrl}
+                    alt={adminSession?.name || 'Admin'}
+                    referrerPolicy="no-referrer"
+                    className="w-6 h-6 rounded-full object-cover ring-2 ring-slate-950/30 shrink-0"
+                  />
                   <span>{locale === 'ar' ? 'لوحة الإدارة' : 'ADMIN CMS'}</span>
                 </button>
               )}
@@ -1077,7 +1104,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       )}
 
       {/* ===================================================================== */}
-      {/* QUICK ADMIN SIGN-IN MODAL (Accessible from Header & Footer anywhere)  */}
+      {/* QUICK ADMIN SIGN-IN MODAL (Minimal Google Icon Only)                  */}
       {/* ===================================================================== */}
       {quickAdminModalOpen && (
         <div
@@ -1086,47 +1113,45 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-2xl bg-[#0F172A] border border-slate-700 p-6 sm:p-7 text-white space-y-5 shadow-2xl"
+            className="w-full max-w-xs rounded-2xl bg-[#0F172A] border border-slate-800 p-6 text-white space-y-5 shadow-2xl relative"
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#00C2CB]">
-                <ShieldCheck className="w-4 h-4" />
-                <span>
-                  {locale === 'ar'
-                    ? 'الدخول السريع إلى لوحة الإدارة (/admin)'
-                    : 'Quick Admin Portal Sign-In (/admin)'}
-                </span>
+            <button
+              type="button"
+              onClick={() => setQuickAdminModalOpen(false)}
+              className="absolute top-3.5 end-3.5 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/70 transition-colors cursor-pointer"
+              aria-label={locale === 'ar' ? 'إغلاق' : 'Close'}
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex flex-col items-center text-center pt-2 space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-lg">
+                <svg className="w-8 h-8" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="#4285F4"
+                    d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"
+                  />
+                </svg>
               </div>
-              <button
-                type="button"
-                onClick={() => setQuickAdminModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <h3 className="text-sm font-bold text-slate-100">
+                {locale === 'ar' ? 'تسجيل دخول الإدارة' : 'Admin Sign In'}
+              </h3>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
-              {locale === 'ar'
-                ? 'الدخول للوحة الإدارة محصور على حساب Google المعتمد، ويتم التحقق من Firebase ID Token وصلاحية UID على الخادم.'
-                : 'Admin access is restricted to the authorized Google account with server-side Firebase ID Token & /admins/{uid} verification.'}
-            </p>
-
-            {!isFirebaseConnected && (
-              <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-700/70 text-xs text-amber-200 space-y-2">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span>
-                    {locale === 'ar'
-                      ? 'إعدادات Firebase غير مكتملة في المتصفح. افتح صفحة /admin الكاملة لإدخال API Key ومعرّف المشروع.'
-                      : 'Firebase client config not found. Open full /admin page to enter API Key & Project ID.'}
-                  </span>
-                </div>
-              </div>
-            )}
-
             {loginError && (
-              <div className="p-3 rounded-xl bg-red-950/70 border border-red-700 text-xs text-red-200 space-y-2">
+              <div className="p-3 rounded-xl bg-red-950/70 border border-red-700 text-xs text-red-200">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                   <span className="leading-relaxed">{loginError}</span>
@@ -1138,72 +1163,57 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               type="button"
               disabled={loginLoading || !isFirebaseConnected}
               onClick={handleQuickAdminGoogleSubmit}
-              className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#00C2CB] text-slate-950 hover:bg-[#00E5FF] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+              className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-white text-slate-900 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2.5 shadow-lg cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4" />
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="#4285F4"
+                  d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"
+                />
+              </svg>
               <span>
                 {loginLoading
                   ? locale === 'ar'
-                    ? 'جاري التحقق من الهوية عبر الخادم...'
-                    : 'Verifying Firebase ID Token...'
+                    ? 'جاري تسجيل الدخول...'
+                    : 'Signing in...'
                   : locale === 'ar'
-                  ? 'الدخول عبر Google (Firebase Auth)'
-                  : 'Sign In with Google (Firebase Auth)'}
+                  ? 'المتابعة باستخدام Google'
+                  : 'Continue with Google'}
               </span>
             </button>
-
-            {typeof window !== 'undefined' && window.location.hostname && (
-              <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-400 space-y-1.5">
-                <div>
-                  {locale === 'ar'
-                    ? 'النطاق الحالي لإضافته في Firebase (Authorized domains):'
-                    : 'Current domain for Firebase (Authorized domains):'}
-                </div>
-                <div className="flex items-center justify-between gap-2 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
-                  <code className="text-[11px] text-[#00C2CB] truncate font-mono">
-                    {window.location.hostname}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(window.location.hostname);
-                    }}
-                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-[#00C2CB] hover:text-slate-950 text-slate-200 font-semibold shrink-0 transition-colors"
-                  >
-                    {locale === 'ar' ? 'نسخ النطاق' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end pt-2 border-t border-slate-800 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setQuickAdminModalOpen(false);
-                  navigate('/admin');
-                }}
-                className="text-xs text-[#00C2CB] hover:underline font-semibold"
-              >
-                {locale === 'ar' ? 'الانتقال لصفحة /admin الكاملة ←' : 'Open full /admin page →'}
-              </button>
-            </div>
           </div>
         </div>
       )}
 
       {/* Floating Admin Control Bar when Admin is Authenticated on Public Pages */}
       {adminSession && !isAdminRoute && (
-        <div className="fixed bottom-4 start-4 z-50 flex flex-wrap items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/95 text-slate-100 border border-[#00C2CB]/40 shadow-xl backdrop-blur-md text-xs">
-          <ShieldCheck className="w-4 h-4 text-[#00C2CB] shrink-0" />
-          <span className="font-semibold hidden sm:inline">
-            {locale === 'ar' ? 'وضع المدير المعتمد' : 'Verified Admin'}
+        <div className="fixed bottom-4 start-4 z-50 flex flex-wrap items-center gap-2.5 px-3 py-2 rounded-2xl bg-slate-900/95 text-slate-100 border border-[#00C2CB]/40 shadow-xl backdrop-blur-md text-xs">
+          <img
+            src={adminAvatarUrl}
+            alt={adminSession.name}
+            referrerPolicy="no-referrer"
+            className="w-7 h-7 rounded-full object-cover ring-2 ring-[#00C2CB] shrink-0"
+          />
+          <span className="font-bold hidden sm:inline truncate max-w-[140px]">
+            {adminSession.name}
           </span>
 
           <button
             type="button"
             onClick={() => navigate(adminQuickEditPath)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#00C2CB] text-slate-950 font-bold hover:bg-[#0099A3] transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#00C2CB] text-slate-950 font-bold hover:bg-[#0099A3] transition-colors cursor-pointer"
           >
             <span>{locale === 'ar' ? 'لوحة الإدارة' : 'Admin CMS'}</span>
             <ExternalLink className="w-3 h-3" />
@@ -1232,7 +1242,7 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
           <button
             type="button"
             onClick={logoutAdmin}
-            className="p-1 rounded-lg text-slate-400 hover:text-red-400 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
             title={locale === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
           >
             <LogOut className="w-3.5 h-3.5" />

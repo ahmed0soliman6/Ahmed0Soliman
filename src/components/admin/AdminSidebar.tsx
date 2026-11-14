@@ -23,6 +23,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Users,
   X,
 } from 'lucide-react';
 
@@ -61,6 +62,10 @@ interface AdminSidebarProps {
   subRoute: AdminSubRoute;
   activeNavKey: string;
   adminUid: string;
+  adminName?: string;
+  adminEmail?: string;
+  adminPhotoUrl?: string;
+  adminRole?: 'owner' | 'admin';
   mobileOpen: boolean;
   onCloseMobile: () => void;
   collapsed: boolean;
@@ -85,7 +90,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   toggleTheme,
   subRoute,
   activeNavKey,
-  adminUid,
+  adminUid: _adminUid,
+  adminName,
+  adminEmail,
+  adminPhotoUrl,
+  adminRole,
   mobileOpen,
   onCloseMobile,
   collapsed,
@@ -217,6 +226,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           anchorId: 'settings-identity',
         },
         {
+          id: 'settings-admins',
+          label: { ar: 'إدارة المديرين والصلاحيات', en: 'Admins & Write Access' },
+          icon: Users,
+          targetSubRoute: 'settings',
+          targetPath: '/admin/settings#settings-admins',
+          anchorId: 'settings-admins',
+        },
+        {
           id: 'settings-integrations',
           label: { ar: 'إعدادات Firebase وCloudinary', en: 'Firebase & Cloudinary' },
           icon: Database,
@@ -237,21 +254,44 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   ];
 
   const GroupChevronClosed = locale === 'ar' ? ChevronLeft : ChevronRight;
+  const resolvedAvatar = adminPhotoUrl || '/assets/aistudio/owner_portrait.png';
 
   const renderSidebarBody = (isMobileDrawer: boolean) => (
     <div className="flex flex-col h-full justify-between">
       <div className="p-4 space-y-5 overflow-y-auto flex-1">
-        {/* Brand Header */}
+        {/* Brand & Admin Profile Header */}
         <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
-          {(!collapsed || isMobileDrawer) && (
-            <div className="min-w-0">
-              <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                Ahmed Soliman CMS
-              </div>
-              <div className="text-[11px] text-[#0099A3] dark:text-[#00C2CB] font-mono-tabular truncate">
-                UID: {adminUid.slice(0, 14)}
+          {(!collapsed || isMobileDrawer) ? (
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src={resolvedAvatar}
+                alt={adminName || 'Ahmed Soliman'}
+                referrerPolicy="no-referrer"
+                className="w-9 h-9 rounded-full object-cover ring-2 ring-[#00C2CB]/50 shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  {adminName || 'Ahmed Soliman'}
+                </div>
+                <div className="text-[11px] text-[#0099A3] dark:text-[#00C2CB] truncate">
+                  {adminEmail ||
+                    (adminRole === 'admin'
+                      ? locale === 'ar'
+                        ? 'مدير بصلاحية كتابة'
+                        : 'Editor Admin'
+                      : locale === 'ar'
+                      ? 'مالك المنصة'
+                      : 'Platform Owner')}
+                </div>
               </div>
             </div>
+          ) : (
+            <img
+              src={resolvedAvatar}
+              alt={adminName || 'Ahmed Soliman'}
+              referrerPolicy="no-referrer"
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-[#00C2CB]/50 shrink-0 mx-auto"
+            />
           )}
 
           <div className="flex items-center gap-1.5 shrink-0">
