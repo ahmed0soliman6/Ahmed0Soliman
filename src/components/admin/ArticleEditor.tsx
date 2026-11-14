@@ -63,12 +63,19 @@ function normalizeArticleDraft(
   const arDoc = resolveArticleTiptapDoc(raw.contentJson?.ar, raw.content?.ar);
   const enDoc = resolveArticleTiptapDoc(raw.contentJson?.en, raw.content?.en);
 
-  const arMd = raw.content?.ar?.trim()
+  const serializedAr = serializeTiptapJsonToMarkdown(arDoc);
+  const serializedEn = serializeTiptapJsonToMarkdown(enDoc);
+
+  const arMd = raw.contentJson?.ar
+    ? serializedAr || raw.content?.ar || ''
+    : raw.content?.ar?.trim()
     ? raw.content.ar
-    : serializeTiptapJsonToMarkdown(arDoc);
-  const enMd = raw.content?.en?.trim()
+    : serializedAr;
+  const enMd = raw.contentJson?.en
+    ? serializedEn || raw.content?.en || ''
+    : raw.content?.en?.trim()
     ? raw.content.en
-    : serializeTiptapJsonToMarkdown(enDoc);
+    : serializedEn;
 
   return {
     ...raw,
@@ -583,6 +590,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                     </span>
                   </div>
                   <RichTextEditor
+                    key={`tiptap-ar-${draft.id || 'new'}`}
                     valueJson={draft.contentJson?.ar}
                     fallbackMarkdown={draft.content?.ar}
                     direction="rtl"
@@ -632,6 +640,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                     </span>
                   </div>
                   <RichTextEditor
+                    key={`tiptap-en-${draft.id || 'new'}`}
                     valueJson={draft.contentJson?.en}
                     fallbackMarkdown={draft.content?.en}
                     direction="ltr"

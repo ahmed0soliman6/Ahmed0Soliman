@@ -22,7 +22,11 @@ import {
   validateImageUploadFile,
   validatePageSlug,
 } from './src/lib/validationSchemas';
-import { sanitizeTiptapDoc } from './src/lib/tiptapBridge';
+import {
+  resolveArticleTiptapDoc,
+  sanitizeTiptapDoc,
+  serializeTiptapJsonToMarkdown,
+} from './src/lib/tiptapBridge';
 
 if (!process.env.VERCEL) {
   dotenv.config();
@@ -1160,7 +1164,65 @@ function healLegacyImageUrl(url: string | undefined): string | undefined {
   return url;
 }
 
+export function migrateMitaliToSoliMedicalHospital<T>(input: T): {
+  data: T;
+  changed: boolean;
+} {
+  let changed = false;
+
+  const transform = (node: any): any => {
+    if (typeof node === 'string') {
+      let next = node;
+      if (/Mitali\s*&\s*Community\s+Centers/i.test(next)) {
+        next = next.replace(
+          /Mitali\s*&\s*Community\s+Centers/gi,
+          'Soli Medical Hospital & Community Centers'
+        );
+      }
+      if (/Mitali\s+Hospita(l)?/i.test(next)) {
+        next = next.replace(/Mitali\s+Hospita(l)?/gi, 'Soli Medical Hospital');
+      }
+      if (next !== node) {
+        changed = true;
+      }
+      return next;
+    }
+    if (Array.isArray(node)) {
+      return node.map((item) => transform(item));
+    }
+    if (node && typeof node === 'object') {
+      const out: Record<string, any> = {};
+      for (const [key, val] of Object.entries(node)) {
+        if (
+          key === 'id' ||
+          key === 'slug' ||
+          key === 'canonicalSlug' ||
+          key === 'publicId' ||
+          key === 'coverImage' ||
+          key === 'heroImage' ||
+          key === 'imageUrl' ||
+          key === 'secureUrl' ||
+          key === 'logoUrl' ||
+          key === 'photoUrl'
+        ) {
+          out[key] = val;
+        } else {
+          out[key] = transform(val);
+        }
+      }
+      return out;
+    }
+    return node;
+  };
+
+  const data = transform(input) as T;
+  return { data, changed };
+}
+
 export function enrichDatabaseWithBaselineDefaults(parsed: PlatformDatabase): PlatformDatabase {
+  const migrated = migrateMitaliToSoliMedicalHospital(parsed);
+  parsed = migrated.data;
+
   for (const seedPage of INITIAL_PLATFORM_DATA.pages) {
     const existingPage = parsed.pages?.find(
       (p) =>
@@ -1233,7 +1295,9 @@ export function enrichDatabaseWithBaselineDefaults(parsed: PlatformDatabase): Pl
   }
 
   for (const seedArt of INITIAL_PLATFORM_DATA.articles) {
-    const existingArt = parsed.articles?.find((a) => a.id === seedArt.id);
+    const existingArt = parsed.articles?.find(
+      (a) => a.id === seedArt.id || a.slug === seedArt.slug
+    );
     if (!existingArt) {
       parsed.articles = [...(parsed.articles || []), JSON.parse(JSON.stringify(seedArt))];
     } else {
@@ -1315,6 +1379,15 @@ async function loadDatabaseFromFirestoreAdmin(adminDb: any): Promise<PlatformDat
   const existingPageIds = new Set(
     (result.pages || []).flatMap((p: any) => [p.id, p.slug, `page-${p.id}`])
   );
+  const existingProjectIds = new Set(
+    (result.projects || []).flatMap((p: any) => [p.id, p.slug])
+  );
+  const existingArticleIds = new Set(
+    (result.articles || []).flatMap((a: any) => [a.id, a.slug])
+  );
+
+  // Check if any existing Firestore records still contain legacy "Mitali Hospital" text
+  const rawMigrationCheck = migrateMitaliToSoliMedicalHospital(result);
 
   const assembled: PlatformDatabase = enrichDatabaseWithBaselineDefaults({
     siteSettings: result.siteSettings || INITIAL_PLATFORM_DATA.siteSettings,
@@ -1343,19 +1416,100 @@ async function loadDatabaseFromFirestoreAdmin(adminDb: any): Promise<PlatformDat
     admins: result.admins || [],
   });
 
-  // Backfill any missing core pages into Firestore pages collection so all 6 core pages persist
+  let firestoreMutatedDuringSync = false;
+
+  // Backfill any missing core pages or migrate pages that contained "Mitali Hospital"
   for (const corePage of assembled.pages) {
-    if (!existingPageIds.has(corePage.id) && !existingPageIds.has(corePage.slug)) {
+    const rawPage = (result.pages || []).find(
+      (p: any) => p.id === corePage.id || p.slug === corePage.slug
+    );
+    const pageNeededMigration = rawPage
+      ? migrateMitaliToSoliMedicalHospital(rawPage).changed
+      : false;
+    if (
+      (!existingPageIds.has(corePage.id) && !existingPageIds.has(corePage.slug)) ||
+      pageNeededMigration
+    ) {
       try {
         serverFirestoreWriteOpsCount += 1;
         await adminDb
           .collection('pages')
           .doc(corePage.id)
           .set(JSON.parse(JSON.stringify(corePage)), { merge: true });
+        firestoreMutatedDuringSync = true;
       } catch {
         // non-fatal during read
       }
     }
+  }
+
+  // Backfill any missing baseline projects or migrate projects that contained "Mitali Hospital"
+  for (const proj of assembled.projects) {
+    const rawProj = (result.projects || []).find(
+      (p: any) => p.id === proj.id || p.slug === proj.slug
+    );
+    const projNeededMigration = rawProj
+      ? migrateMitaliToSoliMedicalHospital(rawProj).changed
+      : false;
+    if (
+      (!existingProjectIds.has(proj.id) && !existingProjectIds.has(proj.slug)) ||
+      projNeededMigration
+    ) {
+      try {
+        serverFirestoreWriteOpsCount += 1;
+        await adminDb
+          .collection('projects')
+          .doc(proj.id)
+          .set(JSON.parse(JSON.stringify(proj)), { merge: true });
+        firestoreMutatedDuringSync = true;
+      } catch {
+        // non-fatal during read
+      }
+    }
+  }
+
+  // Backfill any missing baseline articles or migrate articles that contained "Mitali Hospital"
+  for (const art of assembled.articles) {
+    const rawArt = (result.articles || []).find(
+      (a: any) => a.id === art.id || a.slug === art.slug
+    );
+    const artNeededMigration = rawArt
+      ? migrateMitaliToSoliMedicalHospital(rawArt).changed
+      : false;
+    if (
+      (!existingArticleIds.has(art.id) && !existingArticleIds.has(art.slug)) ||
+      artNeededMigration
+    ) {
+      try {
+        serverFirestoreWriteOpsCount += 1;
+        await adminDb
+          .collection('articles')
+          .doc(art.id)
+          .set(JSON.parse(JSON.stringify(art)), { merge: true });
+        firestoreMutatedDuringSync = true;
+      } catch {
+        // non-fatal during read
+      }
+    }
+  }
+
+  if (result.siteSettings && migrateMitaliToSoliMedicalHospital(result.siteSettings).changed) {
+    try {
+      serverFirestoreWriteOpsCount += 1;
+      await adminDb
+        .collection('siteSettings')
+        .doc('global')
+        .set(JSON.parse(JSON.stringify(assembled.siteSettings)), { merge: true });
+      firestoreMutatedDuringSync = true;
+    } catch {
+      // non-fatal
+    }
+  }
+
+  if (firestoreMutatedDuringSync || rawMigrationCheck.changed) {
+    publishPublicSnapshot(assembled).catch(() => {
+      // non-fatal background snapshot sync
+    });
   }
 
   return assembled;
@@ -2133,18 +2287,19 @@ export async function readPublishedPublicSnapshot(options?: {
       );
     }
 
+    const migratedParsed = migrateMitaliToSoliMedicalHospital(parsed).data;
     const entry: InstanceSnapshotCacheEntry = {
       revision: manifest.revision,
       contentHash: manifest.contentHash,
-      snapshot: parsed,
+      snapshot: migratedParsed,
     };
     if (options?.instanceCacheRef) {
       options.instanceCacheRef.current = entry;
     } else {
       defaultInstanceSnapshotCache = entry;
     }
-    cachedPublishedSnapshot = parsed;
-    return parsed;
+    cachedPublishedSnapshot = migratedParsed;
+    return migratedParsed;
   }
 
   // If adapter is NOT configured:
@@ -2159,7 +2314,7 @@ export async function readPublishedPublicSnapshot(options?: {
 
   // Non-production local development preview only (still 0 Firestore reads):
   if (cachedPublishedSnapshot) {
-    return cachedPublishedSnapshot;
+    return migrateMitaliToSoliMedicalHospital(cachedPublishedSnapshot).data;
   }
 
   try {
@@ -2167,7 +2322,8 @@ export async function readPublishedPublicSnapshot(options?: {
       const raw = fs.readFileSync(PUBLIC_SNAPSHOT_FILE, 'utf-8');
       const parsed = JSON.parse(raw) as PublicContentSnapshot;
       if (validateSnapshotStructure(parsed)) {
-        cachedPublishedSnapshot = parsed;
+        const migratedLocal = migrateMitaliToSoliMedicalHospital(parsed).data;
+        cachedPublishedSnapshot = migratedLocal;
         return cachedPublishedSnapshot;
       }
     }
@@ -2190,7 +2346,10 @@ function cleanTemporaryChatAttachments(): void {
       '1770146906397_16665dd0.png',
       'logo_ae3842b8.png',
       'owner_portrait.png',
+      'owner_portrait.jpg',
       'owner_portrait.webp',
+      'Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg',
+      'soli_medical_app_icon.jpg',
     ]);
     for (const file of fs.readdirSync(aistudioDir)) {
       if (!allowedFiles.has(file)) {
@@ -3234,7 +3393,7 @@ export function createExpressApp(options?: ServerInstanceOptions): express.Expre
         return;
       }
 
-      const sanitizedPayload = sanitizePayload(req.body || {});
+      let sanitizedPayload = sanitizePayload(req.body || {});
       const validation = validateCollectionRecord(col, sanitizedPayload);
       if (!validation.valid) {
         res.status(400).json({
@@ -3303,6 +3462,32 @@ export function createExpressApp(options?: ServerInstanceOptions): express.Expre
 
         if (col === 'articles') {
           const existingRecord = existingIndex >= 0 ? list[existingIndex] : null;
+          if (existingRecord) {
+            sanitizedPayload = {
+              ...existingRecord,
+              ...sanitizedPayload,
+              title: { ...(existingRecord.title || {}), ...(sanitizedPayload.title || {}) },
+              excerpt: { ...(existingRecord.excerpt || {}), ...(sanitizedPayload.excerpt || {}) },
+              category: { ...(existingRecord.category || {}), ...(sanitizedPayload.category || {}) },
+              authorName: {
+                ...(existingRecord.authorName || {}),
+                ...(sanitizedPayload.authorName || {}),
+              },
+              seo: {
+                ...(existingRecord.seo || {}),
+                ...(sanitizedPayload.seo || {}),
+                title: {
+                  ...(existingRecord.seo?.title || {}),
+                  ...(sanitizedPayload.seo?.title || {}),
+                },
+                description: {
+                  ...(existingRecord.seo?.description || {}),
+                  ...(sanitizedPayload.seo?.description || {}),
+                },
+              },
+            };
+          }
+
           const targetSlug = String(sanitizedPayload.slug || existingRecord?.slug || '')
             .trim()
             .toLowerCase();
@@ -3322,18 +3507,36 @@ export function createExpressApp(options?: ServerInstanceOptions): express.Expre
 
           sanitizedPayload.slug = targetSlug;
 
-          if (
-            sanitizedPayload.contentJson &&
-            typeof sanitizedPayload.contentJson === 'object'
-          ) {
+          const incomingHasContentJson =
+            req.body &&
+            req.body.contentJson &&
+            typeof req.body.contentJson === 'object' &&
+            (req.body.contentJson.ar || req.body.contentJson.en);
+
+          if (incomingHasContentJson) {
+            const safeArDoc = sanitizedPayload.contentJson?.ar
+              ? sanitizeTiptapDoc(sanitizedPayload.contentJson.ar)
+              : resolveArticleTiptapDoc(undefined, sanitizedPayload.content?.ar);
+            const safeEnDoc = sanitizedPayload.contentJson?.en
+              ? sanitizeTiptapDoc(sanitizedPayload.contentJson.en)
+              : resolveArticleTiptapDoc(undefined, sanitizedPayload.content?.en);
+
             sanitizedPayload.contentFormat = 'tiptap-json';
             sanitizedPayload.contentJson = {
-              ...(sanitizedPayload.contentJson.ar
-                ? { ar: sanitizeTiptapDoc(sanitizedPayload.contentJson.ar) }
-                : {}),
-              ...(sanitizedPayload.contentJson.en
-                ? { en: sanitizeTiptapDoc(sanitizedPayload.contentJson.en) }
-                : {}),
+              ar: safeArDoc,
+              en: safeEnDoc,
+            };
+            sanitizedPayload.content = {
+              ar: serializeTiptapJsonToMarkdown(safeArDoc) || sanitizedPayload.content?.ar || '',
+              en: serializeTiptapJsonToMarkdown(safeEnDoc) || sanitizedPayload.content?.en || '',
+            };
+          } else if (sanitizedPayload.content && typeof sanitizedPayload.content === 'object') {
+            const arDocFromMd = resolveArticleTiptapDoc(undefined, sanitizedPayload.content.ar);
+            const enDocFromMd = resolveArticleTiptapDoc(undefined, sanitizedPayload.content.en);
+            sanitizedPayload.contentFormat = 'tiptap-json';
+            sanitizedPayload.contentJson = {
+              ar: arDocFromMd,
+              en: enDocFromMd,
             };
           }
 

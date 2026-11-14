@@ -227,9 +227,23 @@ export const HomePage: React.FC = () => {
       />
 
       <div
-        className={`min-h-screen w-full overflow-x-hidden py-4 sm:py-6 lg:py-8 px-3 sm:px-6 lg:px-10 transition-colors duration-300 ${neu.pageBg}`}
+        className={`relative min-h-screen w-full overflow-x-hidden py-4 sm:py-6 lg:py-8 px-3 sm:px-6 lg:px-10 transition-colors duration-300 ${neu.pageBg}`}
       >
-        <div className="w-full max-w-[1280px] mx-auto">
+        {/* Atmospheric App Brand Background */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+        >
+          <img
+            src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+            alt=""
+            className={`w-full h-full object-cover object-center scale-105 transition-opacity duration-500 ${
+              isLight ? 'opacity-[0.06] blur-[1px]' : 'opacity-[0.11] blur-[1px]'
+            }`}
+          />
+        </div>
+
+        <div className="relative z-10 w-full max-w-[1280px] mx-auto">
           {/* =============================================================== */}
           {/* SCULPTED NEUMORPHIC MAIN CONSOLE                                */}
           {/* =============================================================== */}
@@ -249,13 +263,17 @@ export const HomePage: React.FC = () => {
                 className="flex items-center gap-3 text-start cursor-pointer group shrink-0"
               >
                 <span
-                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                  className={`w-10 h-10 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
                     isLight
                       ? 'bg-[#ECEEF2] shadow-[5px_5px_12px_#C2C5CC,-4px_-4px_10px_#FFFFFF] border-2 border-[#E2E4E9]'
-                      : 'bg-gradient-to-br from-[#6A7077] via-[#3A3E43] to-[#232629] shadow-[5px_5px_12px_#151719,-3px_-3px_10px_#3A3F45]'
+                      : 'bg-[#070E1A] shadow-[5px_5px_12px_#151719,-3px_-3px_10px_#3A3F45] border border-[#00C2CB]/35'
                   }`}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#00C2CB]" />
+                  <img
+                    src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+                    alt={settings.ownerName[locale]}
+                    className="w-full h-full object-cover"
+                  />
                 </span>
                 <span className="flex flex-col">
                   <span className="text-sm sm:text-base font-black tracking-tight whitespace-nowrap">
@@ -331,9 +349,22 @@ export const HomePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleOpenAdmin}
-                  className={`h-10 px-3.5 sm:px-4 rounded-full text-xs font-extrabold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${neu.raisedPillBtn}`}
+                  className={`h-10 px-3.5 sm:px-4 rounded-full text-xs font-extrabold inline-flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${neu.raisedPillBtn}`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#00C2CB]" />
+                  {adminSession ? (
+                    <img
+                      src={
+                        adminSession.photoUrl ||
+                        settings.avatarUrl ||
+                        '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg'
+                      }
+                      alt={adminSession.name || 'Admin'}
+                      referrerPolicy="no-referrer"
+                      className="w-6 h-6 rounded-full object-cover border border-[#00C2CB]/50 shrink-0"
+                    />
+                  ) : (
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#00C2CB]" />
+                  )}
                   <span>
                     {adminSession
                       ? locale === 'ar'

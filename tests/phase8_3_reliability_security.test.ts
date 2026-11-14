@@ -1196,6 +1196,106 @@ async function runPhase8_3Tests() {
     }
   }
 
+  // ==========================================================================
+  // Test 2.20: Soli Medical Hospital naming migration & permanent article edit persistence
+  // ==========================================================================
+  {
+    const sharedStorage = createSharedBlobStorageSimulator({ configured: true });
+    await publishPublicSnapshot(sharedFirestoreDb, { adapter: sharedStorage.adapter });
+
+    const app = createExpressApp({
+      authDepsResolver: createAuthResolver(),
+      hmacSecret: VALID_TEST_SECRET,
+      snapshotAdapter: sharedStorage.adapter,
+      strictProductionMode: true,
+    });
+    const srv = await startTestServer(app);
+    try {
+      const loginRes = await requestJson(srv.baseUrl, '/api/auth/admin-login', {
+        method: 'POST',
+        body: { idToken: 'valid-owner-firebase-id-token' },
+      });
+      assert.equal(loginRes.status, 200);
+      const token = loginRes.data.token as string;
+
+      // 1. Verify Public Snapshot has zero "Mitali Hospital" text and includes "Soli Medical Hospital"
+      const pubBefore = await requestJson(srv.baseUrl, '/api/cms/public');
+      assert.equal(pubBefore.status, 200);
+      const pubSerialized = JSON.stringify(pubBefore.data);
+      assert.equal(
+        /Mitali\s+Hospital/i.test(pubSerialized),
+        false,
+        'Public snapshot must not contain Mitali Hospital'
+      );
+      assert.equal(
+        pubSerialized.includes('Soli Medical Hospital'),
+        true,
+        'Public snapshot must include Soli Medical Hospital'
+      );
+
+      // 2. Edit an existing article (article-single-clinic-vs-complex) and verify changes persist across reloads
+      const targetArticle = sharedFirestoreDb.articles.find(
+        (a) => a.id === 'article-single-clinic-vs-complex'
+      )!;
+      assert.ok(targetArticle, 'Target seed article must exist');
+
+      const updatedTitleAr = 'مقال مُعدّل: منظومة Soli Medical Hospital والمجمعات الطبية';
+      const updatedExcerptAr = 'ملخص جديد بعد التعديل للتأكد من ثبات البيانات وعدم عودتها للافتراضي.';
+      const updatedBodyAr = '## تحديث شامل لمنظومة Soli Medical Hospital\n\nهذا النص تم تعديله وحفظه بشكل دائم.';
+
+      const editRes = await requestJson(srv.baseUrl, '/api/cms/articles', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: {
+          ...targetArticle,
+          title: {
+            ar: updatedTitleAr,
+            en: 'Updated Article: Soli Medical Hospital Architecture',
+          },
+          excerpt: {
+            ar: updatedExcerptAr,
+            en: 'Updated excerpt verifying permanent persistence.',
+          },
+          content: {
+            ar: updatedBodyAr,
+            en: '## Updated Soli Medical Hospital Content\n\nPermanently saved.',
+          },
+          published: true,
+        },
+      });
+      assert.equal(editRes.status, 200, 'Article edit must succeed');
+      assert.equal(editRes.data.savedToFirestore, true);
+      assert.equal(editRes.data.publishedSnapshot, true);
+
+      // 3. Reload from both /api/cms/admin and /api/cms/public and verify edits did not revert
+      const adminReload = await requestJson(srv.baseUrl, '/api/cms/admin', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(adminReload.status, 200);
+      const reloadedAdminArt = adminReload.data.articles.find(
+        (a: any) => a.id === 'article-single-clinic-vs-complex'
+      );
+      assert.equal(reloadedAdminArt.title.ar, updatedTitleAr);
+      assert.equal(reloadedAdminArt.excerpt.ar, updatedExcerptAr);
+      assert.ok(reloadedAdminArt.content.ar.includes('تحديث شامل لمنظومة Soli Medical Hospital'));
+
+      const publicReload = await requestJson(srv.baseUrl, '/api/cms/public');
+      assert.equal(publicReload.status, 200);
+      const reloadedPublicArt = publicReload.data.articles.find(
+        (a: any) => a.id === 'article-single-clinic-vs-complex'
+      );
+      assert.equal(reloadedPublicArt.title.ar, updatedTitleAr);
+      assert.equal(reloadedPublicArt.excerpt.ar, updatedExcerptAr);
+      assert.ok(reloadedPublicArt.content.ar.includes('تحديث شامل لمنظومة Soli Medical Hospital'));
+
+      recordPass(
+        'Test 2.20: Soli Medical Hospital replaces Mitali Hospital everywhere and article edits persist permanently across admin and public reloads'
+      );
+    } finally {
+      await srv.close();
+    }
+  }
+
   console.log('\n================================================================');
   console.log(`🎉 ALL ${passed} PHASE 8.3 RELIABILITY & SECURITY SUITES PASSED!`);
   console.log('================================================================');

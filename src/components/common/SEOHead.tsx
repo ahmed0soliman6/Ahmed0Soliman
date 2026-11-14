@@ -20,7 +20,8 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
 }) => {
   const title = (seo?.title?.[locale] || fallbackTitle).trim();
   const description = (seo?.description?.[locale] || fallbackDescription).trim();
-  const ogImage = seo?.ogImage || '/assets/aistudio/1770146906397_16665dd0.png';
+  const ogImage =
+    seo?.ogImage || '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg';
   const noindex = Boolean(seo?.noindex || pathname.startsWith('/admin'));
 
   useEffect(() => {
@@ -53,6 +54,29 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     };
 
     const origin = window.location.origin;
+
+    // Dynamic Browser Tab Icon & Mobile Web App Icon:
+    // - Personal pages (Home, About, Blog): Combined Portrait + Soli Medical Icon (/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg)
+    // - Projects & Medical Systems: Soli Medical Logo (/soli-medical-icon.svg)
+    const isSystemsOrProjectsPage =
+      pathname.includes('/projects') ||
+      pathname.includes('/solimedical') ||
+      pathname.includes('/clinics');
+    const activeIconHref = isSystemsOrProjectsPage
+      ? '/soli-medical-icon.svg'
+      : '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg';
+    const activeIconType = isSystemsOrProjectsPage ? 'image/svg+xml' : 'image/jpeg';
+
+    setLink('link[rel="icon"]', {
+      rel: 'icon',
+      type: activeIconType,
+      href: activeIconHref,
+    });
+    setLink('link[rel="apple-touch-icon"]', {
+      rel: 'apple-touch-icon',
+      sizes: '180x180',
+      href: '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg',
+    });
 
     // Compute canonical path cleanly without duplicate aliases
     let canonicalPath = pathname;

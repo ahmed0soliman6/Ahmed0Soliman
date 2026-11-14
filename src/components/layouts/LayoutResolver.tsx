@@ -436,9 +436,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               <button
                 type="button"
                 onClick={() => navigate(hideVisitorNav ? `/${locale}/about` : `/${locale}`)}
-                className="text-sm font-black tracking-tight text-zinc-900 hover:opacity-70 transition-opacity whitespace-nowrap shrink-0"
+                className="flex items-center gap-2.5 text-sm font-black tracking-tight text-zinc-900 hover:opacity-80 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
               >
-                {locale === 'ar' ? 'أحمد سليمان' : 'AHMED SOLIMAN'}
+                <img
+                  src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+                  alt={locale === 'ar' ? 'أحمد سليمان' : 'Ahmed Soliman'}
+                  className="w-8 h-8 rounded-xl object-cover border border-zinc-300 shadow-xs shrink-0"
+                />
+                <span>{locale === 'ar' ? 'أحمد سليمان' : 'AHMED SOLIMAN'}</span>
               </button>
 
               {!hideVisitorNav && (
@@ -525,11 +530,13 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
             <button
               type="button"
               onClick={() => navigate(hideVisitorNav ? `/${locale}/projects` : `/${locale}`)}
-              className="text-base sm:text-lg font-black tracking-wider text-white whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer"
+              className="text-base sm:text-lg font-black tracking-wider text-white whitespace-nowrap shrink-0 flex items-center gap-2.5 cursor-pointer"
             >
-              <span className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-xs font-mono-tabular text-white">
-                AS
-              </span>
+              <img
+                src="/soli-medical-icon.svg"
+                alt="Soli Medical"
+                className="w-8 h-8 rounded-xl object-cover border border-indigo-400/30 shadow-xs shrink-0"
+              />
               <span>{locale === 'ar' ? 'أحمد سليمان · المشروعات' : 'AHMED.PORTFOLIO'}</span>
             </button>
 
@@ -696,9 +703,13 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
             <button
               type="button"
               onClick={() => navigate(`/${locale}/blog`)}
-              className="text-base sm:text-lg font-black tracking-tight text-stone-900 dark:text-[#F5F3EE] whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer"
+              className="text-base sm:text-lg font-black tracking-tight text-stone-900 dark:text-[#F5F3EE] whitespace-nowrap shrink-0 flex items-center gap-2.5 cursor-pointer"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#16382E] dark:bg-[#6EE7B7]" />
+              <img
+                src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+                alt={locale === 'ar' ? 'أحمد سليمان' : 'Ahmed Soliman'}
+                className="w-8 h-8 rounded-xl object-cover border border-stone-300 dark:border-stone-700 shadow-xs shrink-0"
+              />
               <span>
                 {locale === 'ar' ? 'مجلة المعرفة · أحمد سليمان' : 'THE KNOWLEDGE JOURNAL'}
               </span>
@@ -798,7 +809,11 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               }
               className="flex items-center gap-3 text-white font-extrabold text-sm sm:text-base whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#00D4FF] shadow-[0_0_12px_#00D4FF]" />
+              <img
+                src="/soli-medical-icon.svg"
+                alt="Soli Medical"
+                className="w-8 h-8 rounded-xl object-cover border border-[#00D4FF]/35 shadow-[0_0_12px_rgba(0,212,255,0.25)] shrink-0"
+              />
               <span>
                 {locale === 'ar'
                   ? 'أحمد سليمان · الحلول والأنظمة الطبية'
@@ -872,7 +887,20 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
   };
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${getWorldContainerClasses()}`}>
+    <div className={`relative min-h-screen flex flex-col transition-colors duration-300 ${getWorldContainerClasses()}`}>
+      {/* Subtle Brand Atmospheric Background Layer */}
+      {!isAdminRoute && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+        >
+          <img
+            src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+            alt=""
+            className="w-full h-full object-cover object-center opacity-[0.045] dark:opacity-[0.07] blur-[2px] scale-105"
+          />
+        </div>
+      )}
       {/* Toast Feedback Stack */}
       <div className="fixed top-4 end-4 z-[9990] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0">
         {toasts.map((t) => (

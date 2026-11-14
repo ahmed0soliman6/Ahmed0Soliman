@@ -51,8 +51,8 @@
         "en": "Ahmed Soliman | Personal Digital Platform & Medical Systems Architect"
       },
       "description": {
-        "ar": "المنصة الرقمية الرسمية لأحمد سليمان: أخصائي التمريض وجودة الرعاية الصحية ومطوّر أنظمة العيادات والمستشفيات (Soli Medical، ICU-Sync، Mitali Hospital).",
-        "en": "Official personal platform of Ahmed Soliman: Healthcare Quality Specialist & Architect of Soli Medical, ICU-Sync, Mitali Hospital, and standalone clinic portals."
+        "ar": "المنصة الرقمية الرسمية لأحمد سليمان: أخصائي التمريض وجودة الرعاية الصحية ومطوّر أنظمة العيادات والمستشفيات (Soli Medical، ICU-Sync، Soli Medical Hospital).",
+        "en": "Official personal platform of Ahmed Soliman: Healthcare Quality Specialist & Architect of Soli Medical, ICU-Sync, Soli Medical Hospital, and standalone clinic portals."
       },
       "ogImage": "/assets/aistudio/1770146906397_16665dd0.png",
       "canonicalSlug": "/",
@@ -78,7 +78,7 @@
         "en": "I DESIGN. I CREATE. I DEVELOP."
       },
       "subheadline": {
-        "ar": "أجمع بين الخبرة الميدانية في التمريض والرعاية الحرجة وإدارة الجودة الصحية وبين هندسة البرمجيات لبناء أنظمة طبية حقيقية (Soli Medical، ICU-Sync، Mitali Hospital) تخدم الأطباء والمجمعات الطبية والمرضى.",
+        "ar": "أجمع بين الخبرة الميدانية في التمريض والرعاية الحرجة وإدارة الجودة الصحية وبين هندسة البرمجيات لبناء أنظمة طبية حقيقية (Soli Medical، ICU-Sync، Soli Medical Hospital) تخدم الأطباء والمجمعات الطبية والمرضى.",
         "en": "Bridging frontline clinical nursing, ICU care, and healthcare quality management with full-stack software engineering to build practical digital medical systems."
       },
       "biography": {
@@ -171,8 +171,8 @@
         "en": "Developing and managing clinic systems, and building and operating software for charitable medical complexes in Egypt from inception to live daily operation."
       },
       "biography": {
-        "ar": "بدأت رحلتي المهنية من داخل المستشفيات ووحدات الرعاية الحرجة والمجمعات الطبية، حيث عايشت عن قرب التحديات الحقيقية التي يواجهها الأطباء وهيئة التمريض وموظفو الاستقبال ومديرو الجودة يومياً. أدركت مبكراً أن معظم الأنظمة البرمجية تفشل في القطاع الطبي لأنها تُكتب من خارج الميدان الطبي، فتأتي إما معقدة ومزدحمة بقوائم تعطل الكشف، أو سطحية لا تغطي الدورة المالية والطبية الفعلية.\n\nلذلك قررت الجمع بين تخصصي في التمريض وإدارة جودة الرعاية الصحية وبين هندسة البرمجيات الحديثة. قمت بتصميم وتطوير وتشغيل منظومات رقمية متخصصة مثل نظام Soli Medical لإدارة العيادات والمجمعات الطبية، ونظام ICU-Sync لتنسيق الرعاية المركزة، ومنظومة Mitali Hospital، بالإضافة إلى أنظمة إدارة المخازن الطبية ومشروعات تحسين الجودة وسلامة المرضى.\n\nأؤمن بأن التحول الرقمي الصحي الناجح يبدأ من فهم تفاصيل رحلة المريض داخل المنشأة: من لحظة البحث عن الطبيب والحجز عبر الموبايل، إلى شاشة الاستقبال، إلى ملف التاريخ المرضي والروشتة أمام الطبيب، وصولاً إلى التقارير الإدارية والمالية ومؤشرات الجودة التي تساعد الإدارة على اتخاذ قرارات دقيقة.",
-        "en": "My career began on the clinical frontlines—inside hospitals, intensive care units (ICUs), and community medical complexes—where I experienced firsthand the daily operational pressures faced by physicians, nurses, reception teams, and quality directors. I quickly realized why most generic healthcare software fails: it is built by people who have never worked a clinical shift, resulting in bloated menus that slow down consultations or shallow tools that miss critical financial and clinical controls.\n\nTo bridge that gap, I combined my professional background in clinical nursing and healthcare quality management with modern full-stack software engineering. I have architected, built, and deployed specialized health-tech platforms including Soli Medical (for solo clinics and multi-department complexes), ICU-Sync (critical care coordination), Mitali Hospital ERP, medical inventory & warehouse systems, and clinical quality audit suites.\n\nMy philosophy is grounded in practical impact: great medical software must respect the doctor's focus, simplify the receptionist's queue, safeguard patient records, and give healthcare leaders real-time visibility into both clinical quality and financial performance."
+        "ar": "بدأت رحلتي المهنية من داخل المستشفيات ووحدات الرعاية الحرجة والمجمعات الطبية، حيث عايشت عن قرب التحديات الحقيقية التي يواجهها الأطباء وهيئة التمريض وموظفو الاستقبال ومديرو الجودة يومياً. أدركت مبكراً أن معظم الأنظمة البرمجية تفشل في القطاع الطبي لأنها تُكتب من خارج الميدان الطبي، فتأتي إما معقدة ومزدحمة بقوائم تعطل الكشف، أو سطحية لا تغطي الدورة المالية والطبية الفعلية.\n\nلذلك قررت الجمع بين تخصصي في التمريض وإدارة جودة الرعاية الصحية وبين هندسة البرمجيات الحديثة. قمت بتصميم وتطوير وتشغيل منظومات رقمية متخصصة مثل نظام Soli Medical لإدارة العيادات والمجمعات الطبية، ونظام ICU-Sync لتنسيق الرعاية المركزة، ومنظومة Soli Medical Hospital، بالإضافة إلى أنظمة إدارة المخازن الطبية ومشروعات تحسين الجودة وسلامة المرضى.\n\nأؤمن بأن التحول الرقمي الصحي الناجح يبدأ من فهم تفاصيل رحلة المريض داخل المنشأة: من لحظة البحث عن الطبيب والحجز عبر الموبايل، إلى شاشة الاستقبال، إلى ملف التاريخ المرضي والروشتة أمام الطبيب، وصولاً إلى التقارير الإدارية والمالية ومؤشرات الجودة التي تساعد الإدارة على اتخاذ قرارات دقيقة.",
+        "en": "My career began on the clinical frontlines—inside hospitals, intensive care units (ICUs), and community medical complexes—where I experienced firsthand the daily operational pressures faced by physicians, nurses, reception teams, and quality directors. I quickly realized why most generic healthcare software fails: it is built by people who have never worked a clinical shift, resulting in bloated menus that slow down consultations or shallow tools that miss critical financial and clinical controls.\n\nTo bridge that gap, I combined my professional background in clinical nursing and healthcare quality management with modern full-stack software engineering. I have architected, built, and deployed specialized health-tech platforms including Soli Medical (for solo clinics and multi-department complexes), ICU-Sync (critical care coordination), Soli Medical Hospital ERP, medical inventory & warehouse systems, and clinical quality audit suites.\n\nMy philosophy is grounded in practical impact: great medical software must respect the doctor's focus, simplify the receptionist's queue, safeguard patient records, and give healthcare leaders real-time visibility into both clinical quality and financial performance."
       },
       "highlights": {
         "ar": [
@@ -240,7 +240,7 @@
             "en": "Medical Complex ERP & Inventory Systems Developer"
           },
           "organization": {
-            "ar": "مجمعات ومراكز طبية خيرية وخاصة في مصر (Mitali & Community Centers)",
+            "ar": "مجمعات ومراكز طبية خيرية وخاصة في مصر (Soli Medical Hospital & Community Centers)",
             "en": "Charitable & Private Medical Complexes in Egypt"
           },
           "description": {
@@ -1045,8 +1045,8 @@
       "id": "mitali-hospital-erp",
       "slug": "mitali-hospital-management-system",
       "title": {
-        "ar": "منظومة Mitali Hospital — إدارة المستشفيات والمجمعات الطبية التخصصية",
-        "en": "Mitali Hospital — Multi-Department Hospital & Polyclinic ERP"
+        "ar": "منظومة Soli Medical Hospital — إدارة المستشفيات والمجمعات الطبية التخصصية",
+        "en": "Soli Medical Hospital — Multi-Department Hospital & Polyclinic ERP"
       },
       "kicker": {
         "ar": "03 · منظومات المستشفيات والمراكز الكبرى",
@@ -1057,8 +1057,8 @@
         "en": "Enterprise hospital management platform connecting central reception, outpatient clinics, diagnostic referrals, inpatient admissions, and financial governance."
       },
       "description": {
-        "ar": "صُمم مشروع Mitali Hospital لتلبية احتياجات المستشفيات التخصصية والمجمعات الطبية التي تضم عشرات التخصصات والوحدات الخدمية تحت سقف واحد. يوفر النظام دورة مريض متكاملة تبدأ من الرقم الموحد للمريض (UHID)، مروراً بالحجز والتحويل الداخلي بين العيادات والمعمل والأشعة، وحتى التسوية المالية وتقارير أداء الأقسام.",
-        "en": "Mitali Hospital ERP orchestrates patient and financial flows across multi-specialty hospitals and large polyclinics. Every patient receives a Unified Health ID (UHID) linking outpatient visits, lab/radiology orders, pharmacy dispensing, and central cashier billing."
+        "ar": "صُمم مشروع Soli Medical Hospital لتلبية احتياجات المستشفيات التخصصية والمجمعات الطبية التي تضم عشرات التخصصات والوحدات الخدمية تحت سقف واحد. يوفر النظام دورة مريض متكاملة تبدأ من الرقم الموحد للمريض (UHID)، مروراً بالحجز والتحويل الداخلي بين العيادات والمعمل والأشعة، وحتى التسوية المالية وتقارير أداء الأقسام.",
+        "en": "Soli Medical Hospital ERP orchestrates patient and financial flows across multi-specialty hospitals and large polyclinics. Every patient receives a Unified Health ID (UHID) linking outpatient visits, lab/radiology orders, pharmacy dispensing, and central cashier billing."
       },
       "problem": {
         "ar": "انفصال الأقسام الطبية عن الإدارة المالية في المستشفيات الصغيرة والمجمعات، مما يسبب طوابير انتظار طويلة، تسرباً في الإيرادات، وصعوبة حساب مستحقات الأطباء والتعاقدات.",
@@ -1076,8 +1076,8 @@
       "coverImage": "/src/assets/images/project_mitali_hospital_erp_1794472513231.jpg",
       "liveUrl": "https://solimedical.vercel.app/clinics",
       "whatsappInquireText": {
-        "ar": "مرحباً م. أحمد، أريد الاستفسار عن منظومة Mitali Hospital لإدارة المستشفيات والمجمعات.",
-        "en": "Hello Ahmed, I would like to discuss the Mitali Hospital & Polyclinic ERP system."
+        "ar": "مرحباً م. أحمد، أريد الاستفسار عن منظومة Soli Medical Hospital لإدارة المستشفيات والمجمعات.",
+        "en": "Hello Ahmed, I would like to discuss the Soli Medical Hospital & Polyclinic ERP system."
       },
       "features": {
         "ar": [
@@ -1134,8 +1134,8 @@
       "order": 3,
       "seo": {
         "title": {
-          "ar": "منظومة Mitali Hospital لإدارة المستشفيات والمجمعات الطبية | أحمد سليمان",
-          "en": "Mitali Hospital & Polyclinic ERP System | Ahmed Soliman"
+          "ar": "منظومة Soli Medical Hospital لإدارة المستشفيات والمجمعات الطبية | أحمد سليمان",
+          "en": "Soli Medical Hospital & Polyclinic ERP System | Ahmed Soliman"
         },
         "description": {
           "ar": "منظومة متكاملة لإدارة المستشفيات والمجمعات الطبية التخصصية: الاستقبال المركزي، العيادات، الحسابات، والصلاحيات.",
@@ -1986,8 +1986,8 @@
       "width": 1600,
       "height": 900,
       "alt": {
-        "ar": "منظومة Mitali Hospital لإدارة المستشفيات والمجمعات الطبية",
-        "en": "Mitali Hospital Multi-Specialty ERP Interface"
+        "ar": "منظومة Soli Medical Hospital لإدارة المستشفيات والمجمعات الطبية",
+        "en": "Soli Medical Hospital Multi-Specialty ERP Interface"
       },
       "category": "project",
       "createdAt": "2026-11-11T12:00:00.000Z"

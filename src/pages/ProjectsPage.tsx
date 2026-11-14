@@ -151,8 +151,8 @@ export const ProjectsPage: React.FC = () => {
         }
         fallbackDescription={
           locale === 'ar'
-            ? 'استكشف الأنظمة البرمجية والمنصات الطبية التي طوّرها أحمد سليمان: Soli Medical، ICU-Sync، Mitali Hospital، وأنظمة إدارة المخازن والجودة.'
-            : 'Explore software systems and healthcare platforms engineered by Ahmed Soliman: Soli Medical, ICU-Sync, Mitali Hospital, Medi-Logix, and Q-Care.'
+            ? 'استكشف الأنظمة البرمجية والمنصات الطبية التي طوّرها أحمد سليمان: Soli Medical، ICU-Sync، Soli Medical Hospital، وأنظمة إدارة المخازن والجودة.'
+            : 'Explore software systems and healthcare platforms engineered by Ahmed Soliman: Soli Medical, ICU-Sync, Soli Medical Hospital, Medi-Logix, and Q-Care.'
         }
         pathname={`/${locale}/projects`}
       />

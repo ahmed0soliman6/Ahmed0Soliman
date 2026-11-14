@@ -88,13 +88,59 @@ function healClientImageUrl(url: string | undefined): string | undefined {
   return CLIENT_LEGACY_IMAGE_MAP[trimmed] || url;
 }
 
+function normalizeClientMitaliText<T>(input: T): T {
+  const transform = (node: any): any => {
+    if (typeof node === 'string') {
+      let next = node;
+      if (/Mitali\s*&\s*Community\s+Centers/i.test(next)) {
+        next = next.replace(
+          /Mitali\s*&\s*Community\s+Centers/gi,
+          'Soli Medical Hospital & Community Centers'
+        );
+      }
+      if (/Mitali\s+Hospita(l)?/i.test(next)) {
+        next = next.replace(/Mitali\s+Hospita(l)?/gi, 'Soli Medical Hospital');
+      }
+      return next;
+    }
+    if (Array.isArray(node)) {
+      return node.map((item) => transform(item));
+    }
+    if (node && typeof node === 'object') {
+      const out: Record<string, any> = {};
+      for (const [key, val] of Object.entries(node)) {
+        if (
+          key === 'id' ||
+          key === 'slug' ||
+          key === 'canonicalSlug' ||
+          key === 'publicId' ||
+          key === 'coverImage' ||
+          key === 'heroImage' ||
+          key === 'imageUrl' ||
+          key === 'secureUrl' ||
+          key === 'logoUrl' ||
+          key === 'photoUrl'
+        ) {
+          out[key] = val;
+        } else {
+          out[key] = transform(val);
+        }
+      }
+      return out;
+    }
+    return node;
+  };
+  return transform(input) as T;
+}
+
 export function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
-  const publishedPages = (rawDb.pages || []).filter(
+  const normalizedRaw = normalizeClientMitaliText(rawDb);
+  const publishedPages = (normalizedRaw.pages || []).filter(
     (item) => item.published === true && item.archived !== true
   );
 
   const isCoreSectionOpen = (slug: string) => {
-    const foundInRaw = (rawDb.pages || []).find(
+    const foundInRaw = (normalizedRaw.pages || []).find(
       (p) => p.slug === slug || p.id === slug || p.id === `page-${slug}`
     );
     if (foundInRaw) {
@@ -110,19 +156,19 @@ export function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
   const blogOpen = isCoreSectionOpen('blog');
 
   const publishedClinics = clinicsOpen
-    ? (rawDb.clinics || []).filter((item) => item.published === true)
+    ? (normalizedRaw.clinics || []).filter((item) => item.published === true)
     : [];
   const publishedClinicIds = new Set(publishedClinics.map((c) => c.id));
 
   return {
-    ...rawDb,
+    ...normalizedRaw,
     siteSettings:
-      rawDb.siteSettings && rawDb.siteSettings.published !== false
-        ? rawDb.siteSettings
+      normalizedRaw.siteSettings && normalizedRaw.siteSettings.published !== false
+        ? normalizedRaw.siteSettings
         : INITIAL_PLATFORM_DATA.siteSettings,
     pages: publishedPages,
     projects: projectsOpen
-      ? (rawDb.projects || [])
+      ? (normalizedRaw.projects || [])
           .filter((item) => item.published === true)
           .map((proj) => ({
             ...proj,
@@ -137,17 +183,17 @@ export function stripDraftRecords(rawDb: PlatformDatabase): PlatformDatabase {
       : [],
     clinics: publishedClinics,
     doctors: clinicsOpen
-      ? (rawDb.doctors || []).filter(
+      ? (normalizedRaw.doctors || []).filter(
           (item) => item.published === true && publishedClinicIds.has(item.clinicId)
         )
       : [],
     services: clinicsOpen
-      ? (rawDb.services || []).filter(
+      ? (normalizedRaw.services || []).filter(
           (item) => item.published === true && publishedClinicIds.has(item.clinicId)
         )
       : [],
     articles: blogOpen
-      ? (rawDb.articles || [])
+      ? (normalizedRaw.articles || [])
           .filter((item) => item.published === true && item.archived !== true)
           .map((art) => ({
             ...art,
@@ -161,7 +207,7 @@ function loadLocalDbSnapshot(includeDrafts = false): PlatformDatabase {
   try {
     const raw = localStorage.getItem(STORAGE_LOCAL_CMS_DB_KEY);
     if (!raw) return includeDrafts ? INITIAL_PLATFORM_DATA : stripDraftRecords(INITIAL_PLATFORM_DATA);
-    const parsed = JSON.parse(raw) as PlatformDatabase;
+    const parsed = normalizeClientMitaliText(JSON.parse(raw) as PlatformDatabase);
     let mergedPages = Array.isArray(parsed.pages) ? [...parsed.pages] : [...INITIAL_PLATFORM_DATA.pages];
     if (includeDrafts) {
       for (const seedPage of INITIAL_PLATFORM_DATA.pages) {
@@ -178,7 +224,7 @@ function loadLocalDbSnapshot(includeDrafts = false): PlatformDatabase {
       }
       mergedPages.sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
     }
-    const merged: PlatformDatabase = {
+    const merged: PlatformDatabase = normalizeClientMitaliText({
       ...INITIAL_PLATFORM_DATA,
       ...parsed,
       pages: mergedPages,
@@ -190,7 +236,7 @@ function loadLocalDbSnapshot(includeDrafts = false): PlatformDatabase {
         facebookUrl: 'https://www.facebook.com/SoliMedical/',
         telegramBotUrl: 'https://t.me/SoliMedicalproBot',
       },
-    };
+    });
     return includeDrafts ? merged : stripDraftRecords(merged);
   } catch {
     return includeDrafts ? INITIAL_PLATFORM_DATA : stripDraftRecords(INITIAL_PLATFORM_DATA);
@@ -221,7 +267,10 @@ function readCandidateAdminSession(): AdminUserSession | null {
 
 function saveLocalDbSnapshot(nextDb: PlatformDatabase): void {
   try {
-    localStorage.setItem(STORAGE_LOCAL_CMS_DB_KEY, JSON.stringify(nextDb));
+    localStorage.setItem(
+      STORAGE_LOCAL_CMS_DB_KEY,
+      JSON.stringify(normalizeClientMitaliText(nextDb))
+    );
   } catch {
     // ignore storage quota errors
   }
