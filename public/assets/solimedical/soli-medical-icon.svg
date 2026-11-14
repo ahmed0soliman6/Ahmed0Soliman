@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#070E1A" />
+      <stop offset="50%" stop-color="#0A1628" />
+      <stop offset="100%" stop-color="#040B14" />
+    </linearGradient>
+    <linearGradient id="cyanGlow" x1="120" y1="120" x2="420" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00D4FF" />
+      <stop offset="100%" stop-color="#0096C7" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)" stroke="#00C2CB" stroke-width="6" stroke-opacity="0.55" />
+  <path d="M40 276 H112 L134 218 L160 330 L188 164 L218 312 L242 260 H276" stroke="#00D4FF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" />
+  <path d="M168 182 C156 154 114 148 92 170 C70 192 84 226 122 238 C164 252 180 282 162 314 C144 344 96 346 74 316" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" fill="none" />
+  <path d="M254 334 L302 184 L348 286 L394 184 L436 334" stroke="url(#cyanGlow)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#glow)" />
+  <text x="256" y="424" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="44" fill="#FFFFFF">
+    Soli <tspan fill="#00D4FF">Medical</tspan>
+  </text>
+  <line x1="166" y1="448" x2="346" y2="448" stroke="#00C2CB" stroke-width="5" stroke-linecap="round" />
+</svg>

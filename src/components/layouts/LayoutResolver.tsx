@@ -325,26 +325,16 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
           <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4">
             {/* Brand identity container (strictly non-navigating inside Standalone mode) */}
             <div className="flex items-center gap-3 min-w-0">
-              {standaloneLogoUrl ? (
-                <img
-                  src={standaloneLogoUrl}
-                  alt={resolvedStandaloneTitle}
-                  className="w-9 h-9 rounded-xl object-contain bg-white border border-slate-200 p-1 shrink-0"
-                />
-              ) : (
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{
-                    backgroundColor: isDarkStandaloneWorld
-                      ? '#00D4FF'
-                      : isEditorialStandaloneWorld
-                      ? '#18181B'
-                      : isMagazineStandaloneWorld
-                      ? '#16382E'
-                      : standaloneAccentColor,
-                  }}
-                />
-              )}
+              <img
+                src={
+                  standaloneLogoUrl ||
+                  (pageWorld === 'about-editorial' || pageWorld === 'home-avoshu'
+                    ? '/assets/images/soli-personal-icon.jpg'
+                    : '/assets/solimedical/soli-medical-icon.svg')
+                }
+                alt={resolvedStandaloneTitle}
+                className="w-8 h-8 rounded-xl object-cover border border-slate-200/40 shadow-xs shrink-0"
+              />
               <div className="min-w-0">
                 <span className="block text-sm sm:text-base font-extrabold tracking-tight truncate">
                   {resolvedStandaloneTitle}
@@ -439,11 +429,11 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
                 className="flex items-center gap-2.5 text-sm font-black tracking-tight text-zinc-900 hover:opacity-80 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <img
-                  src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
-                  alt={locale === 'ar' ? 'أحمد سليمان' : 'Ahmed Soliman'}
+                  src="/assets/images/soli-personal-icon.jpg"
+                  alt={locale === 'ar' ? 'من أنا' : 'About'}
                   className="w-8 h-8 rounded-xl object-cover border border-zinc-300 shadow-xs shrink-0"
                 />
-                <span>{locale === 'ar' ? 'أحمد سليمان' : 'AHMED SOLIMAN'}</span>
+                <span>{locale === 'ar' ? 'من أنا' : 'ABOUT'}</span>
               </button>
 
               {!hideVisitorNav && (
@@ -533,11 +523,11 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               className="text-base sm:text-lg font-black tracking-wider text-white whitespace-nowrap shrink-0 flex items-center gap-2.5 cursor-pointer"
             >
               <img
-                src="/soli-medical-icon.svg"
+                src="/assets/solimedical/soli-medical-icon.svg"
                 alt="Soli Medical"
                 className="w-8 h-8 rounded-xl object-cover border border-indigo-400/30 shadow-xs shrink-0"
               />
-              <span>{locale === 'ar' ? 'أحمد سليمان · المشروعات' : 'AHMED.PORTFOLIO'}</span>
+              <span>{locale === 'ar' ? 'المشروعات' : 'PROJECTS'}</span>
             </button>
 
             {!hideVisitorNav && (
@@ -613,22 +603,13 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               onClick={() => navigate(`/${locale}/clinics`)}
               className="flex items-center gap-2.5 text-slate-900 font-extrabold text-base sm:text-lg whitespace-nowrap shrink-0 cursor-pointer"
             >
-              {standaloneLogoUrl ? (
-                <img
-                  src={standaloneLogoUrl}
-                  alt={standaloneTitle || settings.brandName[locale]}
-                  className="w-8 h-8 rounded-xl object-contain bg-white border border-slate-200 p-1 shrink-0"
-                />
-              ) : (
-                <span
-                  className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-bold text-sm shadow-xs"
-                  style={{ backgroundColor: standaloneAccentColor || '#0D9488' }}
-                >
-                  +
-                </span>
-              )}
+              <img
+                src={standaloneLogoUrl || '/assets/solimedical/soli-medical-icon.svg'}
+                alt={standaloneTitle || 'Soli Medical'}
+                className="w-8 h-8 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0"
+              />
               <span>
-                {locale === 'ar' ? 'دليل العيادات · أحمد سليمان' : 'Medical Clinics Portal'}
+                {locale === 'ar' ? 'دليل العيادات' : 'Medical Clinics Portal'}
               </span>
             </button>
 
@@ -706,12 +687,12 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               className="text-base sm:text-lg font-black tracking-tight text-stone-900 dark:text-[#F5F3EE] whitespace-nowrap shrink-0 flex items-center gap-2.5 cursor-pointer"
             >
               <img
-                src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
-                alt={locale === 'ar' ? 'أحمد سليمان' : 'Ahmed Soliman'}
+                src="/assets/solimedical/soli-medical-icon.svg"
+                alt="Soli Medical"
                 className="w-8 h-8 rounded-xl object-cover border border-stone-300 dark:border-stone-700 shadow-xs shrink-0"
               />
               <span>
-                {locale === 'ar' ? 'مجلة المعرفة · أحمد سليمان' : 'THE KNOWLEDGE JOURNAL'}
+                {locale === 'ar' ? 'مجلة المعرفة' : 'THE KNOWLEDGE JOURNAL'}
               </span>
             </button>
 
@@ -810,14 +791,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
               className="flex items-center gap-3 text-white font-extrabold text-sm sm:text-base whitespace-nowrap shrink-0 cursor-pointer"
             >
               <img
-                src="/soli-medical-icon.svg"
+                src="/assets/solimedical/soli-medical-icon.svg"
                 alt="Soli Medical"
                 className="w-8 h-8 rounded-xl object-cover border border-[#00D4FF]/35 shadow-[0_0_12px_rgba(0,212,255,0.25)] shrink-0"
               />
               <span>
                 {locale === 'ar'
-                  ? 'أحمد سليمان · الحلول والأنظمة الطبية'
-                  : 'Ahmed Soliman · Medical Systems'}
+                  ? 'الحلول والأنظمة الطبية'
+                  : 'Medical Systems'}
               </span>
             </button>
 
@@ -888,14 +869,14 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
 
   return (
     <div className={`relative min-h-screen flex flex-col transition-colors duration-300 ${getWorldContainerClasses()}`}>
-      {/* Subtle Brand Atmospheric Background Layer */}
-      {!isAdminRoute && (
+      {/* Subtle Brand Atmospheric Background Layer (Personal pages only: Home & About) */}
+      {!isAdminRoute && (pageWorld === 'home-avoshu' || pageWorld === 'about-editorial') && (
         <div
           aria-hidden="true"
           className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
         >
           <img
-            src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+            src="/assets/images/soli-personal-icon.jpg"
             alt=""
             className="w-full h-full object-cover object-center opacity-[0.045] dark:opacity-[0.07] blur-[2px] scale-105"
           />

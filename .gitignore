@@ -11,6 +11,10 @@ coverage/
 public/assets/aistudio/*
 !public/assets/aistudio/1770146906397_16665dd0.png
 !public/assets/aistudio/logo_ae3842b8.png
+!public/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg
+!public/assets/aistudio/soli_medical_app_icon.jpg
+!public/assets/aistudio/owner_portrait.jpg
+!public/assets/aistudio/owner_portrait.png
 **/*Screenshot*
 **/image_*.png
 **/index_*.html

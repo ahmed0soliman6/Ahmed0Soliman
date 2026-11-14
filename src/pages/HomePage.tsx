@@ -235,7 +235,7 @@ export const HomePage: React.FC = () => {
           className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
         >
           <img
-            src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+            src="/assets/images/soli-personal-icon.jpg"
             alt=""
             className={`w-full h-full object-cover object-center scale-105 transition-opacity duration-500 ${
               isLight ? 'opacity-[0.06] blur-[1px]' : 'opacity-[0.11] blur-[1px]'
@@ -270,7 +270,7 @@ export const HomePage: React.FC = () => {
                   }`}
                 >
                   <img
-                    src="/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg"
+                    src="/assets/images/soli-personal-icon.jpg"
                     alt={settings.ownerName[locale]}
                     className="w-full h-full object-cover"
                   />
@@ -356,7 +356,7 @@ export const HomePage: React.FC = () => {
                       src={
                         adminSession.photoUrl ||
                         settings.avatarUrl ||
-                        '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg'
+                        '/assets/images/soli-personal-icon.jpg'
                       }
                       alt={adminSession.name || 'Admin'}
                       referrerPolicy="no-referrer"

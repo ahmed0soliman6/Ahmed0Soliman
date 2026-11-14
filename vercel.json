@@ -67,7 +67,7 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/((?!api/|data/public-snapshot\\.json|assets/|src/assets/|favicon\\.ico|robots\\.txt|sitemap\\.xml).*)",
+      "source": "/((?!api/|data/public-snapshot\\.json|assets/|src/assets/|favicon\\.ico|apple-touch-icon\\.png|pwa-192x192\\.png|pwa-512x512\\.png|soli-medical-icon\\.svg|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
   ]

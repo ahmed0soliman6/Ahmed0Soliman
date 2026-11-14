@@ -20,8 +20,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
 }) => {
   const title = (seo?.title?.[locale] || fallbackTitle).trim();
   const description = (seo?.description?.[locale] || fallbackDescription).trim();
-  const ogImage =
-    seo?.ogImage || '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg';
+  const ogImage = seo?.ogImage || '/assets/images/soli-personal-icon.jpg';
   const noindex = Boolean(seo?.noindex || pathname.startsWith('/admin'));
 
   useEffect(() => {
@@ -56,16 +55,17 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     const origin = window.location.origin;
 
     // Dynamic Browser Tab Icon & Mobile Web App Icon:
-    // - Personal pages (Home, About, Blog): Combined Portrait + Soli Medical Icon (/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg)
-    // - Projects & Medical Systems: Soli Medical Logo (/soli-medical-icon.svg)
-    const isSystemsOrProjectsPage =
-      pathname.includes('/projects') ||
-      pathname.includes('/solimedical') ||
-      pathname.includes('/clinics');
-    const activeIconHref = isSystemsOrProjectsPage
-      ? '/soli-medical-icon.svg'
-      : '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg';
-    const activeIconType = isSystemsOrProjectsPage ? 'image/svg+xml' : 'image/jpeg';
+    // - Personal pages ONLY (Home & About): Personal Portrait Icon (/assets/images/soli-personal-icon.jpg)
+    // - Blog/Articles, Projects, Clinics & Soli Medical: Soli Medical Logo (/assets/solimedical/soli-medical-icon.svg)
+    const strippedRoute = pathname.replace(/^\/(ar|en)(?=\/|$)/, '') || '/';
+    const isPersonalPage =
+      strippedRoute === '/' ||
+      strippedRoute === '/about' ||
+      strippedRoute.startsWith('/about/');
+    const activeIconHref = isPersonalPage
+      ? '/assets/images/soli-personal-icon.jpg'
+      : '/assets/solimedical/soli-medical-icon.svg';
+    const activeIconType = isPersonalPage ? 'image/jpeg' : 'image/svg+xml';
 
     setLink('link[rel="icon"]', {
       rel: 'icon',
@@ -75,7 +75,9 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     setLink('link[rel="apple-touch-icon"]', {
       rel: 'apple-touch-icon',
       sizes: '180x180',
-      href: '/assets/aistudio/Gemini_Generated_Image_rrxm1qrrxm1qrrxm_8c6d3ca9.jpg',
+      href: isPersonalPage
+        ? '/assets/images/soli-personal-icon.jpg'
+        : '/assets/solimedical/soli-medical-icon.svg',
     });
 
     // Compute canonical path cleanly without duplicate aliases
